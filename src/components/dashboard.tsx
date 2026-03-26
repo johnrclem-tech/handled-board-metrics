@@ -6,7 +6,8 @@ import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
 import { FinancialTable } from "@/components/financial-table"
 import { RevenueChart } from "@/components/revenue-chart"
-import { Package, BarChart3, Upload, Table2 } from "lucide-react"
+import { CohortRevenueTable } from "@/components/cohort-revenue-table"
+import { Package, BarChart3, Upload, Table2, Users } from "lucide-react"
 
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
@@ -42,6 +43,10 @@ export function Dashboard() {
               <Table2 className="h-4 w-4" />
               Financial Data
             </TabsTrigger>
+            <TabsTrigger value="cohort" className="gap-2">
+              <Users className="h-4 w-4" />
+              Cohort Analysis
+            </TabsTrigger>
             <TabsTrigger value="upload" className="gap-2">
               <Upload className="h-4 w-4" />
               Import Data
@@ -57,6 +62,10 @@ export function Dashboard() {
 
           <TabsContent value="financials">
             <FinancialTable key={`table-${refreshKey}`} />
+          </TabsContent>
+
+          <TabsContent value="cohort">
+            <CohortRevenueTable key={`cohort-${refreshKey}`} />
           </TabsContent>
 
           <TabsContent value="upload">
