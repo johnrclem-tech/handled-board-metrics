@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { parseExcelFile } from "@/lib/excel-parser"
 import { getDb } from "@/lib/db"
 import { financialData, uploads } from "@/lib/db/schema"
+import { and, eq, inArray } from "drizzle-orm"
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,8 +22,22 @@ export async function POST(request: NextRequest) {
     const parsed = parseExcelFile(buffer, reportType)
     const db = getDb()
 
-    // Collect unique periods for metadata
+    // Collect unique periods and categories for metadata
     const uniquePeriods = [...new Set(parsed.rows.map((r) => r.period))].sort()
+    const uniqueCategories = [...new Set(parsed.rows.map((r) => r.category))]
+
+    // Delete existing data for the same category and periods being imported
+    // This ensures re-uploading a file overwrites old values instead of duplicating
+    if (uniquePeriods.length > 0 && uniqueCategories.length > 0) {
+      await db
+        .delete(financialData)
+        .where(
+          and(
+            inArray(financialData.category, uniqueCategories),
+            inArray(financialData.period, uniquePeriods)
+          )
+        )
+    }
 
     // Insert upload record
     const [upload] = await db

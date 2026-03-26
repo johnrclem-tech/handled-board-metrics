@@ -4,8 +4,9 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Users } from "lucide-react"
+import { Users, RefreshCw } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -51,13 +52,26 @@ function formatCurrency(value: number): string {
 export function CohortRevenueTable() {
   const [data, setData] = useState<CohortResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+
+  const fetchData = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    else setLoading(true)
+
+    try {
+      const res = await fetch("/api/metrics/cohort-revenue")
+      const result = await res.json()
+      setData(result)
+    } catch (err) {
+      console.error("Failed to fetch cohort data:", err)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
-    fetch("/api/metrics/cohort-revenue")
-      .then((res) => res.json())
-      .then((result) => setData(result))
-      .catch((err) => console.error("Failed to fetch cohort data:", err))
-      .finally(() => setLoading(false))
+    fetchData()
   }, [])
 
   if (loading) {
@@ -122,13 +136,19 @@ export function CohortRevenueTable() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Customer Cohort Revenue Analysis</CardTitle>
-            <CardDescription>
-              Average revenue per billing month for new customers (excluding {metadata.excludedCustomers} pre-existing customers).
-              Tracking {metadata.totalCustomers} new customers from {metadata.earliestPeriod} to {metadata.latestPeriod}.
-              $0 months after first billing are included to reflect churn.
-            </CardDescription>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Customer Cohort Revenue Analysis</CardTitle>
+              <CardDescription>
+                Average revenue per billing month for new customers (excluding {metadata.excludedCustomers} pre-existing customers).
+                Tracking {metadata.totalCustomers} new customers from {metadata.earliestPeriod} to {metadata.latestPeriod}.
+                $0 months after first billing are included to reflect churn.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1">
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
