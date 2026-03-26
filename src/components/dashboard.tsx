@@ -6,11 +6,13 @@ import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
 import { FinancialTable } from "@/components/financial-table"
 import { RevenueChart } from "@/components/revenue-chart"
+import { CohortSummaryChart } from "@/components/cohort-summary-chart"
 import { CohortRevenueTable } from "@/components/cohort-revenue-table"
 import { Package, BarChart3, Upload, Table2, Users } from "lucide-react"
 
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
+  const [activeTab, setActiveTab] = useState("overview")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -33,7 +35,7 @@ export function Dashboard() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs defaultValue="overview" className="space-y-6" value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -56,6 +58,7 @@ export function Dashboard() {
           <TabsContent value="overview">
             <div className="space-y-6">
               <KpiOverview key={`kpi-${refreshKey}`} />
+              <CohortSummaryChart key={`cohort-summary-${refreshKey}`} onViewDetails={() => setActiveTab("cohort")} />
               <RevenueChart key={`chart-${refreshKey}`} />
             </div>
           </TabsContent>
