@@ -5,29 +5,128 @@ export interface ParsedRow {
   subcategory: string | null
   accountName: string
   amount: number
+  period: string
+  periodStart: string
+  periodEnd: string
 }
 
 export interface ParsedReport {
   reportType: string
-  period: string
-  periodStart: string
-  periodEnd: string
   rows: ParsedRow[]
 }
 
-export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedReport {
-  const workbook = XLSX.read(buffer, { type: "array" })
-  const sheetName = workbook.SheetNames[0]
-  const worksheet = workbook.Sheets[sheetName]
-  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+const MONTH_YEAR_PATTERN = /^(\w+)\s+(\d{4})$/
 
-  // Try to detect period from headers or filename
+function parseMonthHeader(header: string): { period: string; periodStart: string; periodEnd: string } | null {
+  const match = header.trim().match(MONTH_YEAR_PATTERN)
+  if (!match) return null
+
+  const parsed = new Date(`${match[1]} 1, ${match[2]}`)
+  if (isNaN(parsed.getTime())) return null
+
+  const year = parsed.getFullYear()
+  const month = parsed.getMonth()
+  const period = `${year}-${String(month + 1).padStart(2, "0")}`
+  const periodStart = new Date(year, month, 1).toISOString().slice(0, 10)
+  const periodEnd = new Date(year, month + 1, 0).toISOString().slice(0, 10)
+
+  return { period, periodStart, periodEnd }
+}
+
+function parseCellAmount(val: unknown): number | null {
+  if (typeof val === "number") return val
+  if (typeof val === "string") {
+    const cleaned = val.replace(/[$,()]/g, "").trim()
+    const parsed = parseFloat(cleaned)
+    if (!isNaN(parsed)) {
+      return val.includes("(") ? -parsed : parsed
+    }
+  }
+  return null
+}
+
+/**
+ * Parse QuickBooks "Revenue by Customer" style reports.
+ * Layout: Row 5 has month headers across columns, rows 6+ have customer names
+ * in column A with amounts in each month's column.
+ */
+function parseRevenueByCustomer(rawData: unknown[][], reportType: string): ParsedReport {
+  const rows: ParsedRow[] = []
+
+  // Find the header row containing month/year strings (e.g., "September 2024")
+  let headerRowIndex = -1
+  let monthColumns: { colIndex: number; period: string; periodStart: string; periodEnd: string }[] = []
+
+  for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+    const row = rawData[i] as unknown[]
+    if (!row) continue
+
+    const candidates: typeof monthColumns = []
+    for (let j = 1; j < row.length; j++) {
+      const cell = row[j]
+      if (typeof cell === "string") {
+        const parsed = parseMonthHeader(cell)
+        if (parsed) {
+          candidates.push({ colIndex: j, ...parsed })
+        }
+      }
+    }
+
+    // If we found 2+ month headers in this row, it's the header row
+    if (candidates.length >= 2) {
+      headerRowIndex = i
+      monthColumns = candidates
+      break
+    }
+  }
+
+  if (headerRowIndex === -1 || monthColumns.length === 0) {
+    // Fallback: couldn't detect month headers
+    return { reportType, rows: [] }
+  }
+
+  // Process data rows after the header
+  for (let i = headerRowIndex + 1; i < rawData.length; i++) {
+    const row = rawData[i] as unknown[]
+    if (!row || row.length === 0) continue
+
+    const customerName = String(row[0] || "").trim()
+    if (!customerName) continue
+
+    // Skip total/summary rows
+    if (customerName.toLowerCase().startsWith("total")) continue
+
+    // For each month column, create a record if there's a value
+    for (const col of monthColumns) {
+      const amount = parseCellAmount(row[col.colIndex])
+      if (amount !== null && amount !== 0) {
+        rows.push({
+          category: "Revenue",
+          subcategory: null,
+          accountName: customerName,
+          amount,
+          period: col.period,
+          periodStart: col.periodStart,
+          periodEnd: col.periodEnd,
+        })
+      }
+    }
+  }
+
+  return { reportType, rows }
+}
+
+/**
+ * Parse standard QuickBooks P&L / Balance Sheet / Cash Flow reports.
+ * Layout: Column A has account names, last column has amounts.
+ */
+function parseProfitLoss(rawData: unknown[][], reportType: string): ParsedReport {
+  // Try to detect period from headers
   const headers = (rawData[0] || []) as string[]
   let period = new Date().toISOString().slice(0, 7)
   let periodStart = new Date().toISOString().slice(0, 10)
   let periodEnd = new Date().toISOString().slice(0, 10)
 
-  // Look for date patterns in headers
   for (const header of headers || []) {
     if (typeof header === "string") {
       const dateMatch = header.match(/(\w+\s+\d{4})|(\d{1,2}\/\d{1,2}\/\d{4})|(\d{4}-\d{2})/)
@@ -46,9 +145,6 @@ export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedR
   let currentCategory = ""
   let currentSubcategory: string | null = null
 
-  // Process rows - QuickBooks P&L typically has:
-  // Column A: Account name (with indentation for hierarchy)
-  // Last column(s): Amount(s)
   for (let i = 1; i < rawData.length; i++) {
     const row = rawData[i] as (string | number)[]
     if (!row || row.length === 0) continue
@@ -59,22 +155,10 @@ export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedR
     // Find the last numeric value in the row
     let amount: number | null = null
     for (let j = row.length - 1; j >= 1; j--) {
-      const val = row[j]
-      if (typeof val === "number") {
-        amount = val
-        break
-      }
-      if (typeof val === "string") {
-        const cleaned = val.replace(/[$,()]/g, "").trim()
-        const parsed = parseFloat(cleaned)
-        if (!isNaN(parsed)) {
-          amount = val.includes("(") ? -parsed : parsed
-          break
-        }
-      }
+      amount = parseCellAmount(row[j])
+      if (amount !== null) break
     }
 
-    // Detect category headers (usually bold/uppercase or "Total" lines)
     const isTotalLine = firstCell.toLowerCase().startsWith("total ")
     const isMainCategory = firstCell === firstCell.toUpperCase() && firstCell.length > 2 && !isTotalLine
 
@@ -84,10 +168,7 @@ export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedR
       continue
     }
 
-    if (isTotalLine) {
-      // Skip total lines as they're calculated
-      continue
-    }
+    if (isTotalLine) continue
 
     if (amount !== null) {
       rows.push({
@@ -95,18 +176,27 @@ export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedR
         subcategory: currentSubcategory,
         accountName: firstCell,
         amount,
+        period,
+        periodStart,
+        periodEnd,
       })
     } else if (!isTotalLine) {
-      // Could be a subcategory header
       currentSubcategory = firstCell
     }
   }
 
-  return {
-    reportType,
-    period,
-    periodStart,
-    periodEnd,
-    rows,
+  return { reportType, rows }
+}
+
+export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedReport {
+  const workbook = XLSX.read(buffer, { type: "array" })
+  const sheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[sheetName]
+  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+
+  if (reportType === "revenue_by_customer") {
+    return parseRevenueByCustomer(rawData, reportType)
   }
+
+  return parseProfitLoss(rawData, reportType)
 }

@@ -21,6 +21,9 @@ export async function POST(request: NextRequest) {
     const parsed = parseExcelFile(buffer, reportType)
     const db = getDb()
 
+    // Collect unique periods for metadata
+    const uniquePeriods = [...new Set(parsed.rows.map((r) => r.period))].sort()
+
     // Insert upload record
     const [upload] = await db
       .insert(uploads)
@@ -29,7 +32,7 @@ export async function POST(request: NextRequest) {
         fileType: reportType,
         recordCount: parsed.rows.length,
         status: "processed",
-        metadata: { period: parsed.period },
+        metadata: { periods: uniquePeriods },
       })
       .returning()
 
@@ -38,9 +41,9 @@ export async function POST(request: NextRequest) {
       await db.insert(financialData).values(
         parsed.rows.map((row) => ({
           reportType: parsed.reportType,
-          period: parsed.period,
-          periodStart: parsed.periodStart,
-          periodEnd: parsed.periodEnd,
+          period: row.period,
+          periodStart: row.periodStart,
+          periodEnd: row.periodEnd,
           category: row.category,
           subcategory: row.subcategory,
           accountName: row.accountName,
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
       success: true,
       upload,
       rowCount: parsed.rows.length,
-      period: parsed.period,
+      periods: uniquePeriods,
     })
   } catch (error) {
     console.error("Upload error:", error)
