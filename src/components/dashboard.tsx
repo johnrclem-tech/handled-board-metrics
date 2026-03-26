@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
@@ -10,6 +10,10 @@ import { Package, BarChart3, Upload, Table2 } from "lucide-react"
 
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
+
+  useEffect(() => {
+    fetch("/api/setup").catch(() => {})
+  }, [])
 
   const handleUploadComplete = () => {
     setRefreshKey((prev) => prev + 1)
