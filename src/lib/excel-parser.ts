@@ -50,7 +50,15 @@ function parseCellAmount(val: unknown): number | null {
  * Layout: Row 5 has month headers across columns, rows 6+ have customer names
  * in column A with amounts in each month's column.
  */
+const REPORT_TYPE_CATEGORIES: Record<string, string> = {
+  storage_revenue_by_customer: "Storage Revenue",
+  shipping_revenue_by_customer: "Shipping Revenue",
+  handling_revenue_by_customer: "Handling Revenue",
+  revenue_by_customer: "Revenue",
+}
+
 function parseRevenueByCustomer(rawData: unknown[][], reportType: string): ParsedReport {
+  const category = REPORT_TYPE_CATEGORIES[reportType] || "Revenue"
   const rows: ParsedRow[] = []
 
   // Find the header row containing month/year strings (e.g., "September 2024")
@@ -101,7 +109,7 @@ function parseRevenueByCustomer(rawData: unknown[][], reportType: string): Parse
       const amount = parseCellAmount(row[col.colIndex])
       if (amount !== null && amount !== 0) {
         rows.push({
-          category: "Revenue",
+          category,
           subcategory: null,
           accountName: customerName,
           amount,
@@ -194,7 +202,14 @@ export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedR
   const worksheet = workbook.Sheets[sheetName]
   const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
 
-  if (reportType === "revenue_by_customer") {
+  const revenueByCustomerTypes = [
+    "revenue_by_customer",
+    "storage_revenue_by_customer",
+    "shipping_revenue_by_customer",
+    "handling_revenue_by_customer",
+  ]
+
+  if (revenueByCustomerTypes.includes(reportType)) {
     return parseRevenueByCustomer(rawData, reportType)
   }
 

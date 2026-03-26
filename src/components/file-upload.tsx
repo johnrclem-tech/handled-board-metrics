@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Trash2 } from "lucide-react"
 import { useEffect } from "react"
 
 interface UploadRecord {
@@ -122,6 +122,30 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     }
   }
 
+  const handleClearData = async () => {
+    if (!confirm("Are you sure you want to delete all imported data? This cannot be undone.")) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/clear-data", { method: "POST" })
+      const data = await response.json()
+
+      if (response.ok) {
+        setResult({ success: true, message: "All data cleared successfully" })
+        setUploads([])
+        onUploadComplete()
+      } else {
+        setResult({ success: false, message: data.error || "Failed to clear data" })
+      }
+    } catch (error) {
+      setResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Failed to clear data",
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -176,7 +200,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                   <SelectItem value="profit_loss">Profit & Loss</SelectItem>
                   <SelectItem value="balance_sheet">Balance Sheet</SelectItem>
                   <SelectItem value="cash_flow">Cash Flow Statement</SelectItem>
-                  <SelectItem value="revenue_by_customer">Revenue by Customer</SelectItem>
+                  <SelectItem value="storage_revenue_by_customer">Monthly Storage Revenue by Customer</SelectItem>
+                  <SelectItem value="shipping_revenue_by_customer">Monthly Shipping Revenue by Customer</SelectItem>
+                  <SelectItem value="handling_revenue_by_customer">Monthly Handling Revenue by Customer</SelectItem>
                   <SelectItem value="expenses_by_vendor">Expenses by Vendor</SelectItem>
                   <SelectItem value="ar_aging">Accounts Receivable Aging</SelectItem>
                   <SelectItem value="ap_aging">Accounts Payable Aging</SelectItem>
@@ -225,8 +251,16 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       {uploads.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Upload History</CardTitle>
-            <CardDescription>Previously imported files</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Upload History</CardTitle>
+                <CardDescription>Previously imported files</CardDescription>
+              </div>
+              <Button variant="destructive" size="sm" onClick={handleClearData}>
+                <Trash2 className="h-4 w-4" />
+                Clear All Data
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <Table>
