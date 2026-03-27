@@ -22,7 +22,6 @@ import { FileUpload } from "@/components/file-upload"
 import { FinancialTable } from "@/components/financial-table"
 import { RevenueChart } from "@/components/revenue-chart"
 import { CohortSummaryChart } from "@/components/cohort-summary-chart"
-import { CohortRevenueTable } from "@/components/cohort-revenue-table"
 import { ConcentrationChart } from "@/components/concentration-chart"
 import { NewCustomersChart } from "@/components/new-customers-chart"
 import { ExistingCustomersChart } from "@/components/existing-customers-chart"
@@ -35,7 +34,6 @@ export interface CohortDrillFilter {
 
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
-  cohort: "Cohort Analysis",
   financials: "Revenue",
 }
 
@@ -102,7 +100,7 @@ export function Dashboard() {
               </div>
               <CohortSummaryChart
                 key={`cohort-summary-${refreshKey}`}
-                onViewDetails={() => setActivePage("cohort")}
+                onViewDetails={() => {}}
                 onDrill={handleCohortDrill}
               />
               <FinancialTable
@@ -114,12 +112,7 @@ export function Dashboard() {
             </div>
           )}
 
-          {activePage === "cohort" && (
-            <CohortRevenueTable
-              key={`cohort-${refreshKey}`}
-              onDrill={handleCohortDrill}
-            />
-          )}
+
         </main>
       </SidebarInset>
 

@@ -12,12 +12,11 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Package, BarChart3, Table2, Users, Settings } from "lucide-react"
+import { Package, BarChart3, Table2, Settings } from "lucide-react"
 
 const navItems = [
   { key: "overview", label: "KPI Overview", icon: BarChart3 },
   { key: "financials", label: "Revenue", icon: Table2 },
-  { key: "cohort", label: "Cohort Analysis", icon: Users },
 ]
 
 interface AppSidebarProps {
