@@ -17,6 +17,7 @@ import { RevenueChart } from "@/components/revenue-chart"
 import { CohortSummaryChart } from "@/components/cohort-summary-chart"
 import { CohortRevenueTable } from "@/components/cohort-revenue-table"
 import { ConcentrationChart } from "@/components/concentration-chart"
+import { NewCustomersChart } from "@/components/new-customers-chart"
 
 export interface CohortDrillFilter {
   billingMonth: number
@@ -86,6 +87,7 @@ export function Dashboard() {
                 onViewDetails={() => setActivePage("cohort")}
                 onDrill={handleCohortDrill}
               />
+              <NewCustomersChart key={`new-customers-${refreshKey}`} />
               <RevenueChart key={`chart-${refreshKey}`} />
             </div>
           )}

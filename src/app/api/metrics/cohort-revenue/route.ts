@@ -179,6 +179,15 @@ export async function GET() {
         }))
     }
 
+    // Count new customers per calendar month
+    const newCustomersByMonth = new Map<string, number>()
+    for (const [, firstMonth] of customerFirstMonth) {
+      newCustomersByMonth.set(firstMonth, (newCustomersByMonth.get(firstMonth) || 0) + 1)
+    }
+    const newCustomers = [...newCustomersByMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([period, count]) => ({ period, count }))
+
     return NextResponse.json({
       cohortData: {
         storage: toArray(storageSums),
@@ -186,6 +195,7 @@ export async function GET() {
         handling: toArray(handlingSums),
         total: toArray(totalSums),
       },
+      newCustomers,
       metadata: {
         totalCustomers: customerFirstMonth.size,
         excludedCustomers: excludedCustomers.size,
