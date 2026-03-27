@@ -9,6 +9,13 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { AppSidebar } from "@/components/app-sidebar"
 import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
@@ -30,14 +37,14 @@ const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
   cohort: "Cohort Analysis",
   concentration: "Customer Concentration",
-  financials: "Financial Data",
-  upload: "Import Data",
+  financials: "Revenue",
 }
 
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("overview")
   const [drillFilter, setDrillFilter] = useState<CohortDrillFilter | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -99,6 +106,7 @@ export function Dashboard() {
               key={`table-${refreshKey}`}
               drillFilter={drillFilter}
               onClearDrill={handleClearDrill}
+              onImport={() => setImportOpen(true)}
             />
           )}
 
@@ -112,12 +120,23 @@ export function Dashboard() {
           {activePage === "concentration" && (
             <ConcentrationChart key={`concentration-${refreshKey}`} />
           )}
-
-          {activePage === "upload" && (
-            <FileUpload onUploadComplete={handleUploadComplete} />
-          )}
         </main>
       </SidebarInset>
+
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Import Data</DialogTitle>
+            <DialogDescription>
+              Upload QuickBooks Excel exports to populate your dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          <FileUpload onUploadComplete={() => {
+            handleUploadComplete()
+            setImportOpen(false)
+          }} />
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   )
 }

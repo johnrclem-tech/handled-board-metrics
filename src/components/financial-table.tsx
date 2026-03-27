@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Package, X, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Check, ChevronsUpDown } from "lucide-react"
+import { Search, Package, X, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Check, ChevronsUpDown, Upload } from "lucide-react"
 import type { CohortDrillFilter } from "@/components/dashboard"
 import { cn } from "@/lib/utils"
 
@@ -28,6 +28,7 @@ const PAGE_SIZE = 250
 interface FinancialTableProps {
   drillFilter?: CohortDrillFilter | null
   onClearDrill?: () => void
+  onImport?: () => void
 }
 
 function MultiSelect({
@@ -127,7 +128,7 @@ function MultiSelect({
   )
 }
 
-export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProps) {
+export function FinancialTable({ drillFilter, onClearDrill, onImport }: FinancialTableProps) {
   const [data, setData] = useState<FinancialRecord[]>([])
   const [allPeriods, setAllPeriods] = useState<string[]>([])
   const [allCategories, setAllCategories] = useState<string[]>([])
@@ -362,7 +363,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <CardTitle>Financial Data</CardTitle>
+            <CardTitle>Revenue Data</CardTitle>
             <CardDescription>
               {drillLabel
                 ? `Showing records for: ${drillLabel}`
@@ -370,6 +371,12 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
             </CardDescription>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {onImport && (
+              <Button variant="default" size="sm" onClick={onImport} className="gap-1">
+                <Upload className="h-4 w-4" />
+                Import
+              </Button>
+            )}
             {drillLabel ? (
               <Button variant="outline" size="sm" onClick={handleClearDrill} className="gap-1">
                 <X className="h-4 w-4" />
