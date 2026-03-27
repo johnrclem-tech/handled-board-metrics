@@ -1,14 +1,14 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Package, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Search, Package, X, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Check, ChevronsUpDown } from "lucide-react"
 import type { CohortDrillFilter } from "@/components/dashboard"
+import { cn } from "@/lib/utils"
 
 interface FinancialRecord {
   id: number
@@ -23,31 +23,131 @@ interface FinancialRecord {
 type SortField = "accountName" | "category" | "period" | "amount"
 type SortDir = "asc" | "desc"
 
+const PAGE_SIZE = 250
+
 interface FinancialTableProps {
   drillFilter?: CohortDrillFilter | null
   onClearDrill?: () => void
 }
 
+function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder,
+  width = "w-[200px]",
+}: {
+  options: string[]
+  selected: Set<string>
+  onChange: (selected: Set<string>) => void
+  placeholder: string
+  width?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  const allSelected = selected.size === 0 || selected.size === options.length
+  const label = allSelected
+    ? `All ${placeholder}`
+    : selected.size === 1
+      ? [...selected][0]
+      : `${selected.size} selected`
+
+  const toggle = (value: string) => {
+    const next = new Set(selected)
+    if (next.has(value)) {
+      next.delete(value)
+    } else {
+      next.add(value)
+    }
+    // If all are selected, clear to mean "all"
+    if (next.size === options.length) {
+      onChange(new Set())
+    } else {
+      onChange(next)
+    }
+  }
+
+  const selectAll = () => {
+    onChange(new Set())
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant="outline"
+        role="combobox"
+        className={cn("justify-between text-sm font-normal", width)}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 shadow-md">
+          <div
+            className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+            onClick={selectAll}
+          >
+            <div className={cn("flex h-4 w-4 items-center justify-center rounded-sm border", allSelected ? "bg-primary border-primary" : "border-input")}>
+              {allSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+            </div>
+            All
+          </div>
+          <div className="max-h-60 overflow-auto">
+            {options.map((opt) => {
+              const isSelected = selected.has(opt)
+              return (
+                <div
+                  key={opt}
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                  onClick={() => toggle(opt)}
+                >
+                  <div className={cn("flex h-4 w-4 items-center justify-center rounded-sm border", isSelected ? "bg-primary border-primary" : "border-input")}>
+                    {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                  </div>
+                  {opt}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProps) {
   const [data, setData] = useState<FinancialRecord[]>([])
-  const [periods, setPeriods] = useState<string[]>([])
-  const [categories, setCategories] = useState<string[]>([])
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("")
-  const [selectedCategory, setSelectedCategory] = useState<string>("")
+  const [allPeriods, setAllPeriods] = useState<string[]>([])
+  const [allCategories, setAllCategories] = useState<string[]>([])
+  const [selectedPeriods, setSelectedPeriods] = useState<Set<string>>(new Set())
+  const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [drillLabel, setDrillLabel] = useState<string | null>(null)
   const [sortField, setSortField] = useState<SortField>("accountName")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     if (drillFilter) {
       fetchDrillData(drillFilter)
     } else {
       setDrillLabel(null)
-      fetchData()
+      fetchAllData()
     }
-  }, [drillFilter, selectedPeriod, selectedCategory])
+  }, [drillFilter])
 
   const fetchDrillData = async (filter: CohortDrillFilter) => {
     setLoading(true)
@@ -123,8 +223,9 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
             : avg.handling
 
       setData(rows)
-      setPeriods([])
-      setCategories([])
+      setAllPeriods([])
+      setAllCategories([])
+      setPage(1)
       setDrillLabel(
         `${filter.label} — ${detailData.customerCount} customers, avg ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(avgAmount)}`
       )
@@ -135,27 +236,17 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     }
   }
 
-  const fetchData = async () => {
+  const fetchAllData = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (selectedPeriod) params.set("period", selectedPeriod)
-      if (selectedCategory && selectedCategory !== "all") {
-        params.set("category", selectedCategory)
-      }
-
-      const response = await fetch(`/api/metrics?${params}`)
+      const response = await fetch("/api/metrics")
       const result = await response.json()
       setData(result.details || [])
-      setPeriods(result.periods || [])
+      setAllPeriods(result.periods || [])
 
-      // Extract unique categories from data
       const cats = [...new Set((result.details || []).map((r: FinancialRecord) => r.category))].sort() as string[]
-      setCategories(cats)
-
-      if (!selectedPeriod && result.periods?.length > 0) {
-        setSelectedPeriod(result.periods[0])
-      }
+      setAllCategories(cats)
+      setPage(1)
     } catch (error) {
       console.error("Failed to fetch data:", error)
     } finally {
@@ -175,6 +266,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       setSortField(field)
       setSortDir("asc")
     }
+    setPage(1)
   }
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -184,9 +276,20 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       : <ArrowDown className="h-3 w-3 ml-1" />
   }
 
-  const sortedAndFiltered = useMemo(() => {
+  const filtered = useMemo(() => {
     let result = data
 
+    // Filter by selected periods (empty set = all)
+    if (selectedPeriods.size > 0) {
+      result = result.filter((row) => selectedPeriods.has(row.period))
+    }
+
+    // Filter by selected categories (empty set = all)
+    if (selectedCategories.size > 0) {
+      result = result.filter((row) => selectedCategories.has(row.category))
+    }
+
+    // Search filter
     if (search) {
       const searchLower = search.toLowerCase()
       result = result.filter(
@@ -197,6 +300,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       )
     }
 
+    // Sort
     return [...result].sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1
       switch (sortField) {
@@ -212,7 +316,15 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
           return 0
       }
     })
-  }, [data, search, sortField, sortDir])
+  }, [data, selectedPeriods, selectedCategories, search, sortField, sortDir])
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1)
+  }, [selectedPeriods, selectedCategories, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const paginatedData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const formatCurrency = (value: string) =>
     new Intl.NumberFormat("en-US", {
@@ -231,7 +343,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     )
   }
 
-  if (data.length === 0 && !selectedPeriod && !drillLabel) {
+  if (data.length === 0 && !drillLabel) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-16">
@@ -254,10 +366,10 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
             <CardDescription>
               {drillLabel
                 ? `Showing records for: ${drillLabel}`
-                : "Detailed financial records from imported data"}
+                : `${filtered.length.toLocaleString()} records from imported data`}
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {drillLabel ? (
               <Button variant="outline" size="sm" onClick={handleClearDrill} className="gap-1">
                 <X className="h-4 w-4" />
@@ -265,31 +377,20 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
               </Button>
             ) : (
               <>
-                <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                  <SelectTrigger className="w-[140px]">
-                    <SelectValue placeholder="Period" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {periods.map((period) => (
-                      <SelectItem key={period} value={period}>
-                        {period}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-[200px]">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MultiSelect
+                  options={allPeriods}
+                  selected={selectedPeriods}
+                  onChange={setSelectedPeriods}
+                  placeholder="Periods"
+                  width="w-[160px]"
+                />
+                <MultiSelect
+                  options={allCategories}
+                  selected={selectedCategories}
+                  onChange={setSelectedCategories}
+                  placeholder="Categories"
+                  width="w-[200px]"
+                />
               </>
             )}
           </div>
@@ -308,67 +409,37 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("accountName")}
-              >
-                <span className="flex items-center">
-                  Customer
-                  <SortIcon field="accountName" />
-                </span>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("accountName")}>
+                <span className="flex items-center">Customer<SortIcon field="accountName" /></span>
               </TableHead>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("category")}
-              >
-                <span className="flex items-center">
-                  Category
-                  <SortIcon field="category" />
-                </span>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
+                <span className="flex items-center">Category<SortIcon field="category" /></span>
               </TableHead>
-              <TableHead
-                className="cursor-pointer select-none"
-                onClick={() => handleSort("period")}
-              >
-                <span className="flex items-center">
-                  Period
-                  <SortIcon field="period" />
-                </span>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("period")}>
+                <span className="flex items-center">Period<SortIcon field="period" /></span>
               </TableHead>
-              <TableHead
-                className="cursor-pointer select-none text-right"
-                onClick={() => handleSort("amount")}
-              >
-                <span className="flex items-center justify-end">
-                  Amount
-                  <SortIcon field="amount" />
-                </span>
+              <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("amount")}>
+                <span className="flex items-center justify-end">Amount<SortIcon field="amount" /></span>
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedAndFiltered.map((row) => (
+            {paginatedData.map((row) => (
               <TableRow key={row.id}>
                 <TableCell className="font-medium">{row.accountName}</TableCell>
                 <TableCell>
                   <Badge variant="outline">{row.category}</Badge>
                   {row.subcategory && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {row.subcategory}
-                    </span>
+                    <span className="ml-2 text-xs text-muted-foreground">{row.subcategory}</span>
                   )}
                 </TableCell>
                 <TableCell>{row.period}</TableCell>
-                <TableCell
-                  className={`text-right font-mono ${
-                    parseFloat(row.amount) < 0 ? "text-red-600" : ""
-                  }`}
-                >
+                <TableCell className={`text-right font-mono ${parseFloat(row.amount) < 0 ? "text-red-600" : ""}`}>
                   {formatCurrency(row.amount)}
                 </TableCell>
               </TableRow>
             ))}
-            {sortedAndFiltered.length === 0 && (
+            {paginatedData.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   {search ? "No matching records found" : drillLabel ? "No records for this cohort filter" : "No data for selected filters"}
@@ -377,6 +448,35 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
             )}
           </TableBody>
         </Table>
+
+        {filtered.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+            <span>
+              Showing {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <span>Page {page} of {totalPages}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
