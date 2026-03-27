@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getDb } from "@/lib/db"
 import { financialData } from "@/lib/db/schema"
-import { eq, and, sql, desc } from "drizzle-orm"
+import { eq, and, sql, desc, inArray } from "drizzle-orm"
 
 export const dynamic = "force-dynamic"
 
@@ -10,13 +10,34 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const period = searchParams.get("period")
     const reportType = searchParams.get("reportType")
+    const category = searchParams.get("category")
+    const customers = searchParams.get("customers")
+    const periods = searchParams.get("periods")
 
-    let conditions = []
+    const conditions = []
     if (period) {
       conditions.push(eq(financialData.period, period))
     }
+    if (periods) {
+      const periodList = periods.split(",").filter(Boolean)
+      if (periodList.length > 0) {
+        conditions.push(inArray(financialData.period, periodList))
+      }
+    }
     if (reportType) {
       conditions.push(eq(financialData.reportType, reportType))
+    }
+    if (category) {
+      const categoryList = category.split(",").filter(Boolean)
+      if (categoryList.length > 0) {
+        conditions.push(inArray(financialData.category, categoryList))
+      }
+    }
+    if (customers) {
+      const customerList = customers.split(",").filter(Boolean)
+      if (customerList.length > 0) {
+        conditions.push(inArray(financialData.accountName, customerList))
+      }
     }
 
     const db = getDb()
@@ -34,7 +55,7 @@ export async function GET(request: NextRequest) {
       .orderBy(financialData.period)
 
     // Get all available periods
-    const periods = await db
+    const allPeriods = await db
       .selectDistinct({ period: financialData.period })
       .from(financialData)
       .orderBy(desc(financialData.period))
@@ -48,7 +69,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       summary,
-      periods: periods.map((p) => p.period),
+      periods: allPeriods.map((p) => p.period),
       details,
     })
   } catch (error) {

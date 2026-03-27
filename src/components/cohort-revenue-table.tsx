@@ -17,6 +17,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts"
+import type { CohortDrillFilter } from "@/components/dashboard"
 
 interface CohortEntry {
   month: number
@@ -49,7 +50,25 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
-export function CohortRevenueTable() {
+const CATEGORY_MAP: Record<string, string> = {
+  storage: "Storage Revenue",
+  shipping: "Shipping Revenue",
+  handling: "Handling Revenue",
+  total: "all",
+}
+
+const LABEL_MAP: Record<string, string> = {
+  storage: "Storage Revenue",
+  shipping: "Shipping Revenue",
+  handling: "Handling Revenue",
+  total: "Total Revenue",
+}
+
+interface CohortRevenueTableProps {
+  onDrill?: (filter: CohortDrillFilter) => void
+}
+
+export function CohortRevenueTable({ onDrill }: CohortRevenueTableProps) {
   const [data, setData] = useState<CohortResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -73,6 +92,14 @@ export function CohortRevenueTable() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  const handleCellClick = (key: string, month: number) => {
+    onDrill?.({
+      billingMonth: month,
+      category: CATEGORY_MAP[key],
+      label: `${LABEL_MAP[key]} - Month ${month}`,
+    })
+  }
 
   if (loading) {
     return (
@@ -124,13 +151,25 @@ export function CohortRevenueTable() {
 
   // Build chart data
   const chartData = monthHeaders.map((month) => {
-    const entry: Record<string, unknown> = { month: `Month ${month}` }
+    const entry: Record<string, unknown> = { month: `Month ${month}`, monthNum: month }
     for (const { key } of categories) {
       const d = lookups[key].get(month)
       entry[key] = d ? d.average : 0
     }
     return entry
   })
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleChartClick = (state: any) => {
+    if (state?.activePayload?.[0]?.payload?.monthNum) {
+      const month = state.activePayload[0].payload.monthNum as number
+      onDrill?.({
+        billingMonth: month,
+        category: "all",
+        label: `Total Revenue - Month ${month}`,
+      })
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -143,6 +182,7 @@ export function CohortRevenueTable() {
                 Average revenue per billing month for new customers (excluding {metadata.excludedCustomers} pre-existing customers).
                 Tracking {metadata.totalCustomers} new customers from {metadata.earliestPeriod} to {metadata.latestPeriod}.
                 $0 months after first billing are included to reflect churn.
+                Click any cell to view the underlying records.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1">
@@ -174,10 +214,14 @@ export function CohortRevenueTable() {
                       {monthHeaders.map((month) => {
                         const entry = lookups[key].get(month)
                         return (
-                          <TableCell key={month} className="text-center">
+                          <TableCell
+                            key={month}
+                            className={`text-center ${entry ? "cursor-pointer hover:bg-muted/50 rounded transition-colors" : ""}`}
+                            onClick={() => entry && handleCellClick(key, month)}
+                          >
                             {entry ? (
                               <div>
-                                <div className={key === "total" ? "font-semibold" : ""}>
+                                <div className={`${key === "total" ? "font-semibold" : ""} text-primary underline-offset-2 hover:underline`}>
                                   {formatCurrency(entry.average)}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
@@ -203,11 +247,11 @@ export function CohortRevenueTable() {
       <Card>
         <CardHeader>
           <CardTitle>Revenue Decay Curves</CardTitle>
-          <CardDescription>Average revenue by billing month showing customer lifecycle trends</CardDescription>
+          <CardDescription>Average revenue by billing month showing customer lifecycle trends. Click a data point to view records.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleChartClick}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="month" className="text-xs" />
               <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
@@ -229,7 +273,7 @@ export function CohortRevenueTable() {
                   stroke={color}
                   strokeWidth={key === "total" ? 3 : 2}
                   dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
+                  activeDot={{ r: 5, cursor: "pointer" }}
                 />
               ))}
             </LineChart>

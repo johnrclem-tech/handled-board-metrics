@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
@@ -10,9 +10,16 @@ import { CohortSummaryChart } from "@/components/cohort-summary-chart"
 import { CohortRevenueTable } from "@/components/cohort-revenue-table"
 import { Package, BarChart3, Upload, Table2, Users } from "lucide-react"
 
+export interface CohortDrillFilter {
+  billingMonth: number
+  category: string // "Storage Revenue", "Shipping Revenue", "Handling Revenue", or "all" for total
+  label: string // display label like "Storage Revenue - Month 3"
+}
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activeTab, setActiveTab] = useState("overview")
+  const [drillFilter, setDrillFilter] = useState<CohortDrillFilter | null>(null)
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -21,6 +28,15 @@ export function Dashboard() {
   const handleUploadComplete = () => {
     setRefreshKey((prev) => prev + 1)
   }
+
+  const handleCohortDrill = useCallback((filter: CohortDrillFilter) => {
+    setDrillFilter(filter)
+    setActiveTab("financials")
+  }, [])
+
+  const handleClearDrill = useCallback(() => {
+    setDrillFilter(null)
+  }, [])
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,17 +74,17 @@ export function Dashboard() {
           <TabsContent value="overview">
             <div className="space-y-6">
               <KpiOverview key={`kpi-${refreshKey}`} />
-              <CohortSummaryChart key={`cohort-summary-${refreshKey}`} onViewDetails={() => setActiveTab("cohort")} />
+              <CohortSummaryChart key={`cohort-summary-${refreshKey}`} onViewDetails={() => setActiveTab("cohort")} onDrill={handleCohortDrill} />
               <RevenueChart key={`chart-${refreshKey}`} />
             </div>
           </TabsContent>
 
           <TabsContent value="financials">
-            <FinancialTable key={`table-${refreshKey}`} />
+            <FinancialTable key={`table-${refreshKey}`} drillFilter={drillFilter} onClearDrill={handleClearDrill} />
           </TabsContent>
 
           <TabsContent value="cohort">
-            <CohortRevenueTable key={`cohort-${refreshKey}`} />
+            <CohortRevenueTable key={`cohort-${refreshKey}`} onDrill={handleCohortDrill} />
           </TabsContent>
 
           <TabsContent value="upload">

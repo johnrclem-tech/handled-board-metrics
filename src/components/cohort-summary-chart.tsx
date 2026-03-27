@@ -14,6 +14,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts"
+import type { CohortDrillFilter } from "@/components/dashboard"
 
 interface CohortEntry {
   month: number
@@ -46,9 +47,10 @@ function formatCurrency(value: number): string {
 
 interface CohortSummaryChartProps {
   onViewDetails: () => void
+  onDrill?: (filter: CohortDrillFilter) => void
 }
 
-export function CohortSummaryChart({ onViewDetails }: CohortSummaryChartProps) {
+export function CohortSummaryChart({ onViewDetails, onDrill }: CohortSummaryChartProps) {
   const [data, setData] = useState<CohortResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -91,10 +93,23 @@ export function CohortSummaryChart({ onViewDetails }: CohortSummaryChartProps) {
 
   const chartData = months.map((month) => ({
     month: `Mo ${month}`,
+    monthNum: month,
     storage: storageLookup.get(month)?.average || 0,
     shipping: shippingLookup.get(month)?.average || 0,
     handling: handlingLookup.get(month)?.average || 0,
   }))
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleBarClick = (state: any) => {
+    if (state?.activePayload?.[0]?.payload?.monthNum) {
+      const month = state.activePayload[0].payload.monthNum as number
+      onDrill?.({
+        billingMonth: month,
+        category: "all",
+        label: `Total Revenue - Month ${month}`,
+      })
+    }
+  }
 
   return (
     <Card>
@@ -106,7 +121,7 @@ export function CohortSummaryChart({ onViewDetails }: CohortSummaryChartProps) {
               Average Revenue by Billing Month
             </CardTitle>
             <CardDescription>
-              Stacked average revenue per new customer across their billing lifecycle ({data.metadata.totalCustomers} customers)
+              Stacked average revenue per new customer across their billing lifecycle ({data.metadata.totalCustomers} customers). Click a bar to view records.
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={onViewDetails} className="gap-1">
@@ -117,7 +132,7 @@ export function CohortSummaryChart({ onViewDetails }: CohortSummaryChartProps) {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleBarClick} style={{ cursor: "pointer" }}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
             <XAxis dataKey="month" className="text-xs" />
             <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
