@@ -16,6 +16,7 @@ import { FinancialTable } from "@/components/financial-table"
 import { RevenueChart } from "@/components/revenue-chart"
 import { CohortSummaryChart } from "@/components/cohort-summary-chart"
 import { CohortRevenueTable } from "@/components/cohort-revenue-table"
+import { ConcentrationChart } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
   billingMonth: number
@@ -26,6 +27,7 @@ export interface CohortDrillFilter {
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
   cohort: "Cohort Analysis",
+  concentration: "Customer Concentration",
   financials: "Financial Data",
   upload: "Import Data",
 }
@@ -101,6 +103,10 @@ export function Dashboard() {
               key={`cohort-${refreshKey}`}
               onDrill={handleCohortDrill}
             />
+          )}
+
+          {activePage === "concentration" && (
+            <ConcentrationChart key={`concentration-${refreshKey}`} />
           )}
 
           {activePage === "upload" && (
