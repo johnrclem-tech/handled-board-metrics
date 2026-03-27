@@ -83,6 +83,12 @@ export function CohortSummaryChart({ onViewDetails, onDrill }: CohortSummaryChar
 
   const { cohortData } = data
 
+  // Calculate average lifetime revenue per new customer (sum of all monthly averages)
+  const lifetimeStorage = cohortData.storage.reduce((sum, e) => sum + e.average, 0)
+  const lifetimeShipping = cohortData.shipping.reduce((sum, e) => sum + e.average, 0)
+  const lifetimeHandling = cohortData.handling.reduce((sum, e) => sum + e.average, 0)
+  const lifetimeTotal = cohortData.total.reduce((sum, e) => sum + e.average, 0)
+
   // Show first 12 months for the summary view
   const maxMonthsToShow = Math.min(12, data.metadata.maxBillingMonths)
   const months = Array.from({ length: maxMonthsToShow }, (_, i) => i + 1)
@@ -123,6 +129,24 @@ export function CohortSummaryChart({ onViewDetails, onDrill }: CohortSummaryChar
             <CardDescription>
               Stacked average revenue per new customer across their billing lifecycle ({data.metadata.totalCustomers} customers). Click a bar to view records.
             </CardDescription>
+            <div className="mt-3 flex flex-wrap gap-4 text-sm">
+              <div className="flex flex-col">
+                <span className="text-muted-foreground">Avg Lifetime Total</span>
+                <span className="text-lg font-bold">{formatCurrency(lifetimeTotal)}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-muted-foreground">Storage</span>
+                <span className="font-semibold" style={{ color: "#e76e50" }}>{formatCurrency(lifetimeStorage)}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-muted-foreground">Handling</span>
+                <span className="font-semibold" style={{ color: "#264653" }}>{formatCurrency(lifetimeHandling)}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-muted-foreground">Shipping</span>
+                <span className="font-semibold" style={{ color: "#2a9d8f" }}>{formatCurrency(lifetimeShipping)}</span>
+              </div>
+            </div>
           </div>
           <Button variant="outline" size="sm" onClick={onViewDetails} className="gap-1">
             View Details
