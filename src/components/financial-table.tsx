@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search, Package, X } from "lucide-react"
+import { Search, Package, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import type { CohortDrillFilter } from "@/components/dashboard"
 
 interface FinancialRecord {
@@ -20,6 +20,9 @@ interface FinancialRecord {
   amount: string
 }
 
+type SortField = "accountName" | "category" | "period" | "amount"
+type SortDir = "asc" | "desc"
+
 interface FinancialTableProps {
   drillFilter?: CohortDrillFilter | null
   onClearDrill?: () => void
@@ -28,11 +31,14 @@ interface FinancialTableProps {
 export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProps) {
   const [data, setData] = useState<FinancialRecord[]>([])
   const [periods, setPeriods] = useState<string[]>([])
+  const [categories, setCategories] = useState<string[]>([])
   const [selectedPeriod, setSelectedPeriod] = useState<string>("")
-  const [selectedType, setSelectedType] = useState<string>("")
+  const [selectedCategory, setSelectedCategory] = useState<string>("")
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
   const [drillLabel, setDrillLabel] = useState<string | null>(null)
+  const [sortField, setSortField] = useState<SortField>("accountName")
+  const [sortDir, setSortDir] = useState<SortDir>("asc")
 
   useEffect(() => {
     if (drillFilter) {
@@ -41,12 +47,11 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       setDrillLabel(null)
       fetchData()
     }
-  }, [drillFilter, selectedPeriod, selectedType])
+  }, [drillFilter, selectedPeriod, selectedCategory])
 
   const fetchDrillData = async (filter: CohortDrillFilter) => {
     setLoading(true)
     try {
-      // Get the exact customer + calendar month pairs for this billing month
       const detailRes = await fetch(`/api/metrics/cohort-detail?month=${filter.billingMonth}`)
       const detailData = await detailRes.json()
 
@@ -57,8 +62,6 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         return
       }
 
-      // Build rows directly from cohort-detail which has exact per-customer amounts
-      // This includes $0 customers (churned) who don't have database records
       interface CohortCustomer {
         customer: string
         firstBillingMonth: string
@@ -102,7 +105,6 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         }
       }
 
-      // Sort: non-zero first, then by customer name
       rows.sort((a, b) => {
         const aAmt = Math.abs(parseFloat(a.amount))
         const bAmt = Math.abs(parseFloat(b.amount))
@@ -111,7 +113,6 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         return a.accountName.localeCompare(b.accountName)
       })
 
-      const avgLabel = filter.category === "all" ? "Total" : filter.category
       const avg = detailData.averages
       const avgAmount = filter.category === "all"
         ? avg.total
@@ -123,6 +124,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
 
       setData(rows)
       setPeriods([])
+      setCategories([])
       setDrillLabel(
         `${filter.label} — ${detailData.customerCount} customers, avg ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(avgAmount)}`
       )
@@ -138,12 +140,18 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     try {
       const params = new URLSearchParams()
       if (selectedPeriod) params.set("period", selectedPeriod)
-      if (selectedType && selectedType !== "all") params.set("reportType", selectedType)
+      if (selectedCategory && selectedCategory !== "all") {
+        params.set("category", selectedCategory)
+      }
 
       const response = await fetch(`/api/metrics?${params}`)
       const result = await response.json()
       setData(result.details || [])
       setPeriods(result.periods || [])
+
+      // Extract unique categories from data
+      const cats = [...new Set((result.details || []).map((r: FinancialRecord) => r.category))].sort() as string[]
+      setCategories(cats)
 
       if (!selectedPeriod && result.periods?.length > 0) {
         setSelectedPeriod(result.periods[0])
@@ -160,15 +168,51 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     onClearDrill?.()
   }
 
-  const filteredData = data.filter((row) => {
-    if (!search) return true
-    const searchLower = search.toLowerCase()
-    return (
-      row.accountName.toLowerCase().includes(searchLower) ||
-      row.category.toLowerCase().includes(searchLower) ||
-      (row.subcategory && row.subcategory.toLowerCase().includes(searchLower))
-    )
-  })
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      setSortDir("asc")
+    }
+  }
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />
+    return sortDir === "asc"
+      ? <ArrowUp className="h-3 w-3 ml-1" />
+      : <ArrowDown className="h-3 w-3 ml-1" />
+  }
+
+  const sortedAndFiltered = useMemo(() => {
+    let result = data
+
+    if (search) {
+      const searchLower = search.toLowerCase()
+      result = result.filter(
+        (row) =>
+          row.accountName.toLowerCase().includes(searchLower) ||
+          row.category.toLowerCase().includes(searchLower) ||
+          (row.subcategory && row.subcategory.toLowerCase().includes(searchLower))
+      )
+    }
+
+    return [...result].sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1
+      switch (sortField) {
+        case "accountName":
+          return dir * a.accountName.localeCompare(b.accountName)
+        case "category":
+          return dir * a.category.localeCompare(b.category)
+        case "period":
+          return dir * a.period.localeCompare(b.period)
+        case "amount":
+          return dir * (parseFloat(a.amount) - parseFloat(b.amount))
+        default:
+          return 0
+      }
+    })
+  }, [data, search, sortField, sortDir])
 
   const formatCurrency = (value: string) =>
     new Intl.NumberFormat("en-US", {
@@ -233,15 +277,17 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger className="w-[160px]">
-                    <SelectValue placeholder="All types" />
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All Categories" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="profit_loss">Profit & Loss</SelectItem>
-                    <SelectItem value="balance_sheet">Balance Sheet</SelectItem>
-                    <SelectItem value="cash_flow">Cash Flow</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </>
@@ -251,7 +297,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search accounts..."
+            placeholder="Search customers..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10"
@@ -262,15 +308,48 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Category</TableHead>
-              <TableHead>Account</TableHead>
-              <TableHead>Period</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("accountName")}
+              >
+                <span className="flex items-center">
+                  Customer
+                  <SortIcon field="accountName" />
+                </span>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("category")}
+              >
+                <span className="flex items-center">
+                  Category
+                  <SortIcon field="category" />
+                </span>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none"
+                onClick={() => handleSort("period")}
+              >
+                <span className="flex items-center">
+                  Period
+                  <SortIcon field="period" />
+                </span>
+              </TableHead>
+              <TableHead
+                className="cursor-pointer select-none text-right"
+                onClick={() => handleSort("amount")}
+              >
+                <span className="flex items-center justify-end">
+                  Amount
+                  <SortIcon field="amount" />
+                </span>
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.map((row) => (
+            {sortedAndFiltered.map((row) => (
               <TableRow key={row.id}>
+                <TableCell className="font-medium">{row.accountName}</TableCell>
                 <TableCell>
                   <Badge variant="outline">{row.category}</Badge>
                   {row.subcategory && (
@@ -279,7 +358,6 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="font-medium">{row.accountName}</TableCell>
                 <TableCell>{row.period}</TableCell>
                 <TableCell
                   className={`text-right font-mono ${
@@ -290,7 +368,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                 </TableCell>
               </TableRow>
             ))}
-            {filteredData.length === 0 && (
+            {sortedAndFiltered.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   {search ? "No matching records found" : drillLabel ? "No records for this cohort filter" : "No data for selected filters"}
