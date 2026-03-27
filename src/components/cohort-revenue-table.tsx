@@ -108,10 +108,10 @@ export function CohortRevenueTable() {
   const monthHeaders = Array.from({ length: maxMonths }, (_, i) => i + 1)
 
   const categories = [
-    { key: "storage" as const, label: "Storage Revenue", color: "hsl(var(--chart-1))" },
-    { key: "shipping" as const, label: "Shipping Revenue", color: "hsl(var(--chart-2))" },
-    { key: "handling" as const, label: "Handling Revenue", color: "hsl(var(--chart-3))" },
-    { key: "total" as const, label: "Total Revenue", color: "hsl(var(--chart-4))" },
+    { key: "storage" as const, label: "Storage Revenue", color: "#e76e50" },
+    { key: "shipping" as const, label: "Shipping Revenue", color: "#2a9d8f" },
+    { key: "handling" as const, label: "Handling Revenue", color: "#264653" },
+    { key: "total" as const, label: "Total Revenue", color: "#e9c46a" },
   ]
 
   // Build a lookup for each category by month number

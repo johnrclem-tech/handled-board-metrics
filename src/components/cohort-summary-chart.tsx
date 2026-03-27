@@ -130,9 +130,9 @@ export function CohortSummaryChart({ onViewDetails }: CohortSummaryChartProps) {
               }}
             />
             <Legend />
-            <Bar dataKey="storage" name="Storage" stackId="revenue" fill="hsl(var(--chart-1))" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="handling" name="Handling" stackId="revenue" fill="hsl(var(--chart-3))" radius={[0, 0, 0, 0]} />
-            <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="storage" name="Storage" stackId="revenue" fill="#e76e50" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="handling" name="Handling" stackId="revenue" fill="#264653" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="#2a9d8f" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
