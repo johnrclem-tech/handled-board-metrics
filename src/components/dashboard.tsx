@@ -1,24 +1,38 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+} from "@/components/ui/breadcrumb"
+import { AppSidebar } from "@/components/app-sidebar"
 import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
 import { FinancialTable } from "@/components/financial-table"
 import { RevenueChart } from "@/components/revenue-chart"
 import { CohortSummaryChart } from "@/components/cohort-summary-chart"
 import { CohortRevenueTable } from "@/components/cohort-revenue-table"
-import { Package, BarChart3, Upload, Table2, Users } from "lucide-react"
 
 export interface CohortDrillFilter {
   billingMonth: number
-  category: string // "Storage Revenue", "Shipping Revenue", "Handling Revenue", or "all" for total
-  label: string // display label like "Storage Revenue - Month 3"
+  category: string
+  label: string
+}
+
+const PAGE_TITLES: Record<string, string> = {
+  overview: "KPI Overview",
+  cohort: "Cohort Analysis",
+  financials: "Financial Data",
+  upload: "Import Data",
 }
 
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
-  const [activeTab, setActiveTab] = useState("overview")
+  const [activePage, setActivePage] = useState("overview")
   const [drillFilter, setDrillFilter] = useState<CohortDrillFilter | null>(null)
 
   useEffect(() => {
@@ -31,67 +45,69 @@ export function Dashboard() {
 
   const handleCohortDrill = useCallback((filter: CohortDrillFilter) => {
     setDrillFilter(filter)
-    setActiveTab("financials")
+    setActivePage("financials")
   }, [])
 
   const handleClearDrill = useCallback(() => {
     setDrillFilter(null)
   }, [])
 
+  const handleNavigate = useCallback((page: string) => {
+    setActivePage(page)
+    if (page !== "financials") {
+      setDrillFilter(null)
+    }
+  }, [])
+
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto flex h-16 items-center px-4">
-          <div className="flex items-center gap-2">
-            <Package className="h-6 w-6" />
-            <h1 className="text-xl font-bold">Handled</h1>
-          </div>
-          <span className="ml-4 text-sm text-muted-foreground">Board Metrics Dashboard</span>
-        </div>
-      </header>
+    <SidebarProvider>
+      <AppSidebar activePage={activePage} onNavigate={handleNavigate} />
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>{PAGE_TITLES[activePage] || "Dashboard"}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </header>
 
-      <main className="container mx-auto px-4 py-8">
-        <Tabs defaultValue="overview" className="space-y-6" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="overview" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              KPI Overview
-            </TabsTrigger>
-            <TabsTrigger value="financials" className="gap-2">
-              <Table2 className="h-4 w-4" />
-              Financial Data
-            </TabsTrigger>
-            <TabsTrigger value="cohort" className="gap-2">
-              <Users className="h-4 w-4" />
-              Cohort Analysis
-            </TabsTrigger>
-            <TabsTrigger value="upload" className="gap-2">
-              <Upload className="h-4 w-4" />
-              Import Data
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview">
+        <main className="flex-1 p-4 md:p-6">
+          {activePage === "overview" && (
             <div className="space-y-6">
               <KpiOverview key={`kpi-${refreshKey}`} />
-              <CohortSummaryChart key={`cohort-summary-${refreshKey}`} onViewDetails={() => setActiveTab("cohort")} onDrill={handleCohortDrill} />
+              <CohortSummaryChart
+                key={`cohort-summary-${refreshKey}`}
+                onViewDetails={() => setActivePage("cohort")}
+                onDrill={handleCohortDrill}
+              />
               <RevenueChart key={`chart-${refreshKey}`} />
             </div>
-          </TabsContent>
+          )}
 
-          <TabsContent value="financials">
-            <FinancialTable key={`table-${refreshKey}`} drillFilter={drillFilter} onClearDrill={handleClearDrill} />
-          </TabsContent>
+          {activePage === "financials" && (
+            <FinancialTable
+              key={`table-${refreshKey}`}
+              drillFilter={drillFilter}
+              onClearDrill={handleClearDrill}
+            />
+          )}
 
-          <TabsContent value="cohort">
-            <CohortRevenueTable key={`cohort-${refreshKey}`} onDrill={handleCohortDrill} />
-          </TabsContent>
+          {activePage === "cohort" && (
+            <CohortRevenueTable
+              key={`cohort-${refreshKey}`}
+              onDrill={handleCohortDrill}
+            />
+          )}
 
-          <TabsContent value="upload">
+          {activePage === "upload" && (
             <FileUpload onUploadComplete={handleUploadComplete} />
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+          )}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
   )
 }
