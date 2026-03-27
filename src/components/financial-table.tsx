@@ -46,7 +46,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
   const fetchDrillData = async (filter: CohortDrillFilter) => {
     setLoading(true)
     try {
-      // Get the customer list for this billing month from cohort-detail
+      // Get the exact customer + calendar month pairs for this billing month
       const detailRes = await fetch(`/api/metrics/cohort-detail?month=${filter.billingMonth}`)
       const detailData = await detailRes.json()
 
@@ -57,16 +57,21 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         return
       }
 
-      // Get the calendar months these customers map to
-      const customerNames = detailData.customers.map((c: { customer: string }) => c.customer)
-      const calendarMonths = [...new Set(detailData.customers.map((c: { calendarMonth: string }) => c.calendarMonth))] as string[]
+      // Build a set of valid "customer|period" pairs for exact matching
+      const validPairs = new Set<string>(
+        detailData.customers.map((c: { customer: string; calendarMonth: string }) =>
+          `${c.customer}|${c.calendarMonth}`
+        )
+      )
 
-      // Build query params
+      // Get all unique calendar months and customers to fetch from the API
+      const calendarMonths = [...new Set(detailData.customers.map((c: { calendarMonth: string }) => c.calendarMonth))] as string[]
+      const customerNames = detailData.customers.map((c: { customer: string }) => c.customer)
+
       const params = new URLSearchParams()
       params.set("customers", customerNames.join(","))
       params.set("periods", calendarMonths.join(","))
 
-      // Filter by specific category unless "total" (show all 3)
       if (filter.category !== "all") {
         params.set("category", filter.category)
       } else {
@@ -75,7 +80,14 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
 
       const response = await fetch(`/api/metrics?${params}`)
       const result = await response.json()
-      setData(result.details || [])
+
+      // Filter to only records where the customer+period pair is valid
+      // (each customer's billing month N maps to their specific calendar month)
+      const filtered = (result.details || []).filter((row: FinancialRecord) =>
+        validPairs.has(`${row.accountName}|${row.period}`)
+      )
+
+      setData(filtered)
       setPeriods(result.periods || [])
       setDrillLabel(filter.label)
     } catch (error) {
