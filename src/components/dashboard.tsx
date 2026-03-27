@@ -36,7 +36,6 @@ export interface CohortDrillFilter {
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
   cohort: "Cohort Analysis",
-  concentration: "Customer Concentration",
   financials: "Revenue",
 }
 
@@ -90,24 +89,29 @@ export function Dashboard() {
           {activePage === "overview" && (
             <div className="space-y-6">
               <KpiOverview key={`kpi-${refreshKey}`} />
-              <CohortSummaryChart
-                key={`cohort-summary-${refreshKey}`}
-                onViewDetails={() => setActivePage("cohort")}
-                onDrill={handleCohortDrill}
-              />
-              <NewCustomersChart key={`new-customers-${refreshKey}`} />
               <ExistingCustomersChart key={`existing-${refreshKey}`} />
               <RevenueChart key={`chart-${refreshKey}`} />
             </div>
           )}
 
           {activePage === "financials" && (
-            <FinancialTable
-              key={`table-${refreshKey}`}
-              drillFilter={drillFilter}
-              onClearDrill={handleClearDrill}
-              onImport={() => setImportOpen(true)}
-            />
+            <div className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <ConcentrationChart key={`concentration-${refreshKey}`} />
+                <NewCustomersChart key={`new-customers-${refreshKey}`} />
+              </div>
+              <CohortSummaryChart
+                key={`cohort-summary-${refreshKey}`}
+                onViewDetails={() => setActivePage("cohort")}
+                onDrill={handleCohortDrill}
+              />
+              <FinancialTable
+                key={`table-${refreshKey}`}
+                drillFilter={drillFilter}
+                onClearDrill={handleClearDrill}
+                onImport={() => setImportOpen(true)}
+              />
+            </div>
           )}
 
           {activePage === "cohort" && (
@@ -115,10 +119,6 @@ export function Dashboard() {
               key={`cohort-${refreshKey}`}
               onDrill={handleCohortDrill}
             />
-          )}
-
-          {activePage === "concentration" && (
-            <ConcentrationChart key={`concentration-${refreshKey}`} />
           )}
         </main>
       </SidebarInset>
