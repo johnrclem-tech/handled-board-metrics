@@ -57,39 +57,75 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         return
       }
 
-      // Build a set of valid "customer|period" pairs for exact matching
-      const validPairs = new Set<string>(
-        detailData.customers.map((c: { customer: string; calendarMonth: string }) =>
-          `${c.customer}|${c.calendarMonth}`
-        )
-      )
-
-      // Get all unique calendar months and customers to fetch from the API
-      const calendarMonths = [...new Set(detailData.customers.map((c: { calendarMonth: string }) => c.calendarMonth))] as string[]
-      const customerNames = detailData.customers.map((c: { customer: string }) => c.customer)
-
-      const params = new URLSearchParams()
-      params.set("customers", customerNames.join(","))
-      params.set("periods", calendarMonths.join(","))
-
-      if (filter.category !== "all") {
-        params.set("category", filter.category)
-      } else {
-        params.set("category", "Storage Revenue,Shipping Revenue,Handling Revenue")
+      // Build rows directly from cohort-detail which has exact per-customer amounts
+      // This includes $0 customers (churned) who don't have database records
+      interface CohortCustomer {
+        customer: string
+        firstBillingMonth: string
+        calendarMonth: string
+        storage: number
+        shipping: number
+        handling: number
+        total: number
       }
 
-      const response = await fetch(`/api/metrics?${params}`)
-      const result = await response.json()
+      const customers: CohortCustomer[] = detailData.customers
+      const rows: FinancialRecord[] = []
+      let id = -1
 
-      // Filter to only records where the customer+period pair is valid
-      // (each customer's billing month N maps to their specific calendar month)
-      const filtered = (result.details || []).filter((row: FinancialRecord) =>
-        validPairs.has(`${row.accountName}|${row.period}`)
+      const categoriesToShow =
+        filter.category === "all"
+          ? ["storage", "shipping", "handling"] as const
+          : filter.category === "Storage Revenue"
+            ? ["storage"] as const
+            : filter.category === "Shipping Revenue"
+              ? ["shipping"] as const
+              : ["handling"] as const
+
+      const categoryLabels: Record<string, string> = {
+        storage: "Storage Revenue",
+        shipping: "Shipping Revenue",
+        handling: "Handling Revenue",
+      }
+
+      for (const c of customers) {
+        for (const cat of categoriesToShow) {
+          rows.push({
+            id: id--,
+            reportType: `${cat}_revenue_by_customer`,
+            period: c.calendarMonth,
+            category: categoryLabels[cat],
+            subcategory: `Started: ${c.firstBillingMonth}`,
+            accountName: c.customer,
+            amount: String(c[cat]),
+          })
+        }
+      }
+
+      // Sort: non-zero first, then by customer name
+      rows.sort((a, b) => {
+        const aAmt = Math.abs(parseFloat(a.amount))
+        const bAmt = Math.abs(parseFloat(b.amount))
+        if (aAmt > 0 && bAmt === 0) return -1
+        if (aAmt === 0 && bAmt > 0) return 1
+        return a.accountName.localeCompare(b.accountName)
+      })
+
+      const avgLabel = filter.category === "all" ? "Total" : filter.category
+      const avg = detailData.averages
+      const avgAmount = filter.category === "all"
+        ? avg.total
+        : filter.category === "Storage Revenue"
+          ? avg.storage
+          : filter.category === "Shipping Revenue"
+            ? avg.shipping
+            : avg.handling
+
+      setData(rows)
+      setPeriods([])
+      setDrillLabel(
+        `${filter.label} — ${detailData.customerCount} customers, avg ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(avgAmount)}`
       )
-
-      setData(filtered)
-      setPeriods(result.periods || [])
-      setDrillLabel(filter.label)
     } catch (error) {
       console.error("Failed to fetch drill data:", error)
     } finally {
