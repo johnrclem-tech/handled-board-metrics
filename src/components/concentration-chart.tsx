@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { PieChart as PieChartIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { PieChart as PieChartIcon, TableProperties, ChevronLeft, ChevronRight } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -39,9 +39,13 @@ function formatPct(value: number): string {
   return `${value.toFixed(1)}%`
 }
 
+const DETAIL_PAGE_SIZE = 6
+
 export function ConcentrationChart() {
   const [data, setData] = useState<ConcentrationEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [showDetails, setShowDetails] = useState(false)
+  const [detailPage, setDetailPage] = useState(1)
 
   useEffect(() => {
     fetch("/api/metrics/concentration")
@@ -59,7 +63,7 @@ export function ConcentrationChart() {
         </CardHeader>
         <CardContent>
           <div className="h-[350px] flex items-center justify-center">
-            <div className="animate-pulse text-muted-foreground">Loading concentration data...</div>
+            <div className="animate-pulse text-muted-foreground">Loading...</div>
           </div>
         </CardContent>
       </Card>
@@ -87,18 +91,36 @@ export function ConcentrationChart() {
     "Top 5": entry.top5.pct,
   }))
 
+  const totalDetailPages = Math.max(1, Math.ceil(data.length / DETAIL_PAGE_SIZE))
+  const paginatedDetails = data.slice(
+    (detailPage - 1) * DETAIL_PAGE_SIZE,
+    detailPage * DETAIL_PAGE_SIZE
+  )
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Customer Revenue Concentration</CardTitle>
-          <CardDescription>
-            Percentage of total revenue from top 1, 3, and 5 customers by calendar month.
-            Lower concentration = healthier, more diversified revenue base.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Customer Revenue Concentration</CardTitle>
+            <CardDescription>
+              % of total revenue from top 1, 3, and 5 customers by month
+            </CardDescription>
+          </div>
+          <Button
+            variant={showDetails ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setShowDetails(!showDetails); setDetailPage(1) }}
+            className="gap-1"
+          >
+            <TableProperties className="h-4 w-4" />
+            {showDetails ? "Chart" : "Details"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!showDetails ? (
+          <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis dataKey="period" className="text-xs" />
@@ -117,80 +139,60 @@ export function ConcentrationChart() {
               />
               <Legend />
               <ReferenceLine y={50} stroke="#999" strokeDasharray="3 3" label={{ value: "50%", position: "right", fontSize: 12 }} />
-              <Line
-                type="monotone"
-                dataKey="Top 1"
-                stroke="#e76e50"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="Top 3"
-                stroke="#2a9d8f"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="Top 5"
-                stroke="#264653"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-              />
+              <Line type="monotone" dataKey="Top 1" stroke="#e76e50" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="Top 3" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="Top 5" stroke="#264653" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
             </LineChart>
           </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Concentration Details</CardTitle>
-          <CardDescription>Monthly breakdown of top customer revenue share</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="w-full">
-            <div className="min-w-max">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="sticky left-0 bg-background z-10 min-w-[100px]">Period</TableHead>
-                    <TableHead className="text-right">Total Revenue</TableHead>
-                    <TableHead className="text-center">Customers</TableHead>
-                    <TableHead className="text-right">Top 1 %</TableHead>
-                    <TableHead>Top 1 Customer</TableHead>
-                    <TableHead className="text-right">Top 3 %</TableHead>
-                    <TableHead className="text-right">Top 5 %</TableHead>
+        ) : (
+          <div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Period</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                  <TableHead className="text-right">Top 1 %</TableHead>
+                  <TableHead>Top Customer</TableHead>
+                  <TableHead className="text-right">Top 3 %</TableHead>
+                  <TableHead className="text-right">Top 5 %</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedDetails.map((entry) => (
+                  <TableRow key={entry.period}>
+                    <TableCell className="font-medium">{entry.period}</TableCell>
+                    <TableCell className="text-right font-mono">{formatCurrency(entry.totalRevenue)}</TableCell>
+                    <TableCell className={`text-right font-mono ${entry.top1.pct > 25 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(entry.top1.pct)}
+                    </TableCell>
+                    <TableCell className="text-sm">{entry.top1.name}</TableCell>
+                    <TableCell className={`text-right font-mono ${entry.top3.pct > 50 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(entry.top3.pct)}
+                    </TableCell>
+                    <TableCell className={`text-right font-mono ${entry.top5.pct > 70 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(entry.top5.pct)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.map((entry) => (
-                    <TableRow key={entry.period}>
-                      <TableCell className="sticky left-0 bg-background z-10 font-medium">{entry.period}</TableCell>
-                      <TableCell className="text-right font-mono">{formatCurrency(entry.totalRevenue)}</TableCell>
-                      <TableCell className="text-center">{entry.customerCount}</TableCell>
-                      <TableCell className={`text-right font-mono ${entry.top1.pct > 25 ? "text-red-600 font-semibold" : ""}`}>
-                        {formatPct(entry.top1.pct)}
-                      </TableCell>
-                      <TableCell className="text-sm">{entry.top1.name}</TableCell>
-                      <TableCell className={`text-right font-mono ${entry.top3.pct > 50 ? "text-red-600 font-semibold" : ""}`}>
-                        {formatPct(entry.top3.pct)}
-                      </TableCell>
-                      <TableCell className={`text-right font-mono ${entry.top5.pct > 70 ? "text-red-600 font-semibold" : ""}`}>
-                        {formatPct(entry.top5.pct)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        </CardContent>
-      </Card>
-    </div>
+                ))}
+              </TableBody>
+            </Table>
+            {data.length > DETAIL_PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
+                <span>{data.length} months</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={detailPage <= 1} onClick={() => setDetailPage((p) => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span>{detailPage}/{totalDetailPages}</span>
+                  <Button variant="outline" size="sm" disabled={detailPage >= totalDetailPages} onClick={() => setDetailPage((p) => p + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
