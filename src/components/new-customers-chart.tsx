@@ -11,7 +11,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Cell,
 } from "recharts"
 
 interface NewCustomerEntry {
@@ -38,7 +37,7 @@ export function NewCustomersChart() {
           <CardTitle>New Customer Acquisitions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] flex items-center justify-center">
+          <div className="h-[225px] flex items-center justify-center">
             <div className="animate-pulse text-muted-foreground">Loading...</div>
           </div>
         </CardContent>
@@ -53,6 +52,13 @@ export function NewCustomersChart() {
   const totalNew = data.reduce((sum, d) => sum + d.count, 0)
   const avgPerMonth = totalNew / data.length
 
+  // Format period labels: "2024-10" → "Oct 24"
+  const chartData = data.map((d) => {
+    const [year, month] = d.period.split("-")
+    const monthName = new Date(Number(year), Number(month) - 1).toLocaleString("en-US", { month: "short" })
+    return { ...d, label: `${monthName} ${year.slice(2)}` }
+  })
+
   return (
     <Card>
       <CardHeader>
@@ -61,16 +67,22 @@ export function NewCustomersChart() {
           New Customer Acquisitions
         </CardTitle>
         <CardDescription>
-          Count of customers starting their first billing month (excluding pre-existing).
-          Total: {totalNew} new customers, avg {avgPerMonth.toFixed(1)}/month.
+          Total: {totalNew} new customers, avg {avgPerMonth.toFixed(1)}/mo
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="period" className="text-xs" />
-            <YAxis allowDecimals={false} className="text-xs" />
+        <ResponsiveContainer width="100%" height={225}>
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11 }}
+              angle={-45}
+              textAnchor="end"
+              height={50}
+              interval={0}
+            />
+            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={30} />
             <Tooltip
               contentStyle={{
                 backgroundColor: "hsl(var(--popover))",
@@ -79,11 +91,7 @@ export function NewCustomersChart() {
               }}
               formatter={(value) => [`${value} customers`, "New"]}
             />
-            <Bar dataKey="count" name="New Customers" radius={[4, 4, 0, 0]}>
-              {data.map((entry, index) => (
-                <Cell key={index} fill={entry.count >= avgPerMonth ? "#2a9d8f" : "#e76e50"} />
-              ))}
-            </Bar>
+            <Bar dataKey="count" name="New Customers" fill="#2a9d8f" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

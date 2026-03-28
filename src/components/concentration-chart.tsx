@@ -84,12 +84,17 @@ export function ConcentrationChart() {
     )
   }
 
-  const chartData = data.map((entry) => ({
-    period: entry.period,
-    "Top 1": entry.top1.pct,
-    "Top 3": entry.top3.pct,
-    "Top 5": entry.top5.pct,
-  }))
+  const chartData = data.map((entry) => {
+    const [year, month] = entry.period.split("-")
+    const monthName = new Date(Number(year), Number(month) - 1).toLocaleString("en-US", { month: "short" })
+    return {
+      period: entry.period,
+      label: `${monthName} ${year.slice(2)}`,
+      "Top 1": entry.top1.pct,
+      "Top 3": entry.top3.pct,
+      "Top 5": entry.top5.pct,
+    }
+  })
 
   const totalDetailPages = Math.max(1, Math.ceil(data.length / DETAIL_PAGE_SIZE))
   const paginatedDetails = data.slice(
@@ -120,14 +125,22 @@ export function ConcentrationChart() {
       </CardHeader>
       <CardContent>
         {!showDetails ? (
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="period" className="text-xs" />
+          <ResponsiveContainer width="100%" height={225}>
+            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11 }}
+                angle={-45}
+                textAnchor="end"
+                height={50}
+                interval={0}
+              />
               <YAxis
                 domain={[0, 100]}
                 tickFormatter={(val) => `${val}%`}
-                className="text-xs"
+                tick={{ fontSize: 11 }}
+                width={40}
               />
               <Tooltip
                 formatter={(value) => `${Number(value).toFixed(1)}%`}
