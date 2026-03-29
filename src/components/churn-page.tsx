@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { UserX, TrendingDown, DollarSign, Users, TableProperties, ChevronLeft, ChevronRight } from "lucide-react"
+import { UserX, TrendingDown, DollarSign, Users, TableProperties } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -291,11 +291,8 @@ export function ChurnPage() {
   )
 }
 
-const DETAILS_PAGE_SIZE = 10
-
 function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
   const [showCustomers, setShowCustomers] = useState(false)
-  const [customerPage, setCustomerPage] = useState(1)
 
   // Skip first month (no prior to compare)
   const dataMonths = months.slice(1)
@@ -307,12 +304,6 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
       churnMonth: m.period,
       churnMonthLabel: formatPeriodLabel(m.period),
     }))
-  )
-
-  const totalCustomerPages = Math.max(1, Math.ceil(allChurned.length / DETAILS_PAGE_SIZE))
-  const paginatedCustomers = allChurned.slice(
-    (customerPage - 1) * DETAILS_PAGE_SIZE,
-    customerPage * DETAILS_PAGE_SIZE
   )
 
   return (
@@ -330,7 +321,7 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
           <Button
             variant={showCustomers ? "default" : "outline"}
             size="sm"
-            onClick={() => { setShowCustomers(!showCustomers); setCustomerPage(1) }}
+            onClick={() => setShowCustomers(!showCustomers)}
             className="gap-1"
           >
             <TableProperties className="h-4 w-4" />
@@ -384,7 +375,7 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
                 </tr>
               </thead>
               <tbody>
-                {paginatedCustomers.map((c, i) => (
+                {allChurned.map((c, i) => (
                   <tr key={`${c.name}-${c.churnMonth}-${i}`} className="border-b last:border-0">
                     <td className="py-2 pr-4 font-medium">{c.name}</td>
                     <td className="py-2 px-3">{c.churnMonthLabel}</td>
@@ -394,7 +385,7 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
                     </td>
                   </tr>
                 ))}
-                {paginatedCustomers.length === 0 && (
+                {allChurned.length === 0 && (
                   <tr>
                     <td colSpan={4} className="text-center py-8 text-muted-foreground">
                       No churned customers in this segment
@@ -403,22 +394,6 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
                 )}
               </tbody>
             </table>
-            {allChurned.length > DETAILS_PAGE_SIZE && (
-              <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
-                <span>
-                  {((customerPage - 1) * DETAILS_PAGE_SIZE + 1)}–{Math.min(customerPage * DETAILS_PAGE_SIZE, allChurned.length)} of {allChurned.length}
-                </span>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={customerPage <= 1} onClick={() => setCustomerPage((p) => p - 1)}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span>{customerPage}/{totalCustomerPages}</span>
-                  <Button variant="outline" size="sm" disabled={customerPage >= totalCustomerPages} onClick={() => setCustomerPage((p) => p + 1)}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </CardContent>
