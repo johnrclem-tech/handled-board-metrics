@@ -11,13 +11,11 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from "@/components/ui/sidebar"
-import { Package, BarChart3, Table2, Settings } from "lucide-react"
-
-const navItems = [
-  { key: "overview", label: "KPI Overview", icon: BarChart3 },
-  { key: "financials", label: "Revenue", icon: Table2 },
-]
+import { Package, BarChart3, Table2, Settings, UserX, DollarSign } from "lucide-react"
 
 interface AppSidebarProps {
   activePage: string
@@ -25,6 +23,8 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
+  const isRevenuePage = activePage === "financials" || activePage === "churn"
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -47,17 +47,41 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
           <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.key}>
-                  <SidebarMenuButton
-                    isActive={activePage === item.key}
-                    onClick={() => onNavigate(item.key)}
-                  >
-                    <item.icon className="size-4" />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={activePage === "overview"}
+                  onClick={() => onNavigate("overview")}
+                >
+                  <BarChart3 className="size-4" />
+                  <span>KPI Overview</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton isActive={isRevenuePage}>
+                  <DollarSign className="size-4" />
+                  <span>Revenue</span>
+                </SidebarMenuButton>
+                <SidebarMenuSub>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      isActive={activePage === "financials"}
+                      onClick={() => onNavigate("financials")}
+                    >
+                      <Table2 className="size-4" />
+                      <span>Dashboard</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      isActive={activePage === "churn"}
+                      onClick={() => onNavigate("churn")}
+                    >
+                      <UserX className="size-4" />
+                      <span>Churn</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                </SidebarMenuSub>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

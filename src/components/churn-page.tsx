@@ -1,0 +1,324 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { UserX, TrendingDown, DollarSign, Users } from "lucide-react"
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from "recharts"
+
+interface ChurnMonth {
+  period: string
+  activeCount: number
+  churnedCount: number
+  logoChurnRate: number
+  revenueChurnRate: number
+  lostRevenue: number
+  totalRevenue: number
+}
+
+interface ChurnSummary {
+  lastQuarter: { logoChurn: number; revenueChurn: number }
+  ttm: { logoChurn: number; revenueChurn: number }
+}
+
+interface ChurnResponse {
+  months: ChurnMonth[]
+  summary: ChurnSummary | null
+}
+
+type Segment = "all" | "new" | "existing"
+
+function formatPct(value: number): string {
+  return `${value.toFixed(1)}%`
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+function formatPeriodLabel(period: string): string {
+  const [year, month] = period.split("-")
+  const monthName = new Date(Number(year), Number(month) - 1).toLocaleString("en-US", { month: "short" })
+  return `${monthName} ${year.slice(2)}`
+}
+
+export function ChurnPage() {
+  const [data, setData] = useState<ChurnResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [segment, setSegment] = useState<Segment>("all")
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/metrics/churn?segment=${segment}`)
+      .then((res) => res.json())
+      .then((result) => setData(result))
+      .catch((err) => console.error("Failed to fetch churn data:", err))
+      .finally(() => setLoading(false))
+  }, [segment])
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground">
+            Loading churn data...
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!data || !data.summary || data.months.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <UserX className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-semibold">No churn data</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Import revenue files to see churn analysis
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const { months, summary } = data
+
+  // Skip first month for charts (no prior month to compare)
+  const chartData = months.slice(1).map((m) => ({
+    ...m,
+    label: formatPeriodLabel(m.period),
+  }))
+
+  const segments: { value: Segment; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "new", label: "New" },
+    { value: "existing", label: "Existing (Hook)" },
+  ]
+
+  const kpiCards = [
+    {
+      title: "Last Quarter Logo Churn",
+      value: formatPct(summary.lastQuarter.logoChurn),
+      description: "Avg monthly customer churn rate (last 3 months)",
+      icon: Users,
+      warn: summary.lastQuarter.logoChurn > 10,
+    },
+    {
+      title: "Last Quarter Revenue Churn",
+      value: formatPct(summary.lastQuarter.revenueChurn),
+      description: "Avg monthly revenue churn rate (last 3 months)",
+      icon: DollarSign,
+      warn: summary.lastQuarter.revenueChurn > 10,
+    },
+    {
+      title: "TTM Logo Churn",
+      value: formatPct(summary.ttm.logoChurn),
+      description: "Avg monthly customer churn rate (trailing 12 months)",
+      icon: TrendingDown,
+      warn: summary.ttm.logoChurn > 10,
+    },
+    {
+      title: "TTM Revenue Churn",
+      value: formatPct(summary.ttm.revenueChurn),
+      description: "Avg monthly revenue churn rate (trailing 12 months)",
+      icon: DollarSign,
+      warn: summary.ttm.revenueChurn > 10,
+    },
+  ]
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Churn Analysis</h2>
+          <p className="text-muted-foreground">
+            Customer and revenue churn rates based on total monthly revenue per customer
+          </p>
+        </div>
+        <div className="flex gap-1 rounded-lg border p-1">
+          {segments.map((s) => (
+            <Button
+              key={s.value}
+              variant={segment === s.value ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setSegment(s.value)}
+            >
+              {s.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {kpiCards.map((kpi) => (
+          <Card key={kpi.title}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-sm font-medium">{kpi.title}</CardDescription>
+              <kpi.icon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${kpi.warn ? "text-red-600" : ""}`}>
+                {kpi.value}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">{kpi.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Monthly Logo Churn Rate</CardTitle>
+            <CardDescription>
+              % of prior month&apos;s active customers who had $0 revenue
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={50}
+                  interval={0}
+                />
+                <YAxis
+                  tickFormatter={(val) => `${val}%`}
+                  tick={{ fontSize: 11 }}
+                  width={45}
+                />
+                <Tooltip
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, "Logo Churn"]}
+                  labelFormatter={(label) => label}
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                  }}
+                />
+                <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                <Line
+                  type="monotone"
+                  dataKey="logoChurnRate"
+                  stroke="#e76e50"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                  name="Logo Churn"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Monthly Revenue Churn Rate</CardTitle>
+            <CardDescription>
+              % of prior month&apos;s revenue lost from churned customers
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11 }}
+                  angle={-45}
+                  textAnchor="end"
+                  height={50}
+                  interval={0}
+                />
+                <YAxis
+                  tickFormatter={(val) => `${val}%`}
+                  tick={{ fontSize: 11 }}
+                  width={45}
+                />
+                <Tooltip
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, "Revenue Churn"]}
+                  labelFormatter={(label) => label}
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--popover))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px",
+                  }}
+                />
+                <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                <Line
+                  type="monotone"
+                  dataKey="revenueChurnRate"
+                  stroke="#264653"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
+                  activeDot={{ r: 5 }}
+                  name="Revenue Churn"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Monthly Churn Details</CardTitle>
+          <CardDescription>Active customers, churned count, and lost revenue by month</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Month</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Active</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Churned</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Logo %</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Revenue</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Lost</th>
+                  <th className="text-right py-2 pl-3 font-medium text-muted-foreground">Rev %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {months.slice(1).map((m) => (
+                  <tr key={m.period} className="border-b last:border-0">
+                    <td className="py-2 pr-4 font-medium">{formatPeriodLabel(m.period)}</td>
+                    <td className="text-right py-2 px-3">{m.activeCount}</td>
+                    <td className="text-right py-2 px-3">{m.churnedCount}</td>
+                    <td className={`text-right py-2 px-3 font-mono ${m.logoChurnRate > 10 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(m.logoChurnRate)}
+                    </td>
+                    <td className="text-right py-2 px-3 font-mono">{formatCurrency(m.totalRevenue)}</td>
+                    <td className="text-right py-2 px-3 font-mono text-red-600">{m.lostRevenue > 0 ? formatCurrency(m.lostRevenue) : "-"}</td>
+                    <td className={`text-right py-2 pl-3 font-mono ${m.revenueChurnRate > 10 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(m.revenueChurnRate)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

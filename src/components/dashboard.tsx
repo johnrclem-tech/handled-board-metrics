@@ -25,6 +25,7 @@ import { CohortSummaryChart } from "@/components/cohort-summary-chart"
 import { ConcentrationChart } from "@/components/concentration-chart"
 import { NewCustomersChart } from "@/components/new-customers-chart"
 import { ExistingCustomersChart } from "@/components/existing-customers-chart"
+import { ChurnPage } from "@/components/churn-page"
 
 export interface CohortDrillFilter {
   billingMonth: number
@@ -35,6 +36,7 @@ export interface CohortDrillFilter {
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
   financials: "Revenue",
+  churn: "Churn",
 }
 
 export function Dashboard() {
@@ -90,6 +92,10 @@ export function Dashboard() {
               <ExistingCustomersChart key={`existing-${refreshKey}`} />
               <RevenueChart key={`chart-${refreshKey}`} />
             </div>
+          )}
+
+          {activePage === "churn" && (
+            <ChurnPage key={`churn-${refreshKey}`} />
           )}
 
           {activePage === "financials" && (
