@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { UserX, TrendingDown, DollarSign, Users } from "lucide-react"
+import { UserX, TrendingDown, DollarSign, Users, TableProperties, ChevronLeft, ChevronRight } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -15,6 +15,12 @@ import {
   ReferenceLine,
 } from "recharts"
 
+interface ChurnedCustomer {
+  name: string
+  lastRevenue: number
+  revenueSharePct: number
+}
+
 interface ChurnMonth {
   period: string
   activeCount: number
@@ -23,6 +29,7 @@ interface ChurnMonth {
   revenueChurnRate: number
   lostRevenue: number
   totalRevenue: number
+  churnedCustomers: ChurnedCustomer[]
 }
 
 interface ChurnSummary {
@@ -279,12 +286,60 @@ export function ChurnPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Monthly Churn Details</CardTitle>
-          <CardDescription>Active customers, churned count, and lost revenue by month</CardDescription>
-        </CardHeader>
-        <CardContent>
+      <ChurnDetailsTable months={months} />
+    </div>
+  )
+}
+
+const DETAILS_PAGE_SIZE = 10
+
+function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
+  const [showCustomers, setShowCustomers] = useState(false)
+  const [customerPage, setCustomerPage] = useState(1)
+
+  // Skip first month (no prior to compare)
+  const dataMonths = months.slice(1)
+
+  // Flatten all churned customers across all months for customer view
+  const allChurned = dataMonths.flatMap((m) =>
+    m.churnedCustomers.map((c) => ({
+      ...c,
+      churnMonth: m.period,
+      churnMonthLabel: formatPeriodLabel(m.period),
+    }))
+  )
+
+  const totalCustomerPages = Math.max(1, Math.ceil(allChurned.length / DETAILS_PAGE_SIZE))
+  const paginatedCustomers = allChurned.slice(
+    (customerPage - 1) * DETAILS_PAGE_SIZE,
+    customerPage * DETAILS_PAGE_SIZE
+  )
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle>Monthly Churn Details</CardTitle>
+            <CardDescription>
+              {showCustomers
+                ? `${allChurned.length} churned customers across all months — sorted by revenue impact`
+                : "Active customers, churned count, and lost revenue by month"}
+            </CardDescription>
+          </div>
+          <Button
+            variant={showCustomers ? "default" : "outline"}
+            size="sm"
+            onClick={() => { setShowCustomers(!showCustomers); setCustomerPage(1) }}
+            className="gap-1"
+          >
+            <TableProperties className="h-4 w-4" />
+            {showCustomers ? "Summary" : "Churned Customers"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {!showCustomers ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -299,7 +354,7 @@ export function ChurnPage() {
                 </tr>
               </thead>
               <tbody>
-                {months.slice(1).map((m) => (
+                {dataMonths.map((m) => (
                   <tr key={m.period} className="border-b last:border-0">
                     <td className="py-2 pr-4 font-medium">{formatPeriodLabel(m.period)}</td>
                     <td className="text-right py-2 px-3">{m.activeCount}</td>
@@ -317,8 +372,56 @@ export function ChurnPage() {
               </tbody>
             </table>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        ) : (
+          <div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Customer</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">Churn Month</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Last Monthly Revenue</th>
+                  <th className="text-right py-2 pl-3 font-medium text-muted-foreground">% of Total Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedCustomers.map((c, i) => (
+                  <tr key={`${c.name}-${c.churnMonth}-${i}`} className="border-b last:border-0">
+                    <td className="py-2 pr-4 font-medium">{c.name}</td>
+                    <td className="py-2 px-3">{c.churnMonthLabel}</td>
+                    <td className="text-right py-2 px-3 font-mono text-red-600">{formatCurrency(c.lastRevenue)}</td>
+                    <td className={`text-right py-2 pl-3 font-mono ${c.revenueSharePct > 5 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(c.revenueSharePct)}
+                    </td>
+                  </tr>
+                ))}
+                {paginatedCustomers.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="text-center py-8 text-muted-foreground">
+                      No churned customers in this segment
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            {allChurned.length > DETAILS_PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
+                <span>
+                  {((customerPage - 1) * DETAILS_PAGE_SIZE + 1)}–{Math.min(customerPage * DETAILS_PAGE_SIZE, allChurned.length)} of {allChurned.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={customerPage <= 1} onClick={() => setCustomerPage((p) => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span>{customerPage}/{totalCustomerPages}</span>
+                  <Button variant="outline" size="sm" disabled={customerPage >= totalCustomerPages} onClick={() => setCustomerPage((p) => p + 1)}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

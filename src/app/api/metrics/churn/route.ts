@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
       revenueChurnRate: number
       lostRevenue: number
       totalRevenue: number
+      churnedCustomers: { name: string; lastRevenue: number; revenueSharePct: number }[]
     }[] = []
 
     let prevActive = new Map<string, number>() // customer -> revenue in prior month
@@ -86,15 +87,27 @@ export async function GET(request: NextRequest) {
       // Churned: was in prevActive, not in currActive
       let churnedCount = 0
       let lostRevenue = 0
+      const churnedCustomers: { name: string; lastRevenue: number; revenueSharePct: number }[] = []
+      const totalPrevRevenue = [...prevActive.values()].reduce((s, v) => s + v, 0)
+
       for (const [customer, prevRev] of prevActive) {
         if (!currActive.has(customer)) {
           churnedCount++
           lostRevenue += prevRev
+          churnedCustomers.push({
+            name: customer,
+            lastRevenue: Math.round(prevRev * 100) / 100,
+            revenueSharePct: totalPrevRevenue > 0
+              ? Math.round((prevRev / totalPrevRevenue) * 10000) / 100
+              : 0,
+          })
         }
       }
 
+      // Sort churned by revenue impact descending
+      churnedCustomers.sort((a, b) => b.lastRevenue - a.lastRevenue)
+
       const prevActiveCount = prevActive.size
-      const totalPrevRevenue = [...prevActive.values()].reduce((s, v) => s + v, 0)
 
       const logoChurnRate = prevActiveCount > 0 ? churnedCount / prevActiveCount : 0
       const revenueChurnRate = totalPrevRevenue > 0 ? lostRevenue / totalPrevRevenue : 0
@@ -103,10 +116,11 @@ export async function GET(request: NextRequest) {
         period,
         activeCount: currActive.size,
         churnedCount,
-        logoChurnRate: Math.round(logoChurnRate * 10000) / 100, // as percentage
+        logoChurnRate: Math.round(logoChurnRate * 10000) / 100,
         revenueChurnRate: Math.round(revenueChurnRate * 10000) / 100,
         lostRevenue: Math.round(lostRevenue * 100) / 100,
         totalRevenue: Math.round([...currActive.values()].reduce((s, v) => s + v, 0) * 100) / 100,
+        churnedCustomers,
       })
 
       prevActive = currActive
