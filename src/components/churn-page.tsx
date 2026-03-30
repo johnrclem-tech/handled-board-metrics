@@ -68,6 +68,7 @@ export function ChurnPage() {
   const [loading, setLoading] = useState(true)
   const [segment, setSegment] = useState<Segment>("all")
   const [logoChurnMode, setLogoChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
+  const [revChurnMode, setRevChurnMode] = useState<"monthly" | "ttm">("monthly")
 
   useEffect(() => {
     setLoading(true)
@@ -124,6 +125,20 @@ export function ChurnPage() {
         period: m.period,
         label: formatPeriodLabel(m.period),
         ttmLogoChurnRate: Math.round(avgRate * 100) / 100,
+      }
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null)
+
+  // Compute rolling TTM revenue churn
+  const rollingTtmRevData = monthlyData
+    .map((m, i) => {
+      if (i < 11) return null
+      const window = monthlyData.slice(i - 11, i + 1)
+      const avgRate = window.reduce((s, w) => s + w.revenueChurnRate, 0) / window.length
+      return {
+        period: m.period,
+        label: formatPeriodLabel(m.period),
+        ttmRevenueChurnRate: Math.round(avgRate * 100) / 100,
       }
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
@@ -290,48 +305,42 @@ export function ChurnPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Monthly Revenue Churn Rate</CardTitle>
-            <CardDescription>
-              % of prior month&apos;s revenue lost from churned customers
-            </CardDescription>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle>{revChurnMode === "monthly" ? "Monthly Revenue Churn Rate" : "Rolling TTM Revenue Churn Rate"}</CardTitle>
+                <CardDescription>
+                  {revChurnMode === "monthly"
+                    ? "% of prior month\u2019s revenue lost from churned customers"
+                    : "12-month rolling average of monthly revenue churn rates"}
+                </CardDescription>
+              </div>
+              <div className="flex gap-1 rounded-lg border p-1">
+                <Button variant={revChurnMode === "monthly" ? "default" : "ghost"} size="sm" onClick={() => setRevChurnMode("monthly")} className="text-xs h-7 px-2">Monthly</Button>
+                <Button variant={revChurnMode === "ttm" ? "default" : "ghost"} size="sm" onClick={() => setRevChurnMode("ttm")} className="text-xs h-7 px-2">Rolling TTM</Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 11 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={50}
-                  interval={0}
-                />
-                <YAxis
-                  tickFormatter={(val) => `${val}%`}
-                  tick={{ fontSize: 11 }}
-                  width={45}
-                />
-                <Tooltip
-                  formatter={(value) => [`${Number(value).toFixed(1)}%`, "Revenue Churn"]}
-                  labelFormatter={(label) => label}
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                <Line
-                  type="monotone"
-                  dataKey="revenueChurnRate"
-                  stroke="#264653"
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                  name="Revenue Churn"
-                />
-              </LineChart>
+              {revChurnMode === "monthly" ? (
+                <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
+                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Revenue Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                  <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="revenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="Revenue Churn" />
+                </LineChart>
+              ) : (
+                <LineChart data={rollingTtmRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
+                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Revenue Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                  <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="ttmRevenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="TTM Revenue Churn" />
+                </LineChart>
+              )}
             </ResponsiveContainer>
           </CardContent>
         </Card>
