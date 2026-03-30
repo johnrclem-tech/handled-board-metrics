@@ -168,28 +168,69 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
     label: formatPeriodLabel(d.period),
   }))
 
-  // KPI cards: most recent period values
+  // KPI cards: values based on selected period
+  let kpiLabel = ""
+  let kpiLogo = 0
+  let kpiLogoSub = ""
+  let kpiRevChurn = 0
+  let kpiRevSub = ""
+  let kpiNrr = 0
+  let kpiNrrSub = ""
+
+  if (period === "monthly") {
+    const m = latestMonth
+    kpiLabel = formatPeriodLabel(m.period)
+    kpiLogo = m.logoChurnRate
+    kpiLogoSub = `${m.churnedCount} of ${m.activeCount + m.churnedCount} customers`
+    kpiRevChurn = m.revenueChurnRate
+    kpiRevSub = `${formatCurrency(m.lostRevenue)} lost`
+    kpiNrr = m.nrr
+    kpiNrrSub = `${formatCurrency(m.totalRevenue)} current revenue`
+  } else if (period === "quarterly" && quarterlyLogoData.length > 0) {
+    const lastQ = quarterlyLogoData[quarterlyLogoData.length - 1]
+    const lastQRev = quarterlyRevData[quarterlyRevData.length - 1]
+    const lastQNrr = quarterlyNrrData[quarterlyNrrData.length - 1]
+    kpiLabel = lastQ.label
+    kpiLogo = lastQ.quarterlyLogoChurnRate
+    kpiLogoSub = "Avg monthly rate for quarter"
+    kpiRevChurn = lastQRev.quarterlyRevenueChurnRate
+    kpiRevSub = "Avg monthly rate for quarter"
+    kpiNrr = lastQNrr.quarterlyNrr
+    kpiNrrSub = "Avg monthly NRR for quarter"
+  } else if (period === "ttm") {
+    const lastTtmLogo = rollingTtmLogoData.length > 0 ? rollingTtmLogoData[rollingTtmLogoData.length - 1] : null
+    const lastTtmNrr = rollingTtmNrrData.length > 0 ? rollingTtmNrrData[rollingTtmNrrData.length - 1] : null
+    const lastAnnualNrr = annualNrrData.length > 0 ? annualNrrData[annualNrrData.length - 1] : null
+    kpiLabel = lastTtmLogo?.label || latestMonth.period
+    kpiLogo = lastTtmLogo?.ttmLogoChurnRate || 0
+    kpiLogoSub = "Rolling 12-month average"
+    kpiRevChurn = lastAnnualNrr?.nrr || 0
+    kpiRevSub = lastAnnualNrr ? `${lastAnnualNrr.customerCount} customers YoY` : "No YoY data yet"
+    kpiNrr = lastTtmNrr?.ttmNrr || 0
+    kpiNrrSub = "Rolling 12-month average"
+  }
+
   const kpiCards = [
     {
       title: "Logo Churn",
-      value: formatPct(latestMonth.logoChurnRate),
-      sub: `${latestMonth.churnedCount} of ${latestMonth.activeCount + latestMonth.churnedCount} customers`,
+      value: formatPct(kpiLogo),
+      sub: `${kpiLabel} — ${kpiLogoSub}`,
       icon: Users,
-      warn: latestMonth.logoChurnRate > 10,
+      warn: kpiLogo > 10,
     },
     {
-      title: "Revenue Churn",
-      value: formatPct(latestMonth.revenueChurnRate),
-      sub: `${formatCurrency(latestMonth.lostRevenue)} lost`,
+      title: period === "ttm" ? "Annual NRR" : "Revenue Churn",
+      value: formatPct(kpiRevChurn),
+      sub: `${kpiLabel} — ${kpiRevSub}`,
       icon: DollarSign,
-      warn: latestMonth.revenueChurnRate > 10,
+      warn: period === "ttm" ? kpiRevChurn < 90 : kpiRevChurn > 10,
     },
     {
       title: "Net Revenue Retention",
-      value: formatPct(latestMonth.nrr),
-      sub: `${formatCurrency(latestMonth.totalRevenue)} current revenue`,
+      value: formatPct(kpiNrr),
+      sub: `${kpiLabel} — ${kpiNrrSub}`,
       icon: TrendingUp,
-      warn: latestMonth.nrr < 90,
+      warn: kpiNrr < 90,
     },
   ]
 
