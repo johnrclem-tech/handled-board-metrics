@@ -68,7 +68,7 @@ export function ChurnPage() {
   const [loading, setLoading] = useState(true)
   const [segment, setSegment] = useState<Segment>("all")
   const [logoChurnMode, setLogoChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
-  const [revChurnMode, setRevChurnMode] = useState<"monthly" | "ttm">("monthly")
+  const [revChurnMode, setRevChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
 
   useEffect(() => {
     setLoading(true)
@@ -159,6 +159,21 @@ export function ChurnPage() {
     })
   }
 
+  // Compute quarterly revenue churn
+  const quarterlyRevData: { label: string; quarterlyRevenueChurnRate: number }[] = []
+  for (let i = 0; i < monthlyData.length; i += 3) {
+    const chunk = monthlyData.slice(i, i + 3)
+    if (chunk.length < 3) break
+    const avgRate = chunk.reduce((s, m) => s + m.revenueChurnRate, 0) / chunk.length
+    const lastMonth = chunk[chunk.length - 1]
+    const [year, month] = lastMonth.period.split("-").map(Number)
+    const q = Math.ceil(month / 3)
+    quarterlyRevData.push({
+      label: `Q${q} ${String(year).slice(2)}`,
+      quarterlyRevenueChurnRate: Math.round(avgRate * 100) / 100,
+    })
+  }
+
   const segments: { value: Segment; label: string }[] = [
     { value: "all", label: "All" },
     { value: "new", label: "New" },
@@ -242,9 +257,9 @@ export function ChurnPage() {
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle>
-                  {logoChurnMode === "monthly" ? "Monthly Logo Churn Rate"
-                    : logoChurnMode === "quarterly" ? "Quarterly Logo Churn Rate"
-                    : "Rolling TTM Logo Churn Rate"}
+                  {logoChurnMode === "monthly" ? "Logo Churn — Monthly"
+                    : logoChurnMode === "quarterly" ? "Logo Churn — Quarterly"
+                    : "Logo Churn — Rolling TTM"}
                 </CardTitle>
                 <CardDescription>
                   {logoChurnMode === "monthly"
@@ -307,16 +322,31 @@ export function ChurnPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle>{revChurnMode === "monthly" ? "Monthly Revenue Churn Rate" : "Rolling TTM Revenue Churn Rate"}</CardTitle>
+                <CardTitle>
+                  {revChurnMode === "monthly" ? "Revenue Churn — Monthly"
+                    : revChurnMode === "quarterly" ? "Revenue Churn — Quarterly"
+                    : "Revenue Churn — Rolling TTM"}
+                </CardTitle>
                 <CardDescription>
                   {revChurnMode === "monthly"
                     ? "% of prior month\u2019s revenue lost from churned customers"
-                    : "12-month rolling average of monthly revenue churn rates"}
+                    : revChurnMode === "quarterly"
+                      ? "Average of monthly revenue churn rates per quarter"
+                      : "12-month rolling average of monthly revenue churn rates"}
                 </CardDescription>
               </div>
               <div className="flex gap-1 rounded-lg border p-1">
-                <Button variant={revChurnMode === "monthly" ? "default" : "ghost"} size="sm" onClick={() => setRevChurnMode("monthly")} className="text-xs h-7 px-2">Monthly</Button>
-                <Button variant={revChurnMode === "ttm" ? "default" : "ghost"} size="sm" onClick={() => setRevChurnMode("ttm")} className="text-xs h-7 px-2">Rolling TTM</Button>
+                {(["monthly", "quarterly", "ttm"] as const).map((mode) => (
+                  <Button
+                    key={mode}
+                    variant={revChurnMode === mode ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setRevChurnMode(mode)}
+                    className="text-xs h-7 px-2"
+                  >
+                    {mode === "monthly" ? "Monthly" : mode === "quarterly" ? "Quarterly" : "Rolling TTM"}
+                  </Button>
+                ))}
               </div>
             </div>
           </CardHeader>
@@ -330,6 +360,15 @@ export function ChurnPage() {
                   <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Revenue Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
                   <Line type="monotone" dataKey="revenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="Revenue Churn" />
+                </LineChart>
+              ) : revChurnMode === "quarterly" ? (
+                <LineChart data={quarterlyRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
+                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly Revenue Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                  <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="quarterlyRevenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Quarterly Revenue Churn" />
                 </LineChart>
               ) : (
                 <LineChart data={rollingTtmRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
