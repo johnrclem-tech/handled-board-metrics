@@ -38,8 +38,17 @@ interface ChurnSummary {
   ttm: { logoChurn: number; revenueChurn: number }
 }
 
+interface AnnualNrrEntry {
+  period: string
+  nrr: number
+  customerCount: number
+  priorRevenue: number
+  currentRevenue: number
+}
+
 interface ChurnResponse {
   months: ChurnMonth[]
+  annualNrr: AnnualNrrEntry[]
   summary: ChurnSummary | null
 }
 
@@ -69,7 +78,7 @@ export function ChurnPage() {
   const [loading, setLoading] = useState(true)
   const [segment, setSegment] = useState<Segment>("all")
   const [logoChurnMode, setLogoChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
-  const [revChurnMode, setRevChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
+  const [revChurnMode, setRevChurnMode] = useState<"monthly" | "quarterly" | "annual">("monthly")
   const [nrrMode, setNrrMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
 
   useEffect(() => {
@@ -131,19 +140,11 @@ export function ChurnPage() {
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
 
-  // Compute rolling TTM revenue churn
-  const rollingTtmRevData = monthlyData
-    .map((m, i) => {
-      if (i < 11) return null
-      const window = monthlyData.slice(i - 11, i + 1)
-      const avgRate = window.reduce((s, w) => s + w.revenueChurnRate, 0) / window.length
-      return {
-        period: m.period,
-        label: formatPeriodLabel(m.period),
-        ttmRevenueChurnRate: Math.round(avgRate * 100) / 100,
-      }
-    })
-    .filter((d): d is NonNullable<typeof d> => d !== null)
+  // Annual NRR data from API (year-over-year same-customer comparison)
+  const annualNrrData = (data?.annualNrr || []).map((d) => ({
+    ...d,
+    label: formatPeriodLabel(d.period),
+  }))
 
   // Compute quarterly logo churn: group months into quarters, avg the rates
   const quarterlyData: { label: string; quarterlyLogoChurnRate: number }[] = []
@@ -360,18 +361,18 @@ export function ChurnPage() {
                 <CardTitle>
                   {revChurnMode === "monthly" ? "Revenue Churn — Monthly"
                     : revChurnMode === "quarterly" ? "Revenue Churn — Quarterly"
-                    : "Revenue Churn — Rolling TTM"}
+                    : "Annual NRR"}
                 </CardTitle>
                 <CardDescription>
                   {revChurnMode === "monthly"
                     ? "% of prior month\u2019s revenue lost from churned customers"
                     : revChurnMode === "quarterly"
                       ? "Average of monthly revenue churn rates per quarter"
-                      : "12-month rolling average of monthly revenue churn rates"}
+                      : "Year-over-year revenue from the same customers. Only customers with revenue in the same month last year are included."}
                 </CardDescription>
               </div>
               <div className="flex gap-1 rounded-lg border p-1">
-                {(["monthly", "quarterly", "ttm"] as const).map((mode) => (
+                {(["monthly", "quarterly", "annual"] as const).map((mode) => (
                   <Button
                     key={mode}
                     variant={revChurnMode === mode ? "default" : "ghost"}
@@ -379,7 +380,7 @@ export function ChurnPage() {
                     onClick={() => setRevChurnMode(mode)}
                     className="text-xs h-7 px-2"
                   >
-                    {mode === "monthly" ? "Monthly" : mode === "quarterly" ? "Quarterly" : "Rolling TTM"}
+                    {mode === "monthly" ? "Monthly" : mode === "quarterly" ? "Quarterly" : "Annual NRR"}
                   </Button>
                 ))}
               </div>
@@ -406,13 +407,20 @@ export function ChurnPage() {
                   <Line type="monotone" dataKey="quarterlyRevenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Quarterly Revenue Churn" />
                 </LineChart>
               ) : (
-                <LineChart data={rollingTtmRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <LineChart data={annualNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Revenue Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
-                  <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="ttmRevenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="TTM Revenue Churn" />
+                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
+                  <Tooltip
+                    formatter={(value, name, props) => {
+                      const entry = props?.payload
+                      return [`${Number(value).toFixed(1)}% (${entry?.customerCount || 0} customers)`, "Annual NRR"]
+                    }}
+                    labelFormatter={(label) => label}
+                    contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
+                  />
+                  <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="nrr" stroke="#264653" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Annual NRR" />
                 </LineChart>
               )}
             </ResponsiveContainer>

@@ -137,6 +137,47 @@ export async function GET(request: NextRequest) {
       prevActive = currActive
     }
 
+    // Compute Annual NRR: for each month where N-12 exists,
+    // sum revenue from customers who had revenue in N-12, compare to their N revenue
+    const annualNrr: { period: string; nrr: number; customerCount: number; priorRevenue: number; currentRevenue: number }[] = []
+
+    for (const period of sortedPeriods) {
+      // Compute period N-12
+      const [y, m] = period.split("-").map(Number)
+      const priorYear = m <= 12 ? y - 1 : y
+      const priorMonth = m
+      const priorPeriod = `${priorYear}-${String(priorMonth).padStart(2, "0")}`
+
+      // Only report if prior year period exists in the dataset
+      if (!sortedPeriods.includes(priorPeriod)) continue
+
+      // Find customers who had revenue in the prior year same month
+      let priorRevenue = 0
+      let currentRevenue = 0
+      let customerCount = 0
+
+      for (const customer of filteredCustomers) {
+        const priorRev = customerPeriodTotals.get(customer)!.get(priorPeriod) || 0
+        if (priorRev > 0) {
+          // This customer had revenue in N-12, include them
+          const currRev = customerPeriodTotals.get(customer)!.get(period) || 0
+          priorRevenue += priorRev
+          currentRevenue += currRev
+          customerCount++
+        }
+      }
+
+      if (priorRevenue > 0) {
+        annualNrr.push({
+          period,
+          nrr: Math.round((currentRevenue / priorRevenue) * 10000) / 100,
+          customerCount,
+          priorRevenue: Math.round(priorRevenue * 100) / 100,
+          currentRevenue: Math.round(currentRevenue * 100) / 100,
+        })
+      }
+    }
+
     // Compute summaries (skip first month which has no prior)
     const ratesWithData = months.filter((m) => m.period !== sortedPeriods[0])
 
@@ -156,7 +197,7 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    return NextResponse.json({ months, summary })
+    return NextResponse.json({ months, annualNrr, summary })
   } catch (error) {
     console.error("Churn error:", error)
     return NextResponse.json(
