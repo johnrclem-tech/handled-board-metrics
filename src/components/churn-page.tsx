@@ -67,7 +67,7 @@ export function ChurnPage() {
   const [data, setData] = useState<ChurnResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [segment, setSegment] = useState<Segment>("all")
-  const [logoChurnMode, setLogoChurnMode] = useState<"monthly" | "ttm">("monthly")
+  const [logoChurnMode, setLogoChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
 
   useEffect(() => {
     setLoading(true)
@@ -127,6 +127,22 @@ export function ChurnPage() {
       }
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
+
+  // Compute quarterly logo churn: group months into quarters, avg the rates
+  const quarterlyData: { label: string; quarterlyLogoChurnRate: number }[] = []
+  for (let i = 0; i < monthlyData.length; i += 3) {
+    const chunk = monthlyData.slice(i, i + 3)
+    if (chunk.length < 3) break // skip incomplete quarters
+    const avgRate = chunk.reduce((s, m) => s + m.logoChurnRate, 0) / chunk.length
+    // Label as Q1-Q4 based on the last month of the quarter
+    const lastMonth = chunk[chunk.length - 1]
+    const [year, month] = lastMonth.period.split("-").map(Number)
+    const q = Math.ceil(month / 3)
+    quarterlyData.push({
+      label: `Q${q} ${String(year).slice(2)}`,
+      quarterlyLogoChurnRate: Math.round(avgRate * 100) / 100,
+    })
+  }
 
   const segments: { value: Segment; label: string }[] = [
     { value: "all", label: "All" },
@@ -210,30 +226,31 @@ export function ChurnPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle>{logoChurnMode === "monthly" ? "Monthly Logo Churn Rate" : "Rolling TTM Logo Churn Rate"}</CardTitle>
+                <CardTitle>
+                  {logoChurnMode === "monthly" ? "Monthly Logo Churn Rate"
+                    : logoChurnMode === "quarterly" ? "Quarterly Logo Churn Rate"
+                    : "Rolling TTM Logo Churn Rate"}
+                </CardTitle>
                 <CardDescription>
                   {logoChurnMode === "monthly"
                     ? "% of prior month\u2019s active customers who had $0 revenue"
-                    : "12-month rolling average of monthly logo churn rates"}
+                    : logoChurnMode === "quarterly"
+                      ? "Average of monthly logo churn rates per quarter"
+                      : "12-month rolling average of monthly logo churn rates"}
                 </CardDescription>
               </div>
               <div className="flex gap-1 rounded-lg border p-1">
-                <Button
-                  variant={logoChurnMode === "monthly" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setLogoChurnMode("monthly")}
-                  className="text-xs h-7 px-2"
-                >
-                  Monthly
-                </Button>
-                <Button
-                  variant={logoChurnMode === "ttm" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setLogoChurnMode("ttm")}
-                  className="text-xs h-7 px-2"
-                >
-                  Rolling TTM
-                </Button>
+                {(["monthly", "quarterly", "ttm"] as const).map((mode) => (
+                  <Button
+                    key={mode}
+                    variant={logoChurnMode === mode ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setLogoChurnMode(mode)}
+                    className="text-xs h-7 px-2"
+                  >
+                    {mode === "monthly" ? "Monthly" : mode === "quarterly" ? "Quarterly" : "Rolling TTM"}
+                  </Button>
+                ))}
               </div>
             </div>
           </CardHeader>
@@ -244,24 +261,25 @@ export function ChurnPage() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip
-                    formatter={(value) => [`${Number(value).toFixed(1)}%`, "Logo Churn"]}
-                    labelFormatter={(label) => label}
-                    contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
-                  />
+                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Logo Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
                   <Line type="monotone" dataKey="logoChurnRate" stroke="#e76e50" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="Logo Churn" />
+                </LineChart>
+              ) : logoChurnMode === "quarterly" ? (
+                <LineChart data={quarterlyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
+                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly Logo Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                  <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="quarterlyLogoChurnRate" stroke="#e76e50" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Quarterly Logo Churn" />
                 </LineChart>
               ) : (
                 <LineChart data={rollingTtmData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip
-                    formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Logo Churn"]}
-                    labelFormatter={(label) => label}
-                    contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }}
-                  />
+                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Logo Churn"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
                   <Line type="monotone" dataKey="ttmLogoChurnRate" stroke="#e76e50" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="TTM Logo Churn" />
                 </LineChart>
