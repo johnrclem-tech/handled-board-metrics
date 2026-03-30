@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -33,17 +34,34 @@ export interface CohortDrillFilter {
   label: string
 }
 
+export type ChurnSegment = "all" | "new" | "existing"
+export type ChurnPeriod = "monthly" | "quarterly" | "ttm"
+
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
   financials: "Revenue",
   churn: "Churn",
 }
 
+const SEGMENTS: { value: ChurnSegment; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "new", label: "New" },
+  { value: "existing", label: "Existing" },
+]
+
+const PERIODS: { value: ChurnPeriod; label: string }[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "ttm", label: "TTM" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("overview")
   const [drillFilter, setDrillFilter] = useState<CohortDrillFilter | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [churnSegment, setChurnSegment] = useState<ChurnSegment>("all")
+  const [churnPeriod, setChurnPeriod] = useState<ChurnPeriod>("monthly")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -83,6 +101,40 @@ export function Dashboard() {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
+
+          {activePage === "churn" && (
+            <>
+              <div className="ml-auto flex items-center gap-3">
+                <div className="flex gap-1 rounded-lg border p-0.5">
+                  {SEGMENTS.map((s) => (
+                    <Button
+                      key={s.value}
+                      variant={churnSegment === s.value ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setChurnSegment(s.value)}
+                      className="h-7 px-2.5 text-xs"
+                    >
+                      {s.label}
+                    </Button>
+                  ))}
+                </div>
+                <Separator orientation="vertical" className="h-4" />
+                <div className="flex gap-1 rounded-lg border p-0.5">
+                  {PERIODS.map((p) => (
+                    <Button
+                      key={p.value}
+                      variant={churnPeriod === p.value ? "default" : "ghost"}
+                      size="sm"
+                      onClick={() => setChurnPeriod(p.value)}
+                      className="h-7 px-2.5 text-xs"
+                    >
+                      {p.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </header>
 
         <main className="flex-1 overflow-auto p-4 md:p-6">
@@ -95,7 +147,11 @@ export function Dashboard() {
           )}
 
           {activePage === "churn" && (
-            <ChurnPage key={`churn-${refreshKey}`} />
+            <ChurnPage
+              key={`churn-${refreshKey}`}
+              segment={churnSegment}
+              period={churnPeriod}
+            />
           )}
 
           {activePage === "financials" && (
@@ -117,8 +173,6 @@ export function Dashboard() {
               />
             </div>
           )}
-
-
         </main>
       </SidebarInset>
 
