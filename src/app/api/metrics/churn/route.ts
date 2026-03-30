@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
 
     // Compute Annual NRR: for each month where N-12 exists,
     // sum revenue from customers who had revenue in N-12, compare to their N revenue
-    const annualNrr: { period: string; nrr: number; customerCount: number; priorRevenue: number; currentRevenue: number }[] = []
+    const annualNrr: { period: string; priorPeriod: string; nrr: number; customerCount: number; priorRevenue: number; currentRevenue: number; customers: { name: string; priorRevenue: number; currentRevenue: number; change: number }[] }[] = []
 
     for (const period of sortedPeriods) {
       // Compute period N-12
@@ -155,25 +155,35 @@ export async function GET(request: NextRequest) {
       let priorRevenue = 0
       let currentRevenue = 0
       let customerCount = 0
+      const customers: { name: string; priorRevenue: number; currentRevenue: number; change: number }[] = []
 
       for (const customer of filteredCustomers) {
         const priorRev = customerPeriodTotals.get(customer)!.get(priorPeriod) || 0
         if (priorRev > 0) {
-          // This customer had revenue in N-12, include them
           const currRev = customerPeriodTotals.get(customer)!.get(period) || 0
           priorRevenue += priorRev
           currentRevenue += currRev
           customerCount++
+          customers.push({
+            name: customer,
+            priorRevenue: Math.round(priorRev * 100) / 100,
+            currentRevenue: Math.round(currRev * 100) / 100,
+            change: Math.round((currRev - priorRev) * 100) / 100,
+          })
         }
       }
+
+      customers.sort((a, b) => a.change - b.change)
 
       if (priorRevenue > 0) {
         annualNrr.push({
           period,
+          priorPeriod,
           nrr: Math.round((currentRevenue / priorRevenue) * 10000) / 100,
           customerCount,
           priorRevenue: Math.round(priorRevenue * 100) / 100,
           currentRevenue: Math.round(currentRevenue * 100) / 100,
+          customers,
         })
       }
     }

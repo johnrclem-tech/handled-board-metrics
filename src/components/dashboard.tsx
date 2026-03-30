@@ -35,7 +35,7 @@ export interface CohortDrillFilter {
 }
 
 export type ChurnSegment = "all" | "new" | "existing"
-export type ChurnPeriod = "monthly" | "quarterly" | "ttm"
+export type ChurnPeriod = "monthly" | "quarterly" | "annually"
 
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
@@ -52,7 +52,7 @@ const SEGMENTS: { value: ChurnSegment; label: string }[] = [
 const PERIODS: { value: ChurnPeriod; label: string }[] = [
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
-  { value: "ttm", label: "TTM" },
+  { value: "annually", label: "Annually" },
 ]
 
 export function Dashboard() {

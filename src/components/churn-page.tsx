@@ -35,12 +35,21 @@ interface ChurnMonth {
   churnedCustomers: ChurnedCustomer[]
 }
 
+interface AnnualNrrCustomer {
+  name: string
+  priorRevenue: number
+  currentRevenue: number
+  change: number
+}
+
 interface AnnualNrrEntry {
   period: string
+  priorPeriod: string
   nrr: number
   customerCount: number
   priorRevenue: number
   currentRevenue: number
+  customers: AnnualNrrCustomer[]
 }
 
 interface ChurnResponse {
@@ -79,6 +88,7 @@ interface ChurnPageProps {
 export function ChurnPage({ segment, period }: ChurnPageProps) {
   const [data, setData] = useState<ChurnResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedNrrDetail, setSelectedNrrDetail] = useState<AnnualNrrEntry | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -154,19 +164,16 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
 
-  const rollingTtmNrrData = monthlyData
-    .map((m, i) => {
-      if (i < 11) return null
-      const window = monthlyData.slice(i - 11, i + 1)
-      return { label: formatPeriodLabel(m.period), ttmNrr: Math.round(window.reduce((s, w) => s + w.nrr, 0) / window.length * 100) / 100 }
-    })
-    .filter((d): d is NonNullable<typeof d> => d !== null)
-
-  // Annual NRR data
+  // Annual NRR data (year-over-year same-customer comparison)
   const annualNrrData = (data?.annualNrr || []).map((d) => ({
     ...d,
     label: formatPeriodLabel(d.period),
   }))
+
+  // Lookup for clicking on annual NRR points
+  const annualNrrByPeriod = new Map(
+    (data?.annualNrr || []).map((d) => [d.period, d])
+  )
 
   // KPI cards: values based on selected period
   let kpiLabel = ""
@@ -197,17 +204,16 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
     kpiRevSub = "Avg monthly rate for quarter"
     kpiNrr = lastQNrr.quarterlyNrr
     kpiNrrSub = "Avg monthly NRR for quarter"
-  } else if (period === "ttm") {
-    const lastTtmLogo = rollingTtmLogoData.length > 0 ? rollingTtmLogoData[rollingTtmLogoData.length - 1] : null
-    const lastTtmNrr = rollingTtmNrrData.length > 0 ? rollingTtmNrrData[rollingTtmNrrData.length - 1] : null
+  } else if (period === "annually") {
     const lastAnnualNrr = annualNrrData.length > 0 ? annualNrrData[annualNrrData.length - 1] : null
-    kpiLabel = lastTtmLogo?.label || latestMonth.period
+    const lastTtmLogo = rollingTtmLogoData.length > 0 ? rollingTtmLogoData[rollingTtmLogoData.length - 1] : null
+    kpiLabel = lastAnnualNrr?.label || lastTtmLogo?.label || formatPeriodLabel(latestMonth.period)
     kpiLogo = lastTtmLogo?.ttmLogoChurnRate || 0
     kpiLogoSub = "Rolling 12-month average"
     kpiRevChurn = lastAnnualNrr?.nrr || 0
     kpiRevSub = lastAnnualNrr ? `${lastAnnualNrr.customerCount} customers YoY` : "No YoY data yet"
-    kpiNrr = lastTtmNrr?.ttmNrr || 0
-    kpiNrrSub = "Rolling 12-month average"
+    kpiNrr = lastAnnualNrr?.nrr || 0
+    kpiNrrSub = lastAnnualNrr ? `${formatCurrency(lastAnnualNrr.priorRevenue)} prior → ${formatCurrency(lastAnnualNrr.currentRevenue)} current` : "No YoY data yet"
   }
 
   const kpiCards = [
@@ -219,11 +225,11 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
       warn: kpiLogo > 10,
     },
     {
-      title: period === "ttm" ? "Annual NRR" : "Revenue Churn",
+      title: period === "annually" ? "Annual NRR" : "Revenue Churn",
       value: formatPct(kpiRevChurn),
       sub: `${kpiLabel} — ${kpiRevSub}`,
       icon: DollarSign,
-      warn: period === "ttm" ? kpiRevChurn < 90 : kpiRevChurn > 10,
+      warn: period === "annually" ? kpiRevChurn < 90 : kpiRevChurn > 10,
     },
     {
       title: "Net Revenue Retention",
@@ -309,7 +315,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {period === "ttm" ? "Annual NRR" : "Revenue Churn"}
+              {period === "annually" ? "Annual NRR" : "Revenue Churn"}
               <InfoTooltip text={
                 period === "monthly"
                   ? "% of prior month\u2019s revenue lost from customers who dropped to $0 in the current month."
@@ -364,13 +370,13 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            Net Revenue Retention
+            {period === "annually" ? "Annual Net Revenue Retention" : "Net Revenue Retention"}
             <InfoTooltip text={
               period === "monthly"
                 ? "Revenue from prior month\u2019s customers as % of prior month\u2019s total revenue. >100% = expansion outpaces churn."
                 : period === "quarterly"
                   ? "Average of the 3 monthly NRR values per calendar quarter."
-                  : "12-month rolling average of monthly NRR."
+                  : "Year-over-year revenue retention. For each month, compares revenue from customers who had revenue in the same month last year. Click a point to see customer details."
             } />
           </CardTitle>
         </CardHeader>
@@ -395,18 +401,100 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                 <Line type="monotone" dataKey="quarterlyNrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             ) : (
-              <LineChart data={rollingTtmNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <LineChart
+                data={annualNrrData}
+                margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onClick={(state: any) => {
+                  const payload = state?.activePayload?.[0]?.payload
+                  if (payload?.period) {
+                    const detail = annualNrrByPeriod.get(payload.period)
+                    if (detail) setSelectedNrrDetail(detail)
+                  }
+                }}
+                style={{ cursor: "pointer" }}
+              >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                 <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
-                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM NRR"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
+                <Tooltip
+                  formatter={(value, _name, props) => {
+                    const entry = props?.payload
+                    return [`${Number(value).toFixed(1)}% (${entry?.customerCount || 0} customers)`, "Annual NRR"]
+                  }}
+                  labelFormatter={(l) => `${l} — click for details`}
+                  contentStyle={tooltipStyle}
+                />
                 <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Line type="monotone" dataKey="ttmNrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="nrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 7, stroke: "#2a9d8f", strokeWidth: 3 }} />
               </LineChart>
             )}
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {selectedNrrDetail && period === "annually" && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Annual NRR Detail — {formatPeriodLabel(selectedNrrDetail.period)}
+                  <InfoTooltip text={`Comparing ${formatPeriodLabel(selectedNrrDetail.period)} vs ${formatPeriodLabel(selectedNrrDetail.priorPeriod)} for ${selectedNrrDetail.customerCount} customers who had revenue in both periods.`} />
+                </CardTitle>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setSelectedNrrDetail(null)} className="gap-1">
+                <UserX className="h-4 w-4" />
+                Close
+              </Button>
+            </div>
+            <div className="flex gap-6 text-sm mt-2">
+              <div>
+                <span className="text-muted-foreground">Prior Year ({formatPeriodLabel(selectedNrrDetail.priorPeriod)})</span>
+                <div className="font-semibold">{formatCurrency(selectedNrrDetail.priorRevenue)}</div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Current ({formatPeriodLabel(selectedNrrDetail.period)})</span>
+                <div className="font-semibold">{formatCurrency(selectedNrrDetail.currentRevenue)}</div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">NRR</span>
+                <div className={`font-semibold ${selectedNrrDetail.nrr < 100 ? "text-red-600" : "text-green-600"}`}>{formatPct(selectedNrrDetail.nrr)}</div>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Customers</span>
+                <div className="font-semibold">{selectedNrrDetail.customerCount}</div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Customer</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">{formatPeriodLabel(selectedNrrDetail.priorPeriod)}</th>
+                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">{formatPeriodLabel(selectedNrrDetail.period)}</th>
+                    <th className="text-right py-2 pl-3 font-medium text-muted-foreground">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedNrrDetail.customers.map((c) => (
+                    <tr key={c.name} className="border-b last:border-0">
+                      <td className="py-2 pr-4 font-medium">{c.name}</td>
+                      <td className="text-right py-2 px-3 font-mono">{formatCurrency(c.priorRevenue)}</td>
+                      <td className="text-right py-2 px-3 font-mono">{formatCurrency(c.currentRevenue)}</td>
+                      <td className={`text-right py-2 pl-3 font-mono ${c.change < 0 ? "text-red-600" : c.change > 0 ? "text-green-600" : ""}`}>
+                        {c.change > 0 ? "+" : ""}{formatCurrency(c.change)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <ChurnDetailsTable months={months} />
     </div>
