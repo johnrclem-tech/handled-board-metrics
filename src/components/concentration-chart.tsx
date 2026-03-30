@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { InfoTooltip } from "@/components/info-tooltip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { PieChart as PieChartIcon, TableProperties, ChevronLeft, ChevronRight } from "lucide-react"
@@ -107,10 +108,10 @@ export function ConcentrationChart() {
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle>Customer Revenue Concentration</CardTitle>
-            <CardDescription>
-              % of total revenue from top 1, 3, and 5 customers by month
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              Customer Revenue Concentration
+              <InfoTooltip text="% of total revenue from top 1, 3, and 5 customers by month. Lower concentration = healthier, more diversified revenue base." />
+            </CardTitle>
           </div>
           <Button
             variant={showDetails ? "default" : "outline"}

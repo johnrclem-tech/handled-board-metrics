@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { InfoTooltip } from "@/components/info-tooltip"
 import { UserPlus } from "lucide-react"
 import {
   BarChart,
@@ -65,10 +66,8 @@ export function NewCustomersChart() {
         <CardTitle className="flex items-center gap-2">
           <UserPlus className="h-5 w-5" />
           New Customer Acquisitions
+          <InfoTooltip text={`Count of customers starting their first billing month (excluding pre-existing). Total: ${totalNew} new customers, avg ${avgPerMonth.toFixed(1)}/mo.`} />
         </CardTitle>
-        <CardDescription>
-          Total: {totalNew} new customers, avg {avgPerMonth.toFixed(1)}/mo
-        </CardDescription>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={225}>

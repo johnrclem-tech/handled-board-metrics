@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { InfoTooltip } from "@/components/info-tooltip"
 import { UserX, TrendingDown, DollarSign, Users, TableProperties } from "lucide-react"
 import {
   LineChart,
@@ -292,18 +293,18 @@ export function ChurnPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle>
+                <CardTitle className="flex items-center gap-2">
                   {logoChurnMode === "monthly" ? "Logo Churn — Monthly"
                     : logoChurnMode === "quarterly" ? "Logo Churn — Quarterly"
                     : "Logo Churn — Rolling TTM"}
+                  <InfoTooltip text={
+                    logoChurnMode === "monthly"
+                      ? "% of prior month\u2019s active customers who had $0 revenue in the current month."
+                      : logoChurnMode === "quarterly"
+                        ? "Average of the 3 monthly logo churn rates per calendar quarter."
+                        : "12-month rolling average of monthly logo churn rates."
+                  } />
                 </CardTitle>
-                <CardDescription>
-                  {logoChurnMode === "monthly"
-                    ? "% of prior month\u2019s active customers who had $0 revenue"
-                    : logoChurnMode === "quarterly"
-                      ? "Average of monthly logo churn rates per quarter"
-                      : "12-month rolling average of monthly logo churn rates"}
-                </CardDescription>
               </div>
               <div className="flex gap-1 rounded-lg border p-1">
                 {(["monthly", "quarterly", "ttm"] as const).map((mode) => (
@@ -358,18 +359,18 @@ export function ChurnPage() {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle>
+                <CardTitle className="flex items-center gap-2">
                   {revChurnMode === "monthly" ? "Revenue Churn — Monthly"
                     : revChurnMode === "quarterly" ? "Revenue Churn — Quarterly"
                     : "Annual NRR"}
+                  <InfoTooltip text={
+                    revChurnMode === "monthly"
+                      ? "% of prior month\u2019s revenue lost from customers who dropped to $0 in the current month."
+                      : revChurnMode === "quarterly"
+                        ? "Average of the 3 monthly revenue churn rates per calendar quarter."
+                        : "Year-over-year revenue from the same customers. Only customers with revenue in the same month last year are included. >100% = growth, <100% = net contraction."
+                  } />
                 </CardTitle>
-                <CardDescription>
-                  {revChurnMode === "monthly"
-                    ? "% of prior month\u2019s revenue lost from churned customers"
-                    : revChurnMode === "quarterly"
-                      ? "Average of monthly revenue churn rates per quarter"
-                      : "Year-over-year revenue from the same customers. Only customers with revenue in the same month last year are included."}
-                </CardDescription>
               </div>
               <div className="flex gap-1 rounded-lg border p-1">
                 {(["monthly", "quarterly", "annual"] as const).map((mode) => (
@@ -432,18 +433,18 @@ export function ChurnPage() {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle>
+              <CardTitle className="flex items-center gap-2">
                 {nrrMode === "monthly" ? "Net Revenue Retention — Monthly"
                   : nrrMode === "quarterly" ? "Net Revenue Retention — Quarterly"
                   : "Net Revenue Retention — Rolling TTM"}
+                <InfoTooltip text={
+                  nrrMode === "monthly"
+                    ? "Revenue from prior month\u2019s customers as % of prior month\u2019s total revenue. >100% = expansion outpaces churn."
+                    : nrrMode === "quarterly"
+                      ? "Average of the 3 monthly NRR values per calendar quarter."
+                      : "12-month rolling average of monthly NRR."
+                } />
               </CardTitle>
-              <CardDescription>
-                {nrrMode === "monthly"
-                  ? "Revenue from prior month\u2019s customers as % of prior month\u2019s total revenue. >100% = expansion outpaces churn."
-                  : nrrMode === "quarterly"
-                    ? "Average of monthly NRR per quarter"
-                    : "12-month rolling average of monthly NRR"}
-              </CardDescription>
             </div>
             <div className="flex gap-1 rounded-lg border p-1">
               {(["monthly", "quarterly", "ttm"] as const).map((mode) => (
@@ -519,12 +520,13 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle>Monthly Churn Details</CardTitle>
-            <CardDescription>
-              {showCustomers
-                ? `${allChurned.length} churned customers across all months — sorted by revenue impact`
-                : "Active customers, churned count, and lost revenue by month"}
-            </CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              Monthly Churn Details
+              <InfoTooltip text={showCustomers
+                ? `${allChurned.length} churned customers across all months, sorted by revenue impact.`
+                : "Active customers, churned count, and lost revenue by month."
+              } />
+            </CardTitle>
           </div>
           <Button
             variant={showCustomers ? "default" : "outline"}

@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { InfoTooltip } from "@/components/info-tooltip"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -206,14 +207,14 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
               Average Revenue by Billing Month
+              <InfoTooltip text={
+                viewMode === "chart"
+                  ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Click a bar to view records.`
+                  : viewMode === "table"
+                    ? `Avg revenue per billing month for ${metadata.totalCustomers} new customers (excl. ${metadata.excludedCustomers} pre-existing). Click any cell to drill down.`
+                    : `Revenue decay curves showing customer lifecycle trends for ${metadata.totalCustomers} new customers.`
+              } />
             </CardTitle>
-            <CardDescription>
-              {viewMode === "chart"
-                ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Click a bar to view records.`
-                : viewMode === "table"
-                  ? `Avg revenue per billing month for ${metadata.totalCustomers} new customers (excl. ${metadata.excludedCustomers} pre-existing). Click any cell to drill down.`
-                  : `Revenue decay curves showing customer lifecycle trends for ${metadata.totalCustomers} new customers.`}
-            </CardDescription>
             {viewMode === "chart" && (
               <div className="mt-3 flex flex-wrap gap-4 text-sm">
                 <div className="flex flex-col">

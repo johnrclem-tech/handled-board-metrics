@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { InfoTooltip } from "@/components/info-tooltip"
 import {
   BarChart,
   Bar,
@@ -115,8 +116,10 @@ export function RevenueChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Revenue & Profitability</CardTitle>
-        <CardDescription>Monthly financial performance across periods</CardDescription>
+        <CardTitle className="flex items-center gap-2">
+          Revenue & Profitability
+          <InfoTooltip text="Monthly financial performance across periods." />
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={350}>
