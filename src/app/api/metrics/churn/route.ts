@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
       revenueChurnRate: number
       lostRevenue: number
       totalRevenue: number
+      nrr: number
       churnedCustomers: { name: string; lastRevenue: number; revenueSharePct: number }[]
     }[] = []
 
@@ -112,6 +113,15 @@ export async function GET(request: NextRequest) {
       const logoChurnRate = prevActiveCount > 0 ? churnedCount / prevActiveCount : 0
       const revenueChurnRate = totalPrevRevenue > 0 ? lostRevenue / totalPrevRevenue : 0
 
+      // NRR: revenue in current month from customers who were active in prior month / prior month total revenue
+      let retainedRevenue = 0
+      for (const [customer, currRev] of currActive) {
+        if (prevActive.has(customer)) {
+          retainedRevenue += currRev
+        }
+      }
+      const nrr = totalPrevRevenue > 0 ? (retainedRevenue / totalPrevRevenue) * 100 : 0
+
       months.push({
         period,
         activeCount: currActive.size,
@@ -120,6 +130,7 @@ export async function GET(request: NextRequest) {
         revenueChurnRate: Math.round(revenueChurnRate * 10000) / 100,
         lostRevenue: Math.round(lostRevenue * 100) / 100,
         totalRevenue: Math.round([...currActive.values()].reduce((s, v) => s + v, 0) * 100) / 100,
+        nrr: Math.round(nrr * 100) / 100,
         churnedCustomers,
       })
 

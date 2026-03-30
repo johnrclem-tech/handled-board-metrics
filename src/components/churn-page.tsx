@@ -29,6 +29,7 @@ interface ChurnMonth {
   revenueChurnRate: number
   lostRevenue: number
   totalRevenue: number
+  nrr: number
   churnedCustomers: ChurnedCustomer[]
 }
 
@@ -69,6 +70,7 @@ export function ChurnPage() {
   const [segment, setSegment] = useState<Segment>("all")
   const [logoChurnMode, setLogoChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
   const [revChurnMode, setRevChurnMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
+  const [nrrMode, setNrrMode] = useState<"monthly" | "quarterly" | "ttm">("monthly")
 
   useEffect(() => {
     setLoading(true)
@@ -171,6 +173,39 @@ export function ChurnPage() {
     quarterlyRevData.push({
       label: `Q${q} ${String(year).slice(2)}`,
       quarterlyRevenueChurnRate: Math.round(avgRate * 100) / 100,
+    })
+  }
+
+  // Compute NRR data
+  const nrrChartData = monthlyData.map((m) => ({
+    ...m,
+    label: formatPeriodLabel(m.period),
+  }))
+
+  const rollingTtmNrrData = monthlyData
+    .map((m, i) => {
+      if (i < 11) return null
+      const window = monthlyData.slice(i - 11, i + 1)
+      const avgNrr = window.reduce((s, w) => s + w.nrr, 0) / window.length
+      return {
+        period: m.period,
+        label: formatPeriodLabel(m.period),
+        ttmNrr: Math.round(avgNrr * 100) / 100,
+      }
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null)
+
+  const quarterlyNrrData: { label: string; quarterlyNrr: number }[] = []
+  for (let i = 0; i < monthlyData.length; i += 3) {
+    const chunk = monthlyData.slice(i, i + 3)
+    if (chunk.length < 3) break
+    const avgNrr = chunk.reduce((s, m) => s + m.nrr, 0) / chunk.length
+    const lastMonth = chunk[chunk.length - 1]
+    const [year, month] = lastMonth.period.split("-").map(Number)
+    const q = Math.ceil(month / 3)
+    quarterlyNrrData.push({
+      label: `Q${q} ${String(year).slice(2)}`,
+      quarterlyNrr: Math.round(avgNrr * 100) / 100,
     })
   }
 
@@ -384,6 +419,72 @@ export function ChurnPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>
+                {nrrMode === "monthly" ? "Net Revenue Retention — Monthly"
+                  : nrrMode === "quarterly" ? "Net Revenue Retention — Quarterly"
+                  : "Net Revenue Retention — Rolling TTM"}
+              </CardTitle>
+              <CardDescription>
+                {nrrMode === "monthly"
+                  ? "Revenue from prior month\u2019s customers as % of prior month\u2019s total revenue. >100% = expansion outpaces churn."
+                  : nrrMode === "quarterly"
+                    ? "Average of monthly NRR per quarter"
+                    : "12-month rolling average of monthly NRR"}
+              </CardDescription>
+            </div>
+            <div className="flex gap-1 rounded-lg border p-1">
+              {(["monthly", "quarterly", "ttm"] as const).map((mode) => (
+                <Button
+                  key={mode}
+                  variant={nrrMode === mode ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setNrrMode(mode)}
+                  className="text-xs h-7 px-2"
+                >
+                  {mode === "monthly" ? "Monthly" : mode === "quarterly" ? "Quarterly" : "Rolling TTM"}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={280}>
+            {nrrMode === "monthly" ? (
+              <LineChart data={nrrChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
+                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "NRR"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                <Line type="monotone" dataKey="nrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="NRR" />
+              </LineChart>
+            ) : nrrMode === "quarterly" ? (
+              <LineChart data={quarterlyNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
+                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly NRR"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                <Line type="monotone" dataKey="quarterlyNrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Quarterly NRR" />
+              </LineChart>
+            ) : (
+              <LineChart data={rollingTtmNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
+                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM NRR"]} labelFormatter={(label) => label} contentStyle={{ backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }} />
+                <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                <Line type="monotone" dataKey="ttmNrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} name="TTM NRR" />
+              </LineChart>
+            )}
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
       <ChurnDetailsTable months={months} />
     </div>
