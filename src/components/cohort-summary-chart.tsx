@@ -104,7 +104,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Average Revenue by Billing Month</CardTitle>
+          <CardTitle>Lifetime Revenue (Average Revenue by Billing Month)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px] flex items-center justify-center">
@@ -219,7 +219,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Average Revenue by Billing Month
+              Lifetime Revenue (Average Revenue by Billing Month)
               <InfoTooltip text={
                 viewMode === "chart"
                   ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Click a bar to view records.`
