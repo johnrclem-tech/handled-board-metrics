@@ -90,7 +90,7 @@ export function NewCustomersChart() {
               }}
               formatter={(value) => [`${value} customers`, "New"]}
             />
-            <Bar dataKey="count" name="New Customers" fill="#2a9d8f" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="count" name="New Customers" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>

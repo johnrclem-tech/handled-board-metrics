@@ -205,16 +205,16 @@ export function ConcentrationChart() {
               <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} domain={[0, 100]} />
               <Legend />
               <ReferenceLine y={50} stroke="#999" strokeDasharray="3 3" />
-              <Bar dataKey="Top 1" name="Top 1" stackId="a" fill="#e76e50" radius={[0, 0, 0, 0]}>
+              <Bar dataKey="Top 1" name="Top 1" stackId="a" fill="var(--chart-3)" radius={[0, 0, 0, 0]}>
                 <LabelList dataKey="Top 1" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
               </Bar>
-              <Bar dataKey="Top 2-3" name="Top 2–3" stackId="a" fill="#2a9d8f" radius={[0, 0, 0, 0]}>
+              <Bar dataKey="Top 2-3" name="Top 2–3" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]}>
                 <LabelList dataKey="Top 2-3" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
               </Bar>
-              <Bar dataKey="Top 4-5" name="Top 4–5" stackId="a" fill="#264653" radius={[0, 0, 0, 0]}>
+              <Bar dataKey="Top 4-5" name="Top 4–5" stackId="a" fill="var(--chart-2)" radius={[0, 0, 0, 0]}>
                 <LabelList dataKey="Top 4-5" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
               </Bar>
-              <Bar dataKey="Others" name="Others" stackId="a" fill="#e9c46a" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="Others" name="Others" stackId="a" fill="var(--chart-5)" radius={[4, 4, 0, 0]}>
                 <LabelList dataKey="Others" position="center" fill="#333" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
               </Bar>
             </BarChart>
@@ -248,10 +248,10 @@ export function ConcentrationChart() {
                     width={55}
                   />
                   <Legend />
-                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="rgba(231, 110, 80, 0.6)" radius={[0, 0, 0, 0]}>
+                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-3)" radius={[0, 0, 0, 0]}>
                     <LabelList dataKey="newRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
                   </Bar>
-                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="rgba(42, 157, 143, 0.6)" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
                     <LabelList dataKey="existingRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
                   </Bar>
                 </BarChart>

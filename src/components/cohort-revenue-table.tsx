@@ -135,10 +135,10 @@ export function CohortRevenueTable({ onDrill }: CohortRevenueTableProps) {
   const monthHeaders = Array.from({ length: maxMonths }, (_, i) => i + 1)
 
   const categories = [
-    { key: "storage" as const, label: "Storage Revenue", color: "#e76e50" },
-    { key: "shipping" as const, label: "Shipping Revenue", color: "#2a9d8f" },
-    { key: "handling" as const, label: "Handling Revenue", color: "#264653" },
-    { key: "total" as const, label: "Total Revenue", color: "#e9c46a" },
+    { key: "storage" as const, label: "Storage Revenue", color: "var(--chart-3)" },
+    { key: "shipping" as const, label: "Shipping Revenue", color: "var(--chart-2)" },
+    { key: "handling" as const, label: "Handling Revenue", color: "var(--chart-1)" },
+    { key: "total" as const, label: "Total Revenue", color: "var(--chart-5)" },
   ]
 
   // Build a lookup for each category by month number

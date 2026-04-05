@@ -146,10 +146,10 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
   // Full table/decay data (all months)
   const allMonths = Array.from({ length: metadata.maxBillingMonths }, (_, i) => i + 1)
   const categories = [
-    { key: "storage" as const, label: "Storage Revenue", color: "#e76e50" },
-    { key: "shipping" as const, label: "Shipping Revenue", color: "#2a9d8f" },
-    { key: "handling" as const, label: "Handling Revenue", color: "#264653" },
-    { key: "total" as const, label: "Total Revenue", color: "#e9c46a" },
+    { key: "storage" as const, label: "Storage Revenue", color: "var(--chart-3)" },
+    { key: "shipping" as const, label: "Shipping Revenue", color: "var(--chart-2)" },
+    { key: "handling" as const, label: "Handling Revenue", color: "var(--chart-1)" },
+    { key: "total" as const, label: "Total Revenue", color: "var(--chart-5)" },
   ]
 
   const lookups = Object.fromEntries(
@@ -223,15 +223,15 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
                 </div>
                 <div className="flex flex-col">
                   <span className="text-muted-foreground">Storage</span>
-                  <span className="font-semibold" style={{ color: "#e76e50" }}>{formatCurrency(lifetimeStorage)}</span>
+                  <span className="font-semibold" style={{ color: "var(--chart-3)" }}>{formatCurrency(lifetimeStorage)}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-muted-foreground">Handling</span>
-                  <span className="font-semibold" style={{ color: "#264653" }}>{formatCurrency(lifetimeHandling)}</span>
+                  <span className="font-semibold" style={{ color: "var(--chart-1)" }}>{formatCurrency(lifetimeHandling)}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-muted-foreground">Shipping</span>
-                  <span className="font-semibold" style={{ color: "#2a9d8f" }}>{formatCurrency(lifetimeShipping)}</span>
+                  <span className="font-semibold" style={{ color: "var(--chart-2)" }}>{formatCurrency(lifetimeShipping)}</span>
                 </div>
               </div>
             )}
@@ -270,9 +270,9 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
                 }}
               />
               <Legend />
-              <Bar dataKey="storage" name="Storage" stackId="revenue" fill="#e76e50" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="handling" name="Handling" stackId="revenue" fill="#264653" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="#2a9d8f" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="storage" name="Storage" stackId="revenue" fill="var(--chart-3)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="handling" name="Handling" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

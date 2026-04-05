@@ -64,6 +64,15 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                 <SidebarMenuSub>
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton
+                      isActive={activePage === "revenue-metrics"}
+                      onClick={() => onNavigate("revenue-metrics")}
+                    >
+                      <TrendingUp className="size-4" />
+                      <span>By Service</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
                       isActive={activePage === "financials"}
                       onClick={() => onNavigate("financials")}
                     >
@@ -78,15 +87,6 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                     >
                       <UserX className="size-4" />
                       <span>Churn</span>
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                  <SidebarMenuSubItem>
-                    <SidebarMenuSubButton
-                      isActive={activePage === "revenue-metrics"}
-                      onClick={() => onNavigate("revenue-metrics")}
-                    >
-                      <TrendingUp className="size-4" />
-                      <span>By Service</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>

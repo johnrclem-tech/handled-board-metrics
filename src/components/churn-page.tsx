@@ -287,7 +287,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
                   <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Logo Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="logoChurnRate" stroke="#e76e50" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="logoChurnRate" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               ) : period === "quarterly" ? (
                 <LineChart data={quarterlyLogoData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -296,7 +296,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
                   <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly Logo Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="quarterlyLogoChurnRate" stroke="#e76e50" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="quarterlyLogoChurnRate" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               ) : (
                 <LineChart data={rollingTtmLogoData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -305,7 +305,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
                   <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Logo Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="ttmLogoChurnRate" stroke="#e76e50" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="ttmLogoChurnRate" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               )}
             </ResponsiveContainer>
@@ -334,7 +334,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
                   <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Revenue Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="revenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  <Line type="monotone" dataKey="revenueChurnRate" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               ) : period === "quarterly" ? (
                 <LineChart data={quarterlyRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -343,7 +343,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
                   <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly Revenue Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="quarterlyRevenueChurnRate" stroke="#264653" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="quarterlyRevenueChurnRate" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               ) : (
                 <LineChart data={annualNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -358,8 +358,8 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                     labelFormatter={(l) => l}
                     contentStyle={tooltipStyle}
                   />
-                  <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="nrr" stroke="#264653" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="nrr" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               )}
             </ResponsiveContainer>
@@ -388,8 +388,8 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                 <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
                 <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "NRR"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
-                <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Line type="monotone" dataKey="nrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                <Line type="monotone" dataKey="nrr" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
               </LineChart>
             ) : period === "quarterly" ? (
               <LineChart data={quarterlyNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
@@ -397,8 +397,8 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                 <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
                 <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly NRR"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
-                <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Line type="monotone" dataKey="quarterlyNrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                <Line type="monotone" dataKey="quarterlyNrr" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             ) : (
               <LineChart
@@ -425,8 +425,8 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                   labelFormatter={(l) => `${l} — click for details`}
                   contentStyle={tooltipStyle}
                 />
-                <ReferenceLine y={100} stroke="#2a9d8f" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Line type="monotone" dataKey="nrr" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 7, stroke: "#2a9d8f", strokeWidth: 3 }} />
+                <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
+                <Line type="monotone" dataKey="nrr" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 7, stroke: "var(--chart-2)", strokeWidth: 3 }} />
               </LineChart>
             )}
           </ResponsiveContainer>

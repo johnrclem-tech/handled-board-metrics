@@ -136,9 +136,9 @@ export function RevenueChart() {
               }}
             />
             <Legend />
-            <Bar dataKey="revenue" name="Revenue" fill="#e76e50" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="grossProfit" name="Gross Profit" fill="#2a9d8f" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="netIncome" name="Net Income" fill="#264653" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="revenue" name="Revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="grossProfit" name="Gross Profit" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="netIncome" name="Net Income" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </CardContent>
