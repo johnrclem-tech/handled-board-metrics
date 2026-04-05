@@ -365,16 +365,16 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 15, bottom: 5 }}>
+                <ComposedChart data={chartData} margin={{ top: 15, right: 20, left: 15, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis
                     yAxisId="left"
-                    tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                    tickFormatter={(val) => `${(val / 1000).toFixed(0)}k`}
                     tick={{ fontSize: 11 }}
                     width={55}
                     label={{
-                      value: "■ Revenue ($)",
+                      value: "■ Revenue ($k)",
                       angle: -90,
                       position: "insideLeft",
                       offset: -5,
@@ -407,7 +407,9 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                     contentStyle={tooltipStyle}
                   />
                   {hasYoy && <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />}
-                  <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={svc.color} radius={[4, 4, 0, 0]} />
+                  <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={svc.color} radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="revenue" position="top" fontSize={9} formatter={(v: unknown) => { const n = Number(v); return n >= 100 ? `${Math.round(n / 1000)}k` : "" }} />
+                  </Bar>
                   {hasYoy && (
                     <Line
                       yAxisId="right"
