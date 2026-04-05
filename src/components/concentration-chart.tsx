@@ -338,7 +338,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
               <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={30} tick={{ fontSize: 11 }} />
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent labelFormatter={(label) => label} />}
+                content={<ChartTooltipContent labelFormatter={(label) => label} formatter={(value) => [`${Number(value).toFixed(1)}%`]} />}
               />
               <ReferenceLine y={50} stroke="#999" strokeDasharray="3 3" />
               <Area dataKey="top5" type="monotone" fill="url(#fillTop5)" stroke="var(--color-top5)" />
@@ -376,7 +376,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
                   />
                   <ChartTooltip
                     cursor={false}
-                    content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} />}
+                    content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value) => [formatCurrency(Number(value))]} />}
                   />
                   <Legend />
                   <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
@@ -415,7 +415,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
                 <YAxis tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={45} />
                 <ChartTooltip
                   cursor={false}
-                  content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} />}
+                  content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value) => [formatCurrency(Number(value))]} />}
                 />
                 <Area dataKey="avgRevenue" type="monotone" fill="url(#fillAvgRevenue)" stroke="var(--color-avgRevenue)" />
               </AreaChart>

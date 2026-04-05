@@ -270,7 +270,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
               <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => `Month ${label}`} />}
+                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => `Month ${label}`} formatter={(value) => [formatCurrency(Number(value))]} />}
               />
               <Legend />
               <Bar dataKey="handling" name="Handling" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
@@ -340,7 +340,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
               <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => `Month ${label}`} />}
+                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => `Month ${label}`} formatter={(value) => [formatCurrency(Number(value))]} />}
               />
               <Legend />
               {categories.map(({ key, label, color }) => (
