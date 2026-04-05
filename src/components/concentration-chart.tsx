@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Button } from "@/components/ui/button"
 import { DollarSign, Users, PieChart as PieChartIcon } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, LabelList, Legend, ResponsiveContainer, YAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, Legend, YAxis } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 type ConcentrationPeriod = "monthly" | "quarterly" | "ttm"
@@ -151,6 +151,11 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
       label: "Top 5",
       color: "var(--chart-3)",
     },
+  } satisfies ChartConfig
+
+  const segmentChartConfig = {
+    newRevenue: { label: "New Customers", color: "var(--chart-3)" },
+    existingRevenue: { label: "Existing Customers", color: "var(--chart-1)" },
   } satisfies ChartConfig
 
   // KPI cards
@@ -300,24 +305,24 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={350}>
+              <ChartContainer config={segmentChartConfig} className="aspect-auto h-[350px] w-full">
                 <BarChart data={segDataset} margin={{ top: 15, right: 20, left: 15, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis
                     tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
                     tick={{ fontSize: 11 }}
                     width={55}
                   />
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} />}
+                  />
                   <Legend />
-                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-3)" radius={[0, 0, 0, 0]}>
-                    <LabelList dataKey="newRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
-                  </Bar>
-                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
-                    <LabelList dataKey="existingRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
-                  </Bar>
+                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-3)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             </CardContent>
           </Card>
         )
