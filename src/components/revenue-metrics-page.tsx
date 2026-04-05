@@ -110,7 +110,8 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
     )
   }
 
-  const dataset = period === "monthly" ? data.monthly : period === "quarterly" ? data.quarterly : data.ttm
+  const fullDataset = period === "monthly" ? data.monthly : period === "quarterly" ? data.quarterly : data.ttm
+  const dataset = fullDataset.slice(-18)
   const latest = dataset.length > 0 ? dataset[dataset.length - 1] : null
 
   // Compute 100% stacked mix data
