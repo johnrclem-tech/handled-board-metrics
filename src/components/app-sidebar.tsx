@@ -15,7 +15,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar"
-import { Package, BarChart3, Table2, Settings, UserX, DollarSign } from "lucide-react"
+import { Package, BarChart3, Table2, Settings, UserX, DollarSign, TrendingUp } from "lucide-react"
 
 interface AppSidebarProps {
   activePage: string
@@ -23,7 +23,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
-  const isRevenuePage = activePage === "financials" || activePage === "churn"
+  const isRevenuePage = activePage === "financials" || activePage === "churn" || activePage === "revenue-metrics"
 
   return (
     <Sidebar>
@@ -78,6 +78,15 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                     >
                       <UserX className="size-4" />
                       <span>Churn</span>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton
+                      isActive={activePage === "revenue-metrics"}
+                      onClick={() => onNavigate("revenue-metrics")}
+                    >
+                      <TrendingUp className="size-4" />
+                      <span>Metrics</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>

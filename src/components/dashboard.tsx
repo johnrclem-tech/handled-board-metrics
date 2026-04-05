@@ -27,6 +27,7 @@ import { ConcentrationChart } from "@/components/concentration-chart"
 import { NewCustomersChart } from "@/components/new-customers-chart"
 import { ExistingCustomersChart } from "@/components/existing-customers-chart"
 import { ChurnPage } from "@/components/churn-page"
+import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
 
 export interface CohortDrillFilter {
   billingMonth: number
@@ -41,6 +42,7 @@ const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
   financials: "Revenue",
   churn: "Churn",
+  "revenue-metrics": "Revenue Metrics",
 }
 
 const SEGMENTS: { value: ChurnSegment; label: string }[] = [
@@ -102,7 +104,7 @@ export function Dashboard() {
             </BreadcrumbList>
           </Breadcrumb>
 
-          {activePage === "churn" && (
+          {(activePage === "churn" || activePage === "revenue-metrics") && (
             <>
               <div className="ml-auto flex items-center gap-3">
                 <div className="flex gap-1 rounded-lg border p-0.5">
@@ -149,6 +151,14 @@ export function Dashboard() {
           {activePage === "churn" && (
             <ChurnPage
               key={`churn-${refreshKey}`}
+              segment={churnSegment}
+              period={churnPeriod}
+            />
+          )}
+
+          {activePage === "revenue-metrics" && (
+            <RevenueMetricsPage
+              key={`revenue-metrics-${refreshKey}`}
               segment={churnSegment}
               period={churnPeriod}
             />
