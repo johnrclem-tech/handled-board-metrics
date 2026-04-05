@@ -365,7 +365,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: 20, left: 15, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis
@@ -373,7 +373,13 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                     tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
                     tick={{ fontSize: 11 }}
                     width={55}
-                    label={{ value: "Revenue ($)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                    label={{
+                      value: "■ Revenue ($)",
+                      angle: -90,
+                      position: "insideLeft",
+                      offset: -5,
+                      style: { fontSize: 11, fill: svc.color },
+                    }}
                   />
                   {hasYoy && (
                     <YAxis
@@ -382,7 +388,13 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                       tickFormatter={(val) => `${val}%`}
                       tick={{ fontSize: 11 }}
                       width={55}
-                      label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                      label={{
+                        value: "--- Growth (%)",
+                        angle: 90,
+                        position: "insideRight",
+                        offset: -5,
+                        style: { fontSize: 11, fill: "#666" },
+                      }}
                     />
                   )}
                   <Tooltip
@@ -394,7 +406,6 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                     }}
                     contentStyle={tooltipStyle}
                   />
-                  <Legend />
                   {hasYoy && <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />}
                   <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={svc.color} radius={[4, 4, 0, 0]} />
                   {hasYoy && (
