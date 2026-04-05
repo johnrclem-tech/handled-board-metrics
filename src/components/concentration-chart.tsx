@@ -8,7 +8,7 @@ import { DollarSign, Users, PieChart as PieChartIcon, TrendingUp } from "lucide-
 import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, LabelList, Legend, YAxis } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
-type ConcentrationPeriod = "monthly" | "quarterly" | "ttm"
+export type ConcentrationPeriod = "monthly" | "quarterly" | "ttm"
 
 interface ConcentrationEntry {
   period: string
@@ -57,11 +57,6 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
-const PERIOD_OPTIONS: { value: ConcentrationPeriod; label: string }[] = [
-  { value: "monthly", label: "Month" },
-  { value: "quarterly", label: "Quarter" },
-  { value: "ttm", label: "TTM" },
-]
 
 interface CustomerRevenueEntry {
   name: string
@@ -76,13 +71,12 @@ interface CustomerRevenueResponse {
   periodLabel: string
 }
 
-export function ConcentrationChart({ children }: { children?: React.ReactNode }) {
+export function ConcentrationChart({ children, period }: { children?: React.ReactNode; period: ConcentrationPeriod }) {
   const [data, setData] = useState<ConcentrationResponse | null>(null)
   const [segmentData, setSegmentData] = useState<SegmentResponse | null>(null)
   const [customerRevData, setCustomerRevData] = useState<CustomerRevenueResponse | null>(null)
   const [ltv, setLtv] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState<ConcentrationPeriod>("monthly")
 
   useEffect(() => {
     Promise.all([
@@ -267,20 +261,6 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
 
   return (
     <div className="space-y-6">
-      {/* Period toggle */}
-      <div className="flex items-center gap-1">
-        {PERIOD_OPTIONS.map((p) => (
-          <Button
-            key={p.value}
-            variant={period === p.value ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setPeriod(p.value)}
-          >
-            {p.label}
-          </Button>
-        ))}
-      </div>
-
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         {kpiCards.map((kpi) => (

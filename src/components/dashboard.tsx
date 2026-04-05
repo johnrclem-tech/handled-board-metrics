@@ -28,6 +28,7 @@ import { NewCustomersChart } from "@/components/new-customers-chart"
 import { ExistingCustomersChart } from "@/components/existing-customers-chart"
 import { ChurnPage } from "@/components/churn-page"
 import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
+import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
   billingMonth: number
@@ -57,6 +58,12 @@ const PERIODS: { value: ChurnPeriod; label: string }[] = [
   { value: "annually", label: "Annually" },
 ]
 
+const CUSTOMER_PERIODS: { value: ConcentrationPeriod; label: string }[] = [
+  { value: "monthly", label: "Month" },
+  { value: "quarterly", label: "Quarter" },
+  { value: "ttm", label: "TTM" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("overview")
@@ -64,6 +71,7 @@ export function Dashboard() {
   const [importOpen, setImportOpen] = useState(false)
   const [churnSegment, setChurnSegment] = useState<ChurnSegment>("all")
   const [churnPeriod, setChurnPeriod] = useState<ChurnPeriod>("monthly")
+  const [customerPeriod, setCustomerPeriod] = useState<ConcentrationPeriod>("monthly")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -141,6 +149,24 @@ export function Dashboard() {
               </div>
             </>
           )}
+
+          {activePage === "financials" && (
+            <div className="ml-auto flex items-center gap-3">
+              <div className="flex gap-1 rounded-lg border p-0.5">
+                {CUSTOMER_PERIODS.map((p) => (
+                  <Button
+                    key={p.value}
+                    variant={customerPeriod === p.value ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setCustomerPeriod(p.value)}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
         </header>
 
         <main className="flex-1 overflow-auto p-4 md:p-6">
@@ -169,7 +195,7 @@ export function Dashboard() {
 
           {activePage === "financials" && (
             <div className="space-y-6">
-              <ConcentrationChart key={`concentration-${refreshKey}`}>
+              <ConcentrationChart key={`concentration-${refreshKey}`} period={customerPeriod}>
                 <CohortSummaryChart
                   key={`cohort-summary-${refreshKey}`}
                   onViewDetails={() => {}}
