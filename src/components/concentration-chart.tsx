@@ -114,6 +114,22 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
   const dataset = fullDataset.slice(-18)
   const latest = dataset.length > 0 ? dataset[dataset.length - 1] : null
 
+  // Find prior year top5 for comparison
+  let priorTop5: number | null = null
+  if (latest) {
+    let priorPeriod: string | null = null
+    if (period === "monthly" || period === "ttm") {
+      const [y, m] = latest.period.split("-").map(Number)
+      priorPeriod = `${y - 1}-${String(m).padStart(2, "0")}`
+    } else {
+      // quarterly: "2025-Q1" → "2024-Q1"
+      const [y, qPart] = latest.period.split("-Q")
+      priorPeriod = `${Number(y) - 1}-Q${qPart}`
+    }
+    const priorEntry = fullDataset.find((d) => d.period === priorPeriod)
+    if (priorEntry) priorTop5 = priorEntry.top5.pct
+  }
+
   // Area chart data: each value is the cumulative % (not incremental)
   const chartData = dataset.map((d) => ({
     label: d.label,
@@ -148,11 +164,13 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
       icon: DollarSign,
     },
     {
-      title: "Customer Concentration",
-      value: latest ? `${latest.top1.pct.toFixed(1)}%` : "N/A",
-      sub: latest ? `Top customer: ${latest.top1.name}` : "",
+      title: "Top 5 Customer Concentration",
+      value: latest ? `${latest.top5.pct.toFixed(1)}%` : "N/A",
+      sub: priorTop5 != null && latest
+        ? `${latest.top5.pct > priorTop5 ? "+" : ""}${(latest.top5.pct - priorTop5).toFixed(1)}pp vs prior year (${priorTop5.toFixed(1)}%)`
+        : "No prior year data",
       icon: PieChartIcon,
-      warn: latest ? latest.top1.pct > 25 : false,
+      warn: latest ? latest.top5.pct > 70 : false,
     },
     {
       title: "Avg Revenue Per Customer",
