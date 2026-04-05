@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+
   ResponsiveContainer,
   Legend,
   ReferenceLine,
@@ -127,12 +127,6 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
     }
   })
 
-  const tooltipStyle = {
-    backgroundColor: "hsl(var(--popover))",
-    border: "1px solid hsl(var(--border))",
-    borderRadius: "8px",
-  }
-
   // KPI cards
   const kpiCards = [
     {
@@ -243,7 +237,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
         <CardContent>
           {revenueMode === "dollars" ? (
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={dataset} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <ComposedChart data={dataset} margin={{ top: 15, right: 20, left: 15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                 <YAxis
@@ -251,7 +245,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
                   tick={{ fontSize: 11 }}
                   width={55}
-                  label={{ value: "Revenue ($)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                  label={{ value: "Revenue ($)", angle: -90, position: "insideLeft", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <YAxis
                   yAxisId="right"
@@ -259,22 +253,19 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tickFormatter={(val) => `${val}%`}
                   tick={{ fontSize: 11 }}
                   width={55}
-                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
-                />
-                <Tooltip
-                  formatter={(value, name) => {
-                    const v = Number(value)
-                    const n = String(name)
-                    if (n === "YoY Growth") return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, n]
-                    return [formatCurrency(v), n]
-                  }}
-                  contentStyle={tooltipStyle}
+                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
-                <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]} />
-                <Bar yAxisId="left" dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
-                <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="storage" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                </Bar>
+                <Bar yAxisId="left" dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="handling" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                </Bar>
+                <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="shipping" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                </Bar>
                 <Line
                   yAxisId="right"
                   type="monotone"
@@ -290,7 +281,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
             </ResponsiveContainer>
           ) : (
             <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={mixData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <ComposedChart data={mixData} margin={{ top: 15, right: 20, left: 15, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                 <YAxis
@@ -299,7 +290,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tick={{ fontSize: 11 }}
                   width={45}
                   domain={[0, 100]}
-                  label={{ value: "Revenue (%)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                  label={{ value: "Revenue (%)", angle: -90, position: "insideLeft", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <YAxis
                   yAxisId="right"
@@ -307,16 +298,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tickFormatter={(val) => `${val}%`}
                   tick={{ fontSize: 11 }}
                   width={55}
-                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
-                />
-                <Tooltip
-                  formatter={(value, name) => {
-                    const v = Number(value)
-                    const n = String(name)
-                    if (n === "YoY Growth") return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, n]
-                    return [`${v.toFixed(1)}%`, n]
-                  }}
-                  contentStyle={tooltipStyle}
+                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
@@ -378,7 +360,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                       angle: -90,
                       position: "insideLeft",
                       offset: -5,
-                      style: { fontSize: 11, fill: svc.color },
+                      style: { fontSize: 13, fontWeight: 600, fill: svc.color },
                     }}
                   />
                   {hasYoy && (
@@ -393,19 +375,10 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                         angle: 90,
                         position: "insideRight",
                         offset: -5,
-                        style: { fontSize: 11, fill: "#666" },
+                        style: { fontSize: 13, fontWeight: 600, fill: "#666" },
                       }}
                     />
                   )}
-                  <Tooltip
-                    formatter={(value, name) => {
-                      const v = Number(value)
-                      const n = String(name)
-                      if (n === "YoY Growth") return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, n]
-                      return [formatCurrency(v), "Revenue"]
-                    }}
-                    contentStyle={tooltipStyle}
-                  />
                   {hasYoy && <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />}
                   <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={svc.color} radius={[4, 4, 0, 0]}>
                     <LabelList dataKey="revenue" position="top" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 100 ? `${Math.round(n / 1000)}k` : "" }} />
