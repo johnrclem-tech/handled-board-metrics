@@ -41,6 +41,22 @@ interface CohortResponse {
   }
 }
 
+interface SegmentEntry {
+  period: string
+  label: string
+  newRevenue: number
+  existingRevenue: number
+  total: number
+  newCount: number
+  existingCount: number
+}
+
+interface SegmentResponse {
+  monthly: SegmentEntry[]
+  quarterly: SegmentEntry[]
+  ttm: SegmentEntry[]
+}
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -58,6 +74,7 @@ const PERIOD_OPTIONS: { value: ConcentrationPeriod; label: string }[] = [
 
 export function ConcentrationChart() {
   const [data, setData] = useState<ConcentrationResponse | null>(null)
+  const [segmentData, setSegmentData] = useState<SegmentResponse | null>(null)
   const [ltv, setLtv] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<ConcentrationPeriod>("monthly")
@@ -66,9 +83,11 @@ export function ConcentrationChart() {
     Promise.all([
       fetch("/api/metrics/concentration").then((r) => r.json()),
       fetch("/api/metrics/cohort-revenue").then((r) => r.json()),
+      fetch("/api/metrics/customer-segments").then((r) => r.json()),
     ])
-      .then(([concResult, cohortResult]: [ConcentrationResponse, CohortResponse]) => {
+      .then(([concResult, cohortResult, segResult]: [ConcentrationResponse, CohortResponse, SegmentResponse]) => {
         setData(concResult)
+        setSegmentData(segResult)
         if (cohortResult.cohortData?.total) {
           const total = cohortResult.cohortData.total.reduce((sum: number, e: { average: number }) => sum + e.average, 0)
           setLtv(total)
@@ -202,6 +221,45 @@ export function ConcentrationChart() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+
+      {/* Revenue by Customer Type */}
+      {segmentData && (() => {
+        const segFullDataset = period === "monthly" ? segmentData.monthly : period === "quarterly" ? segmentData.quarterly : segmentData.ttm
+        const segDataset = segFullDataset.slice(-18)
+
+        if (segDataset.length === 0) return null
+
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Revenue by Customer Type
+                <InfoTooltip text="Revenue split between existing customers (active in Sep 2024) and new customers acquired after Sep 2024." />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={segDataset} margin={{ top: 15, right: 20, left: 15, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <YAxis
+                    tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                    tick={{ fontSize: 11 }}
+                    width={55}
+                  />
+                  <Legend />
+                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="rgba(42, 157, 143, 0.6)" radius={[0, 0, 0, 0]}>
+                    <LabelList dataKey="existingRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                  </Bar>
+                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="rgba(231, 110, 80, 0.6)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="newRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )
+      })()}
     </div>
   )
 }
