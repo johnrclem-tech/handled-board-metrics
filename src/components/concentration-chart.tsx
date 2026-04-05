@@ -219,11 +219,10 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
       {/* Concentration Area Chart */}
       <Card className="gap-4">
         <CardHeader className="flex justify-between border-b">
-          <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
             <span className="text-lg font-semibold">Customer Revenue Concentration</span>
-            <span className="text-muted-foreground text-sm">% of total revenue from top customers by period</span>
+            <InfoTooltip text="Shows how concentrated revenue is among top customers. Lower Top 1 concentration = healthier, more diversified revenue." />
           </div>
-          <InfoTooltip text="Shows how concentrated revenue is among top customers. Lower Top 1 concentration = healthier, more diversified revenue." />
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex items-center gap-6 flex-wrap">
