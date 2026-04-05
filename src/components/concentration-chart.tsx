@@ -76,6 +76,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
   const [segmentData, setSegmentData] = useState<SegmentResponse | null>(null)
   const [customerRevData, setCustomerRevData] = useState<CustomerRevenueResponse | null>(null)
   const [ltv, setLtv] = useState<number | null>(null)
+  const [ltvGrossMargin, setLtvGrossMargin] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -90,6 +91,10 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
         if (cohortResult.cohortData?.total) {
           const total = cohortResult.cohortData.total.reduce((sum: number, e: { average: number }) => sum + e.average, 0)
           setLtv(total)
+          const storageRev = (cohortResult.cohortData.storage || []).reduce((sum: number, e: { average: number }) => sum + e.average, 0)
+          const shippingRev = (cohortResult.cohortData.shipping || []).reduce((sum: number, e: { average: number }) => sum + e.average, 0)
+          const handlingRev = (cohortResult.cohortData.handling || []).reduce((sum: number, e: { average: number }) => sum + e.average, 0)
+          setLtvGrossMargin(storageRev * 0.10 + shippingRev * 0.15 + handlingRev * 0.30)
         }
       })
       .catch((err) => console.error("Failed to fetch data:", err))
@@ -227,9 +232,9 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
 
   const kpiCards = [
     {
-      title: "Lifetime Value",
-      value: ltv != null ? formatCurrency(ltv) : "N/A",
-      sub: "Avg total revenue per new customer",
+      title: "Lifetime Gross Margin",
+      value: ltvGrossMargin != null ? formatCurrency(ltvGrossMargin) : "N/A",
+      sub: ltv != null ? `Based on ${formatCurrency(ltv)} lifetime revenue` : "",
       icon: DollarSign,
     },
     {
