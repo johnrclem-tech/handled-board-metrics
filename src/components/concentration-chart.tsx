@@ -28,6 +28,9 @@ interface ConcentrationResponse {
 
 interface CohortResponse {
   cohortData: {
+    storage: { month: number; average: number; customerCount: number }[]
+    shipping: { month: number; average: number; customerCount: number }[]
+    handling: { month: number; average: number; customerCount: number }[]
     total: { month: number; average: number; customerCount: number }[]
   }
 }
