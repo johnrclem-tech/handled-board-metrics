@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -113,58 +114,56 @@ export function Dashboard() {
           </Breadcrumb>
 
           {(activePage === "churn" || activePage === "revenue-metrics") && (
-            <>
-              <div className="ml-auto flex items-center gap-3">
-                <div className="flex gap-1 rounded-lg border p-0.5">
-                  {SEGMENTS.map((s) => (
-                    <Button
-                      key={s.value}
-                      variant={churnSegment === s.value ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setChurnSegment(s.value)}
-                      className="h-7 px-2.5 text-xs"
-                    >
-                      {s.label}
-                    </Button>
-                  ))}
-                </div>
-                {activePage === "churn" && (
-                  <>
-                    <Separator orientation="vertical" className="h-4" />
-                    <div className="flex gap-1 rounded-lg border p-0.5">
-                      {PERIODS.map((p) => (
-                        <Button
-                          key={p.value}
-                          variant={churnPeriod === p.value ? "default" : "ghost"}
-                          size="sm"
-                          onClick={() => setChurnPeriod(p.value)}
-                          className="h-7 px-2.5 text-xs"
-                        >
-                          {p.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
+            <div className="ml-auto flex items-center gap-3">
+              <TabsList className="bg-muted h-9">
+                {SEGMENTS.map((s) => (
+                  <TabsTrigger
+                    key={s.value}
+                    value={s.value}
+                    className="px-4"
+                    data-state={churnSegment === s.value ? "active" : "inactive"}
+                    onClick={() => setChurnSegment(s.value)}
+                  >
+                    {s.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {activePage === "churn" && (
+                <>
+                  <Separator orientation="vertical" className="h-4" />
+                  <TabsList className="bg-muted h-9">
+                    {PERIODS.map((p) => (
+                      <TabsTrigger
+                        key={p.value}
+                        value={p.value}
+                        className="px-4"
+                        data-state={churnPeriod === p.value ? "active" : "inactive"}
+                        onClick={() => setChurnPeriod(p.value)}
+                      >
+                        {p.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </>
+              )}
+            </div>
           )}
 
           {activePage === "financials" && (
             <div className="ml-auto flex items-center gap-3">
-              <div className="flex gap-1 rounded-lg border p-0.5">
+              <TabsList className="bg-muted h-9">
                 {CUSTOMER_PERIODS.map((p) => (
-                  <Button
+                  <TabsTrigger
                     key={p.value}
-                    variant={customerPeriod === p.value ? "default" : "ghost"}
-                    size="sm"
+                    value={p.value}
+                    className="px-4"
+                    data-state={customerPeriod === p.value ? "active" : "inactive"}
                     onClick={() => setCustomerPeriod(p.value)}
-                    className="h-7 px-2.5 text-xs"
                   >
                     {p.label}
-                  </Button>
+                  </TabsTrigger>
                 ))}
-              </div>
+              </TabsList>
             </div>
           )}
         </header>
