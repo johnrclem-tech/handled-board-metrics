@@ -259,14 +259,14 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                 />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
-                <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="storage" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
-                </Bar>
                 <Bar yAxisId="left" dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
                   <LabelList dataKey="handling" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
                 </Bar>
-                <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
+                <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[0, 0, 0, 0]}>
                   <LabelList dataKey="shipping" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                </Bar>
+                <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="storage" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
                 </Bar>
                 <Line
                   yAxisId="right"
@@ -304,14 +304,14 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                 />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
-                <Bar yAxisId="left" dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-                </Bar>
                 <Bar yAxisId="left" dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
                   <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
                 </Bar>
-                <Bar yAxisId="left" dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
+                <Bar yAxisId="left" dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[0, 0, 0, 0]}>
                   <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                </Bar>
+                <Bar yAxisId="left" dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
                 </Bar>
                 <Line
                   yAxisId="right"
