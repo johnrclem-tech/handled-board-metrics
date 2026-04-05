@@ -120,20 +120,24 @@ export function Dashboard() {
                     </Button>
                   ))}
                 </div>
-                <Separator orientation="vertical" className="h-4" />
-                <div className="flex gap-1 rounded-lg border p-0.5">
-                  {PERIODS.map((p) => (
-                    <Button
-                      key={p.value}
-                      variant={churnPeriod === p.value ? "default" : "ghost"}
-                      size="sm"
-                      onClick={() => setChurnPeriod(p.value)}
-                      className="h-7 px-2.5 text-xs"
-                    >
-                      {p.label}
-                    </Button>
-                  ))}
-                </div>
+                {activePage === "churn" && (
+                  <>
+                    <Separator orientation="vertical" className="h-4" />
+                    <div className="flex gap-1 rounded-lg border p-0.5">
+                      {PERIODS.map((p) => (
+                        <Button
+                          key={p.value}
+                          variant={churnPeriod === p.value ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setChurnPeriod(p.value)}
+                          className="h-7 px-2.5 text-xs"
+                        >
+                          {p.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -160,7 +164,6 @@ export function Dashboard() {
             <RevenueMetricsPage
               key={`revenue-metrics-${refreshKey}`}
               segment={churnSegment}
-              period={churnPeriod}
             />
           )}
 

@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { InfoTooltip } from "@/components/info-tooltip"
-import { Progress } from "@/components/ui/progress"
-import { DollarSign, TrendingUp, Users, BarChart3 } from "lucide-react"
+import { DollarSign, TrendingUp, TrendingDown, BarChart3, Package, Truck, Warehouse } from "lucide-react"
 import {
   BarChart,
   Bar,
-  LineChart,
+  ComposedChart,
   Line,
   XAxis,
   YAxis,
@@ -18,7 +18,9 @@ import {
   Legend,
   ReferenceLine,
 } from "recharts"
-import type { ChurnSegment, ChurnPeriod } from "@/components/dashboard"
+import type { ChurnSegment } from "@/components/dashboard"
+
+type ServicePeriod = "monthly" | "quarterly" | "ttm"
 
 interface PeriodEntry {
   period: string
@@ -38,6 +40,7 @@ interface RevenueMetricsResponse {
   monthly: PeriodEntry[]
   quarterly: PeriodEntry[]
   annual: PeriodEntry[]
+  ttm: PeriodEntry[]
 }
 
 function formatCurrency(value: number): string {
@@ -49,18 +52,31 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
-function formatPct(value: number): string {
+function formatPct(value: number | null): string {
+  if (value == null) return "N/A"
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
 }
 
 interface RevenueMetricsPageProps {
   segment: ChurnSegment
-  period: ChurnPeriod
 }
 
-export function RevenueMetricsPage({ segment, period }: RevenueMetricsPageProps) {
+const PERIOD_OPTIONS: { value: ServicePeriod; label: string }[] = [
+  { value: "monthly", label: "Month" },
+  { value: "quarterly", label: "Quarter" },
+  { value: "ttm", label: "TTM" },
+]
+
+const COLORS = {
+  storage: "#e76e50",
+  shipping: "#2a9d8f",
+  handling: "#264653",
+}
+
+export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
   const [data, setData] = useState<RevenueMetricsResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [period, setPeriod] = useState<ServicePeriod>("monthly")
 
   useEffect(() => {
     setLoading(true)
@@ -81,7 +97,7 @@ export function RevenueMetricsPage({ segment, period }: RevenueMetricsPageProps)
     )
   }
 
-  if (!data || (data.monthly.length === 0 && data.quarterly.length === 0 && data.annual.length === 0)) {
+  if (!data || (data.monthly.length === 0 && data.quarterly.length === 0 && data.ttm.length === 0)) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-16">
@@ -93,165 +109,211 @@ export function RevenueMetricsPage({ segment, period }: RevenueMetricsPageProps)
     )
   }
 
-  // Select dataset based on period
-  const dataset = period === "monthly" ? data.monthly : period === "quarterly" ? data.quarterly : data.annual
+  const dataset = period === "monthly" ? data.monthly : period === "quarterly" ? data.quarterly : data.ttm
   const latest = dataset.length > 0 ? dataset[dataset.length - 1] : null
 
-  // YoY data (only entries with yoyTotal !== null)
-  const yoyData = dataset.filter((d) => d.yoyTotal !== null)
+  // Compute 100% stacked mix data
+  const mixData = dataset.map((d) => {
+    const t = d.total || 1
+    return {
+      label: d.label,
+      storagePct: (d.storage / t) * 100,
+      shippingPct: (d.shipping / t) * 100,
+      handlingPct: (d.handling / t) * 100,
+      storage: d.storage,
+      shipping: d.shipping,
+      handling: d.handling,
+      total: d.total,
+    }
+  })
 
-  // Service mix for latest period
-  const serviceMix = latest
-    ? [
-        { name: "Storage", amount: latest.storage, pct: latest.total > 0 ? (latest.storage / latest.total) * 100 : 0, color: "#e76e50" },
-        { name: "Shipping", amount: latest.shipping, pct: latest.total > 0 ? (latest.shipping / latest.total) * 100 : 0, color: "#2a9d8f" },
-        { name: "Handling", amount: latest.handling, pct: latest.total > 0 ? (latest.handling / latest.total) * 100 : 0, color: "#264653" },
-      ]
-    : []
-
-  const tooltipStyle = { backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }
+  const tooltipStyle = {
+    backgroundColor: "hsl(var(--popover))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "8px",
+  }
 
   // KPI cards
   const kpiCards = [
     {
       title: "Total Revenue",
       value: latest ? formatCurrency(latest.total) : "$0",
-      sub: latest ? `${latest.label} — ${latest.customerCount} active customers` : "",
+      yoy: latest?.yoyTotal ?? null,
       icon: DollarSign,
-      warn: false,
     },
     {
-      title: "YoY Growth",
-      value: latest?.yoyTotal != null ? formatPct(latest.yoyTotal) : "N/A",
-      sub: latest?.yoyTotal != null ? `${latest.label} vs prior year` : "Not enough historical data",
-      icon: TrendingUp,
-      warn: latest?.yoyTotal != null && latest.yoyTotal < 0,
+      title: "Handling Revenue",
+      value: latest ? formatCurrency(latest.handling) : "$0",
+      yoy: latest?.yoyHandling ?? null,
+      icon: Package,
     },
     {
-      title: "Revenue per Customer",
-      value: latest && latest.customerCount > 0 ? formatCurrency(latest.total / latest.customerCount) : "$0",
-      sub: latest ? `${latest.label} — ${latest.customerCount} customers` : "",
-      icon: Users,
-      warn: false,
+      title: "Shipping Revenue",
+      value: latest ? formatCurrency(latest.shipping) : "$0",
+      yoy: latest?.yoyShipping ?? null,
+      icon: Truck,
     },
+    {
+      title: "Storage Revenue",
+      value: latest ? formatCurrency(latest.storage) : "$0",
+      yoy: latest?.yoyStorage ?? null,
+      icon: Warehouse,
+    },
+  ]
+
+  // Per-service chart configs
+  const serviceCharts = [
+    { key: "handling" as const, yoyKey: "yoyHandling" as const, title: "Handling Revenue", color: COLORS.handling },
+    { key: "shipping" as const, yoyKey: "yoyShipping" as const, title: "Shipping Revenue", color: COLORS.shipping },
+    { key: "storage" as const, yoyKey: "yoyStorage" as const, title: "Storage Revenue", color: COLORS.storage },
   ]
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        {kpiCards.map((kpi) => (
-          <Card key={kpi.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium">{kpi.title}</CardDescription>
-              <kpi.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${kpi.warn ? "text-red-600" : ""}`}>{kpi.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">{kpi.sub}</p>
-            </CardContent>
-          </Card>
+      {/* Period toggle */}
+      <div className="flex items-center gap-1">
+        {PERIOD_OPTIONS.map((p) => (
+          <Button
+            key={p.value}
+            variant={period === p.value ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setPeriod(p.value)}
+          >
+            {p.label}
+          </Button>
         ))}
       </div>
 
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        {kpiCards.map((kpi) => {
+          const yoyPositive = kpi.yoy != null && kpi.yoy >= 0
+          const yoyNegative = kpi.yoy != null && kpi.yoy < 0
+          return (
+            <Card key={kpi.title}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardDescription className="text-sm font-medium">{kpi.title}</CardDescription>
+                <kpi.icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{kpi.value}</div>
+                <div className="flex items-center gap-1 mt-1">
+                  {yoyPositive && <TrendingUp className="h-3 w-3 text-green-600" />}
+                  {yoyNegative && <TrendingDown className="h-3 w-3 text-red-600" />}
+                  <span
+                    className={`text-xs font-medium ${
+                      yoyPositive ? "text-green-600" : yoyNegative ? "text-red-600" : "text-muted-foreground"
+                    }`}
+                  >
+                    {formatPct(kpi.yoy)} YoY
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* 100% Stacked Service Mix Chart */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            Revenue by Service Type
-            <InfoTooltip text="Stacked revenue breakdown by Storage, Shipping, and Handling for each period." />
+            Service Mix
+            <InfoTooltip text="Percentage breakdown of revenue by service type. Each bar represents 100% of that period's revenue." />
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={dataset} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <BarChart data={mixData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-              <YAxis tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={55} />
-              <Tooltip formatter={(value) => formatCurrency(Number(value))} contentStyle={tooltipStyle} />
+              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} domain={[0, 100]} />
+              <Tooltip
+                formatter={(value, name, props) => {
+                  const v = Number(value)
+                  const p = props.payload as typeof mixData[0]
+                  const dollarKey = String(name) === "Storage" ? "storage" as const : String(name) === "Shipping" ? "shipping" as const : "handling" as const
+                  return [`${v.toFixed(1)}% (${formatCurrency(p[dollarKey])})`, String(name)]
+                }}
+                contentStyle={tooltipStyle}
+              />
               <Legend />
-              <Bar dataKey="storage" name="Storage" stackId="a" fill="#e76e50" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="handling" name="Handling" stackId="a" fill="#264653" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="shipping" name="Shipping" stackId="a" fill="#2a9d8f" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
+              <Bar dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {yoyData.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Year-over-Year Growth
-              <InfoTooltip text="Revenue growth compared to the same period in the prior year. Only periods with prior-year data are shown. Total line is solid, category lines are dashed." />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={yoyData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
-                <Tooltip
-                  formatter={(value) => [`${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(1)}%`]}
-                  contentStyle={tooltipStyle}
-                />
-                <Legend />
-                <ReferenceLine y={0} stroke="#999" strokeDasharray="3 3" />
-                <Line type="monotone" dataKey="yoyTotal" name="Total" stroke="#264653" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                <Line type="monotone" dataKey="yoyStorage" name="Storage" stroke="#e76e50" strokeWidth={1.5} strokeDasharray="5 5" dot={{ r: 2 }} />
-                <Line type="monotone" dataKey="yoyShipping" name="Shipping" stroke="#2a9d8f" strokeWidth={1.5} strokeDasharray="5 5" dot={{ r: 2 }} />
-                <Line type="monotone" dataKey="yoyHandling" name="Handling" stroke="#e9c46a" strokeWidth={1.5} strokeDasharray="5 5" dot={{ r: 2 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Year-over-Year Growth
-              <InfoTooltip text="Revenue growth compared to the same period in the prior year." />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Not enough historical data for year-over-year comparison yet. YoY data will appear once 12+ months of data are available.
-          </CardContent>
-        </Card>
-      )}
+      {/* Individual Service Charts */}
+      {serviceCharts.map((svc) => {
+        const chartData = dataset.map((d) => ({
+          label: d.label,
+          revenue: d[svc.key],
+          yoy: d[svc.yoyKey],
+        }))
+        const hasYoy = chartData.some((d) => d.yoy != null)
 
-      {serviceMix.length > 0 && latest && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Service Mix — {latest.label}
-              <InfoTooltip text="Percentage breakdown of revenue by service type for the most recent period." />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {serviceMix.map((item) => (
-                <div key={item.name} className="space-y-1.5">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{item.name}</span>
-                    <span className="text-muted-foreground">
-                      {item.pct.toFixed(1)}% — {formatCurrency(item.amount)}
-                    </span>
-                  </div>
-                  <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{ width: `${item.pct}%`, backgroundColor: item.color }}
+        return (
+          <Card key={svc.key}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                {svc.title}
+                <InfoTooltip text={`${svc.title} per period with year-over-year growth rate.`} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <YAxis
+                    yAxisId="left"
+                    tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                    tick={{ fontSize: 11 }}
+                    width={55}
+                  />
+                  {hasYoy && (
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      tickFormatter={(val) => `${val}%`}
+                      tick={{ fontSize: 11 }}
+                      width={50}
                     />
-                  </div>
-                </div>
-              ))}
-              <div className="flex justify-between text-sm font-semibold pt-2 border-t">
-                <span>Total</span>
-                <span>{formatCurrency(latest.total)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  )}
+                  <Tooltip
+                    formatter={(value, name) => {
+                      const v = Number(value)
+                      const n = String(name)
+                      if (n === "YoY Growth") return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, n]
+                      return [formatCurrency(v), "Revenue"]
+                    }}
+                    contentStyle={tooltipStyle}
+                  />
+                  <Legend />
+                  {hasYoy && <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />}
+                  <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={svc.color} radius={[4, 4, 0, 0]} />
+                  {hasYoy && (
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="yoy"
+                      name="YoY Growth"
+                      stroke="#666"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )
+      })}
     </div>
   )
 }

@@ -215,7 +215,70 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ monthly, quarterly, annual })
+    // TTM (trailing twelve months) aggregation
+    const ttm: typeof monthly = []
+    for (let i = 0; i < sortedPeriods.length; i++) {
+      // Need at least 12 months of data up to this point
+      if (i < 11) continue
+      const windowPeriods = sortedPeriods.slice(i - 11, i + 1)
+      const bucket = { storage: 0, shipping: 0, handling: 0, total: 0, customerCount: 0 }
+      const customers = new Set<string>()
+
+      for (const p of windowPeriods) {
+        const mb = monthlyMap.get(p)!
+        bucket.storage += mb.storage
+        bucket.shipping += mb.shipping
+        bucket.handling += mb.handling
+        bucket.total += mb.total
+        for (const customer of filteredCustomers) {
+          const d = customerData.get(customer)!.get(p)
+          if (d && (d.storage + d.shipping + d.handling) > 0) {
+            customers.add(customer)
+          }
+        }
+      }
+      bucket.customerCount = customers.size
+
+      // Prior TTM: same 12-month window shifted back 1 year
+      const endPeriod = sortedPeriods[i]
+      const [ey, em] = endPeriod.split("-").map(Number)
+      const priorEndPeriod = `${ey - 1}-${String(em).padStart(2, "0")}`
+      const priorEndIdx = sortedPeriods.indexOf(priorEndPeriod)
+      let prior: typeof bucket | null = null
+
+      if (priorEndIdx >= 11) {
+        const priorWindowPeriods = sortedPeriods.slice(priorEndIdx - 11, priorEndIdx + 1)
+        if (priorWindowPeriods.length === 12) {
+          prior = { storage: 0, shipping: 0, handling: 0, total: 0, customerCount: 0 }
+          for (const p of priorWindowPeriods) {
+            const mb = monthlyMap.get(p)!
+            prior.storage += mb.storage
+            prior.shipping += mb.shipping
+            prior.handling += mb.handling
+            prior.total += mb.total
+          }
+        }
+      }
+
+      const [ly, lm] = endPeriod.split("-").map(Number)
+      const monthName = new Date(ly, lm - 1).toLocaleString("en-US", { month: "short" })
+
+      ttm.push({
+        period: endPeriod,
+        label: `${monthName} ${String(ly).slice(2)}`,
+        storage: round2(bucket.storage),
+        shipping: round2(bucket.shipping),
+        handling: round2(bucket.handling),
+        total: round2(bucket.total),
+        customerCount: bucket.customerCount,
+        yoyStorage: prior ? yoyPct(bucket.storage, prior.storage) : null,
+        yoyShipping: prior ? yoyPct(bucket.shipping, prior.shipping) : null,
+        yoyHandling: prior ? yoyPct(bucket.handling, prior.handling) : null,
+        yoyTotal: prior ? yoyPct(bucket.total, prior.total) : null,
+      })
+    }
+
+    return NextResponse.json({ monthly, quarterly, annual, ttm })
   } catch (error) {
     console.error("Revenue metrics error:", error)
     return NextResponse.json(
