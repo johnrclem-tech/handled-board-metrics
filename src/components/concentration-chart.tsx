@@ -190,6 +190,23 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
     }
   }
 
+  // Prior year avg revenue per customer
+  let priorAvgRevPerCustomer: number | null = null
+  if (latest) {
+    let priorPeriodForAvg: string | null = null
+    if (period === "monthly" || period === "ttm") {
+      const [y, m] = latest.period.split("-").map(Number)
+      priorPeriodForAvg = `${y - 1}-${String(m).padStart(2, "0")}`
+    } else {
+      const [y, qPart] = latest.period.split("-Q")
+      priorPeriodForAvg = `${Number(y) - 1}-Q${qPart}`
+    }
+    const priorEntry = fullDataset.find((d) => d.period === priorPeriodForAvg)
+    if (priorEntry && priorEntry.customerCount > 0) {
+      priorAvgRevPerCustomer = priorEntry.totalRevenue / priorEntry.customerCount
+    }
+  }
+
   // KPI cards
   const avgRevenuePerCustomer = latest && latest.customerCount > 0 ? latest.totalRevenue / latest.customerCount : 0
 
@@ -212,7 +229,9 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
     {
       title: "Avg Revenue Per Customer",
       value: latest ? formatCurrency(avgRevenuePerCustomer) : "N/A",
-      sub: latest ? `${latest.label} — ${latest.customerCount} customers` : "",
+      sub: priorAvgRevPerCustomer != null && avgRevenuePerCustomer > 0
+        ? `${avgRevenuePerCustomer > priorAvgRevPerCustomer ? "+" : ""}${(((avgRevenuePerCustomer - priorAvgRevPerCustomer) / priorAvgRevPerCustomer) * 100).toFixed(1)}% vs prior year (${formatCurrency(priorAvgRevPerCustomer)})`
+        : "No prior year data",
       icon: Users,
     },
     {
