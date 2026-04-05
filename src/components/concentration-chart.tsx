@@ -63,7 +63,7 @@ const PERIOD_OPTIONS: { value: ConcentrationPeriod; label: string }[] = [
   { value: "ttm", label: "TTM" },
 ]
 
-export function ConcentrationChart() {
+export function ConcentrationChart({ children }: { children?: React.ReactNode }) {
   const [data, setData] = useState<ConcentrationResponse | null>(null)
   const [segmentData, setSegmentData] = useState<SegmentResponse | null>(null)
   const [ltv, setLtv] = useState<number | null>(null)
@@ -264,6 +264,8 @@ export function ConcentrationChart() {
           </ChartContainer>
         </CardContent>
       </Card>
+
+      {children}
 
       {/* Revenue by Customer Type */}
       {segmentData && (() => {

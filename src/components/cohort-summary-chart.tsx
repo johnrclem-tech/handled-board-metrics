@@ -270,9 +270,9 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
                 }}
               />
               <Legend />
-              <Bar dataKey="storage" name="Storage" stackId="revenue" fill="var(--chart-3)" radius={[0, 0, 0, 0]} />
               <Bar dataKey="handling" name="Handling" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="var(--chart-2)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="storage" name="Storage" stackId="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}

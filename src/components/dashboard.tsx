@@ -169,15 +169,16 @@ export function Dashboard() {
 
           {activePage === "financials" && (
             <div className="space-y-6">
-              <ConcentrationChart key={`concentration-${refreshKey}`} />
+              <ConcentrationChart key={`concentration-${refreshKey}`}>
+                <CohortSummaryChart
+                  key={`cohort-summary-${refreshKey}`}
+                  onViewDetails={() => {}}
+                  onDrill={handleCohortDrill}
+                />
+              </ConcentrationChart>
               <div className="grid gap-6 md:grid-cols-2">
                 <NewCustomersChart key={`new-customers-${refreshKey}`} />
               </div>
-              <CohortSummaryChart
-                key={`cohort-summary-${refreshKey}`}
-                onViewDetails={() => {}}
-                onDrill={handleCohortDrill}
-              />
               <FinancialTable
                 key={`table-${refreshKey}`}
                 drillFilter={drillFilter}
