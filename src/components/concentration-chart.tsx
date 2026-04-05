@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Button } from "@/components/ui/button"
-import { DollarSign, Users, PieChart as PieChartIcon } from "lucide-react"
+import { DollarSign, Users, PieChart as PieChartIcon, TrendingUp } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, Legend, YAxis } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
@@ -158,6 +158,29 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
     existingRevenue: { label: "Existing Customers", color: "var(--chart-1)" },
   } satisfies ChartConfig
 
+  // New customer revenue % from segment data
+  const segFullDataset = segmentData
+    ? period === "monthly" ? segmentData.monthly : period === "quarterly" ? segmentData.quarterly : segmentData.ttm
+    : []
+  const latestSeg = segFullDataset.length > 0 ? segFullDataset[segFullDataset.length - 1] : null
+  const newRevPct = latestSeg && latestSeg.total > 0 ? (latestSeg.newRevenue / latestSeg.total) * 100 : null
+
+  let priorNewRevPct: number | null = null
+  if (latestSeg) {
+    let priorSegPeriod: string | null = null
+    if (period === "monthly" || period === "ttm") {
+      const [y, m] = latestSeg.period.split("-").map(Number)
+      priorSegPeriod = `${y - 1}-${String(m).padStart(2, "0")}`
+    } else {
+      const [y, qPart] = latestSeg.period.split("-Q")
+      priorSegPeriod = `${Number(y) - 1}-Q${qPart}`
+    }
+    const priorSeg = segFullDataset.find((d) => d.period === priorSegPeriod)
+    if (priorSeg && priorSeg.total > 0) {
+      priorNewRevPct = (priorSeg.newRevenue / priorSeg.total) * 100
+    }
+  }
+
   // KPI cards
   const avgRevenuePerCustomer = latest && latest.customerCount > 0 ? latest.totalRevenue / latest.customerCount : 0
 
@@ -183,6 +206,14 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
       sub: latest ? `${latest.label} — ${latest.customerCount} customers` : "",
       icon: Users,
     },
+    {
+      title: "New Customer Revenue",
+      value: newRevPct != null ? `${newRevPct.toFixed(1)}%` : "N/A",
+      sub: priorNewRevPct != null && newRevPct != null
+        ? `${newRevPct > priorNewRevPct ? "+" : ""}${(newRevPct - priorNewRevPct).toFixed(1)}pp vs prior year (${priorNewRevPct.toFixed(1)}%)`
+        : "No prior year data",
+      icon: TrendingUp,
+    },
   ]
 
   return (
@@ -202,7 +233,7 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         {kpiCards.map((kpi) => (
           <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
