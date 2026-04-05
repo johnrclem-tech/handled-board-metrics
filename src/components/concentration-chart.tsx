@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Button } from "@/components/ui/button"
 import { DollarSign, Users, PieChart as PieChartIcon, TrendingUp } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, Legend, YAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, LabelList, Legend, YAxis } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 type ConcentrationPeriod = "monthly" | "quarterly" | "ttm"
@@ -63,9 +63,23 @@ const PERIOD_OPTIONS: { value: ConcentrationPeriod; label: string }[] = [
   { value: "ttm", label: "TTM" },
 ]
 
+interface CustomerRevenueEntry {
+  name: string
+  revenue: number
+  priorRevenue: number | null
+  growth: number | null
+  isNew: boolean
+}
+
+interface CustomerRevenueResponse {
+  customers: CustomerRevenueEntry[]
+  periodLabel: string
+}
+
 export function ConcentrationChart({ children }: { children?: React.ReactNode }) {
   const [data, setData] = useState<ConcentrationResponse | null>(null)
   const [segmentData, setSegmentData] = useState<SegmentResponse | null>(null)
+  const [customerRevData, setCustomerRevData] = useState<CustomerRevenueResponse | null>(null)
   const [ltv, setLtv] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<ConcentrationPeriod>("monthly")
@@ -87,6 +101,13 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
       .catch((err) => console.error("Failed to fetch data:", err))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    fetch(`/api/metrics/customer-revenue?period=${period}`)
+      .then((r) => r.json())
+      .then((result: CustomerRevenueResponse) => setCustomerRevData(result))
+      .catch((err) => console.error("Failed to fetch customer revenue:", err))
+  }, [period])
 
   if (loading) {
     return (
@@ -422,6 +443,104 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
           </CardContent>
         </Card>
       )}
+
+      {/* Revenue by Customer */}
+      {customerRevData && customerRevData.customers.length > 0 && (() => {
+        const customers = customerRevData.customers.slice(0, 20)
+        const maxRevenue = Math.max(...customers.map((c) => c.revenue))
+
+        const customerChartConfig = {
+          revenue: { label: "Revenue", color: "var(--chart-1)" },
+        } satisfies ChartConfig
+
+        return (
+          <Card className="gap-4">
+            <CardHeader className="flex justify-between border-b">
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-semibold">Revenue by Customer</span>
+                <InfoTooltip text="Total revenue per customer for the selected period with year-over-year growth. Top 20 customers shown." />
+              </div>
+              <span className="text-muted-foreground text-sm">{customerRevData.periodLabel}</span>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <ChartContainer config={customerChartConfig} className="aspect-auto w-full" style={{ height: `${Math.max(300, customers.length * 36)}px` }}>
+                <BarChart
+                  data={customers}
+                  layout="vertical"
+                  barSize={22}
+                  margin={{ left: 10, right: 120, top: 5, bottom: 5 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
+                  <XAxis
+                    type="number"
+                    dataKey="revenue"
+                    domain={[0, Math.ceil(maxRevenue / 1000) * 1000]}
+                    tickFormatter={(val) => val === 0 ? "$0" : `$${(val / 1000).toFixed(0)}k`}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11 }}
+                    width={120}
+                  />
+                  <ChartTooltip
+                    cursor={false}
+                    content={
+                      <ChartTooltipContent
+                        className="min-w-[220px]"
+                        hideLabel
+                        formatter={(value, _name, item) => {
+                          const customer = item.payload as CustomerRevenueEntry
+                          return (
+                            <div className="flex flex-col gap-1 text-xs">
+                              <div className="font-semibold">{customer.name}</div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Revenue</span>
+                                <span className="font-mono font-medium">{formatCurrency(customer.revenue)}</span>
+                              </div>
+                              {customer.priorRevenue != null && (
+                                <div className="flex justify-between gap-4">
+                                  <span className="text-muted-foreground">Prior Year</span>
+                                  <span className="font-mono font-medium">{formatCurrency(customer.priorRevenue)}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Growth</span>
+                                <span className={`font-mono font-medium ${customer.growth != null && customer.growth < 0 ? "text-red-600" : ""}`}>
+                                  {customer.isNew ? "New" : customer.growth != null ? `${customer.growth >= 0 ? "+" : ""}${customer.growth.toFixed(1)}%` : "N/A"}
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        }}
+                      />
+                    }
+                  />
+                  <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4}>
+                    <LabelList
+                      dataKey="growth"
+                      position="right"
+                      offset={8}
+                      className="text-xs"
+                      fill="var(--muted-foreground)"
+                      formatter={(v: unknown) => {
+                        if (v == null) return "New"
+                        const n = Number(v)
+                        return `${n >= 0 ? "+" : ""}${n.toFixed(0)}%`
+                      }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        )
+      })()}
     </div>
   )
 }
