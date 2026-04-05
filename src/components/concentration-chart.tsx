@@ -196,6 +196,8 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
         ))}
       </div>
 
+      {children}
+
       {/* Concentration Area Chart */}
       <Card className="gap-4">
         <CardHeader className="flex justify-between border-b">
@@ -264,8 +266,6 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
           </ChartContainer>
         </CardContent>
       </Card>
-
-      {children}
 
       {/* Revenue by Customer Type */}
       {segmentData && (() => {

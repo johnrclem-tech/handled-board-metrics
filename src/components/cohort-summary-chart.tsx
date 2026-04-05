@@ -16,10 +16,10 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   Legend,
 } from "recharts"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import type { CohortDrillFilter } from "@/components/dashboard"
 
 interface CohortEntry {
@@ -152,6 +152,13 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
     { key: "total" as const, label: "Total Revenue", color: "var(--chart-5)" },
   ]
 
+  const cohortChartConfig = {
+    handling: { label: "Handling", color: "var(--chart-1)" },
+    shipping: { label: "Shipping", color: "var(--chart-2)" },
+    storage: { label: "Storage", color: "var(--chart-3)" },
+    total: { label: "Total", color: "var(--chart-5)" },
+  } satisfies ChartConfig
+
   const lookups = Object.fromEntries(
     categories.map(({ key }) => [
       key,
@@ -256,25 +263,21 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
       </CardHeader>
       <CardContent>
         {viewMode === "chart" && (
-          <ResponsiveContainer width="100%" height={300}>
+          <ChartContainer config={cohortChartConfig} className="aspect-auto h-[300px] w-full">
             <BarChart data={barChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleChartClick} style={{ cursor: "pointer" }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" className="text-xs" />
+              <CartesianGrid strokeDasharray="5 4" vertical={false} />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} className="text-xs" />
               <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
-              <Tooltip
-                formatter={(value) => formatCurrency(Number(value))}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                }}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent labelFormatter={(label) => `Month ${label}`} />}
               />
               <Legend />
               <Bar dataKey="handling" name="Handling" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
               <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="var(--chart-2)" radius={[0, 0, 0, 0]} />
               <Bar dataKey="storage" name="Storage" stackId="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         )}
 
         {viewMode === "table" && (
@@ -330,18 +333,14 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
         )}
 
         {viewMode === "decay" && (
-          <ResponsiveContainer width="100%" height={350}>
+          <ChartContainer config={cohortChartConfig} className="aspect-auto h-[350px] w-full">
             <LineChart data={decayChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleChartClick} style={{ cursor: "pointer" }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="month" className="text-xs" />
+              <CartesianGrid strokeDasharray="5 4" vertical={false} />
+              <XAxis dataKey="month" tickLine={false} axisLine={false} className="text-xs" />
               <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
-              <Tooltip
-                formatter={(value) => formatCurrency(Number(value))}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                }}
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent labelFormatter={(label) => `Month ${label}`} />}
               />
               <Legend />
               {categories.map(({ key, label, color }) => (
@@ -357,7 +356,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
                 />
               ))}
             </LineChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         )}
       </CardContent>
     </Card>
