@@ -127,6 +127,12 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
   const lifetimeHandling = cohortData.handling.reduce((sum, e) => sum + e.average, 0)
   const lifetimeTotal = cohortData.total.reduce((sum, e) => sum + e.average, 0)
 
+  // Gross margins: Storage 10%, Shipping 15%, Handling 30%
+  const gmStorage = lifetimeStorage * 0.10
+  const gmShipping = lifetimeShipping * 0.15
+  const gmHandling = lifetimeHandling * 0.30
+  const gmTotal = gmStorage + gmShipping + gmHandling
+
   // Chart data (first 12 months)
   const maxMonthsToShow = Math.min(12, metadata.maxBillingMonths)
   const chartMonths = Array.from({ length: maxMonthsToShow }, (_, i) => i + 1)
@@ -225,20 +231,20 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
             {viewMode === "chart" && (
               <div className="mt-3 flex flex-wrap gap-4 text-sm">
                 <div className="flex flex-col">
-                  <span className="text-muted-foreground">Avg Lifetime Total</span>
-                  <span className="text-lg font-bold">{formatCurrency(lifetimeTotal)}</span>
+                  <span className="text-muted-foreground">Gross Margin Total</span>
+                  <span className="text-lg font-bold">{formatCurrency(gmTotal)}</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-muted-foreground">Storage</span>
-                  <span className="font-semibold" style={{ color: "var(--chart-3)" }}>{formatCurrency(lifetimeStorage)}</span>
+                  <span className="text-muted-foreground">Storage (10%)</span>
+                  <span className="font-semibold" style={{ color: "var(--chart-3)" }}>{formatCurrency(gmStorage)}</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-muted-foreground">Handling</span>
-                  <span className="font-semibold" style={{ color: "var(--chart-1)" }}>{formatCurrency(lifetimeHandling)}</span>
+                  <span className="text-muted-foreground">Handling (30%)</span>
+                  <span className="font-semibold" style={{ color: "var(--chart-1)" }}>{formatCurrency(gmHandling)}</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span className="font-semibold" style={{ color: "var(--chart-2)" }}>{formatCurrency(lifetimeShipping)}</span>
+                  <span className="text-muted-foreground">Shipping (15%)</span>
+                  <span className="font-semibold" style={{ color: "var(--chart-2)" }}>{formatCurrency(gmShipping)}</span>
                 </div>
               </div>
             )}
