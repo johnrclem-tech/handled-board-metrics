@@ -277,9 +277,15 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                 <YAxis tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={55} />
                 <Tooltip formatter={(value) => [formatCurrency(Number(value))]} contentStyle={tooltipStyle} />
                 <Legend />
-                <Bar dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]} />
-                <Bar dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
-                <Bar dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="storage" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                </Bar>
+                <Bar dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="handling" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                </Bar>
+                <Bar dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="shipping" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
