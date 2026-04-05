@@ -154,8 +154,8 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
   } satisfies ChartConfig
 
   const segmentChartConfig = {
-    newRevenue: { label: "New Customers", color: "var(--chart-3)" },
-    existingRevenue: { label: "Existing Customers", color: "var(--chart-1)" },
+    newRevenue: { label: "New Customers", color: "var(--chart-1)" },
+    existingRevenue: { label: "Existing Customers", color: "var(--chart-3)" },
   } satisfies ChartConfig
 
   const avgRevenueChartConfig = {
@@ -359,8 +359,8 @@ export function ConcentrationChart({ children }: { children?: React.ReactNode })
                     content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} />}
                   />
                   <Legend />
-                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-3)" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ChartContainer>
             </CardContent>
