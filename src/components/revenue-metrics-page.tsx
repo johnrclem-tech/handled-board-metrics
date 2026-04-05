@@ -321,13 +321,13 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
                 <Bar yAxisId="left" dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                  <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
                 </Bar>
                 <Bar yAxisId="left" dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                  <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
                 </Bar>
                 <Bar yAxisId="left" dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                  <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
                 </Bar>
                 <Line
                   yAxisId="right"
@@ -408,7 +408,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   />
                   {hasYoy && <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />}
                   <Bar yAxisId="left" dataKey="revenue" name="Revenue" fill={svc.color} radius={[4, 4, 0, 0]}>
-                    <LabelList dataKey="revenue" position="top" fontSize={12} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 100 ? `${Math.round(n / 1000)}k` : "" }} />
+                    <LabelList dataKey="revenue" position="top" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 100 ? `${Math.round(n / 1000)}k` : "" }} />
                   </Bar>
                   {hasYoy && (
                     <Line
