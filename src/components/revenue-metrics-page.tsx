@@ -19,6 +19,7 @@ import {
   ReferenceLine,
   LabelList,
 } from "recharts"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import type { ChurnSegment } from "@/components/dashboard"
 
 type ServicePeriod = "monthly" | "quarterly" | "ttm"
@@ -73,6 +74,16 @@ const COLORS = {
   shipping: "var(--chart-2)",
   handling: "var(--chart-1)",
 }
+
+const revenueByServiceConfig = {
+  handling: { label: "Handling", color: "var(--chart-1)" },
+  shipping: { label: "Shipping", color: "var(--chart-2)" },
+  storage: { label: "Storage", color: "var(--chart-3)" },
+  yoyTotal: { label: "YoY Growth", color: "#000" },
+  handlingPct: { label: "Handling", color: "var(--chart-1)" },
+  shippingPct: { label: "Shipping", color: "var(--chart-2)" },
+  storagePct: { label: "Storage", color: "var(--chart-3)" },
+} satisfies ChartConfig
 
 export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
   const [data, setData] = useState<RevenueMetricsResponse | null>(null)
@@ -238,10 +249,10 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
         </CardHeader>
         <CardContent>
           {revenueMode === "dollars" ? (
-            <ResponsiveContainer width="100%" height={350}>
+            <ChartContainer config={revenueByServiceConfig} className="aspect-auto h-[350px] w-full">
               <ComposedChart data={dataset} margin={{ top: 15, right: 20, left: 15, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                 <YAxis
                   yAxisId="left"
                   tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
@@ -257,17 +268,18 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   width={55}
                   label={{ value: "Growth (%)", angle: 90, position: "center", dx: 35, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value, name) => {
+                    if (name === "yoyTotal") return [`${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(1)}%`]
+                    return [formatCurrency(Number(value))]
+                  }} />}
+                />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
-                <Bar yAxisId="left" dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="handling" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
-                </Bar>
-                <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="shipping" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
-                </Bar>
-                <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="storage" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
-                </Bar>
+                <Bar yAxisId="left" dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
+                <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[0, 0, 0, 0]} />
+                <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[4, 4, 0, 0]} />
                 <Line
                   yAxisId="right"
                   type="monotone"
@@ -280,12 +292,12 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   connectNulls={false}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           ) : (
-            <ResponsiveContainer width="100%" height={350}>
+            <ChartContainer config={revenueByServiceConfig} className="aspect-auto h-[350px] w-full">
               <ComposedChart data={mixData} margin={{ top: 15, right: 20, left: 15, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                 <YAxis
                   yAxisId="left"
                   tickFormatter={(val) => `${val}%`}
@@ -302,17 +314,18 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   width={55}
                   label={{ value: "Growth (%)", angle: 90, position: "center", dx: 35, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value, name) => {
+                    if (name === "yoyTotal") return [`${Number(value) >= 0 ? "+" : ""}${Number(value).toFixed(1)}%`]
+                    return [`${Number(value).toFixed(1)}%`]
+                  }} />}
+                />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
-                <Bar yAxisId="left" dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-                </Bar>
-                <Bar yAxisId="left" dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[0, 0, 0, 0]}>
-                  <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-                </Bar>
-                <Bar yAxisId="left" dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-                </Bar>
+                <Bar yAxisId="left" dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
+                <Bar yAxisId="left" dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[0, 0, 0, 0]} />
+                <Bar yAxisId="left" dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[4, 4, 0, 0]} />
                 <Line
                   yAxisId="right"
                   type="monotone"
@@ -325,7 +338,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   connectNulls={false}
                 />
               </ComposedChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           )}
         </CardContent>
       </Card>
