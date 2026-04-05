@@ -245,7 +245,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
                   tick={{ fontSize: 11 }}
                   width={55}
-                  label={{ value: "Revenue ($)", angle: -90, position: "insideLeft", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
+                  label={{ value: "Revenue ($)", angle: -90, position: "center", style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <YAxis
                   yAxisId="right"
@@ -253,7 +253,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tickFormatter={(val) => `${val}%`}
                   tick={{ fontSize: 11 }}
                   width={55}
-                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
+                  label={{ value: "Growth (%)", angle: 90, position: "center", style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
@@ -290,7 +290,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tick={{ fontSize: 11 }}
                   width={45}
                   domain={[0, 100]}
-                  label={{ value: "Revenue (%)", angle: -90, position: "insideLeft", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
+                  label={{ value: "Revenue (%)", angle: -90, position: "center", style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <YAxis
                   yAxisId="right"
@@ -298,7 +298,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                   tickFormatter={(val) => `${val}%`}
                   tick={{ fontSize: 11 }}
                   width={55}
-                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: -5, style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
+                  label={{ value: "Growth (%)", angle: 90, position: "center", style: { fontSize: 13, fontWeight: 600, fill: "hsl(var(--muted-foreground))" } }}
                 />
                 <Legend />
                 <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
@@ -358,8 +358,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                     label={{
                       value: "■ Revenue ($k)",
                       angle: -90,
-                      position: "insideLeft",
-                      offset: -5,
+                      position: "center",
                       style: { fontSize: 13, fontWeight: 600, fill: svc.color },
                     }}
                   />
@@ -373,8 +372,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
                       label={{
                         value: "--- Growth (%)",
                         angle: 90,
-                        position: "insideRight",
-                        offset: -5,
+                        position: "center",
                         style: { fontSize: 13, fontWeight: 600, fill: "#666" },
                       }}
                     />
