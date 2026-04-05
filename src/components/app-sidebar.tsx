@@ -86,7 +86,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                       onClick={() => onNavigate("revenue-metrics")}
                     >
                       <TrendingUp className="size-4" />
-                      <span>Metrics</span>
+                      <span>By Service</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
