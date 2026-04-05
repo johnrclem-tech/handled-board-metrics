@@ -17,6 +17,7 @@ import {
   ResponsiveContainer,
   Legend,
   ReferenceLine,
+  LabelList,
 } from "recharts"
 import type { ChurnSegment } from "@/components/dashboard"
 
@@ -228,19 +229,16 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
               <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} domain={[0, 100]} />
-              <Tooltip
-                formatter={(value, name, props) => {
-                  const v = Number(value)
-                  const p = props.payload as typeof mixData[0]
-                  const dollarKey = String(name) === "Storage" ? "storage" as const : String(name) === "Shipping" ? "shipping" as const : "handling" as const
-                  return [`${v.toFixed(1)}% (${formatCurrency(p[dollarKey])})`, String(name)]
-                }}
-                contentStyle={tooltipStyle}
-              />
               <Legend />
-              <Bar dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]} />
-              <Bar dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
-              <Bar dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
+                <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+              </Bar>
+              <Bar dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
+                <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+              </Bar>
+              <Bar dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
