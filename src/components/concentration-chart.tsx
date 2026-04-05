@@ -248,11 +248,11 @@ export function ConcentrationChart() {
                     width={55}
                   />
                   <Legend />
-                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="rgba(42, 157, 143, 0.6)" radius={[0, 0, 0, 0]}>
-                    <LabelList dataKey="existingRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
-                  </Bar>
-                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="rgba(231, 110, 80, 0.6)" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="rgba(231, 110, 80, 0.6)" radius={[0, 0, 0, 0]}>
                     <LabelList dataKey="newRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
+                  </Bar>
+                  <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="rgba(42, 157, 143, 0.6)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="existingRevenue" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 500 ? `$${Math.round(n / 1000)}k` : "" }} />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
