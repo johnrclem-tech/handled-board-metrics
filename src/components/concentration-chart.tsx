@@ -281,6 +281,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
 
       {children}
 
+      <div className="grid gap-6 md:grid-cols-2">
       {/* Concentration Area Chart */}
       <Card className="gap-4">
         <CardHeader className="flex justify-between border-b">
@@ -314,7 +315,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
             </div>
           </div>
 
-          <ChartContainer config={concentrationChartConfig} className="aspect-auto h-[325px] w-full">
+          <ChartContainer config={concentrationChartConfig} className="aspect-auto h-[275px] w-full">
             <AreaChart
               data={chartData}
               margin={{ left: 10, right: 10, top: 10, bottom: 5 }}
@@ -348,6 +349,43 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
           </ChartContainer>
         </CardContent>
       </Card>
+
+      {/* Average Revenue Per Customer */}
+      {dataset.length > 0 && (
+        <Card className="gap-4">
+          <CardHeader className="flex justify-between border-b">
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold">Average Revenue Per Customer</span>
+              <InfoTooltip text="Total revenue divided by number of active customers for each period." />
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <ChartContainer config={avgRevenueChartConfig} className="aspect-auto h-[325px] w-full">
+              <AreaChart
+                data={avgRevenueChartData}
+                margin={{ left: 10, right: 10, top: 10, bottom: 5 }}
+                className="stroke-2"
+              >
+                <defs>
+                  <linearGradient id="fillAvgRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-avgRevenue)" stopOpacity={0.8} />
+                    <stop offset="95%" stopColor="var(--color-avgRevenue)" stopOpacity={0.1} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={30} tick={{ fontSize: 11 }} />
+                <YAxis tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={45} />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value) => [formatCurrency(Number(value))]} />}
+                />
+                <Area dataKey="avgRevenue" type="monotone" fill="url(#fillAvgRevenue)" stroke="var(--color-avgRevenue)" />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
+      </div>
 
       {/* Revenue by Customer Type */}
       {segmentData && (() => {
@@ -387,42 +425,6 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
           </Card>
         )
       })()}
-
-      {/* Average Revenue Per Customer */}
-      {dataset.length > 0 && (
-        <Card className="gap-4">
-          <CardHeader className="flex justify-between border-b">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold">Average Revenue Per Customer</span>
-              <InfoTooltip text="Total revenue divided by number of active customers for each period." />
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <ChartContainer config={avgRevenueChartConfig} className="aspect-auto h-[325px] w-full">
-              <AreaChart
-                data={avgRevenueChartData}
-                margin={{ left: 10, right: 10, top: 10, bottom: 5 }}
-                className="stroke-2"
-              >
-                <defs>
-                  <linearGradient id="fillAvgRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-avgRevenue)" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="var(--color-avgRevenue)" stopOpacity={0.1} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="5 4" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={30} tick={{ fontSize: 11 }} />
-                <YAxis tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={45} />
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value) => [formatCurrency(Number(value))]} />}
-                />
-                <Area dataKey="avgRevenue" type="monotone" fill="url(#fillAvgRevenue)" stroke="var(--color-avgRevenue)" />
-              </AreaChart>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Revenue by Customer */}
       {customerRevData && customerRevData.customers.length > 0 && (() => {
