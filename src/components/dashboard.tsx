@@ -174,6 +174,7 @@ export function Dashboard() {
             <div className="space-y-6">
               <KpiOverview key={`kpi-${refreshKey}`} />
               <ExistingCustomersChart key={`existing-${refreshKey}`} />
+              <NewCustomersChart key={`new-customers-${refreshKey}`} />
               <RevenueChart key={`chart-${refreshKey}`} />
             </div>
           )}
@@ -202,9 +203,6 @@ export function Dashboard() {
                   onDrill={handleCohortDrill}
                 />
               </ConcentrationChart>
-              <div className="grid gap-6 md:grid-cols-2">
-                <NewCustomersChart key={`new-customers-${refreshKey}`} />
-              </div>
               <FinancialTable
                 key={`table-${refreshKey}`}
                 drillFilter={drillFilter}
