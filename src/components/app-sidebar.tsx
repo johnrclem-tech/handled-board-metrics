@@ -68,7 +68,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                       onClick={() => onNavigate("financials")}
                     >
                       <Table2 className="size-4" />
-                      <span>Dashboard</span>
+                      <span>By Customer</span>
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                   <SidebarMenuSubItem>

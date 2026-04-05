@@ -1,30 +1,44 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/info-tooltip"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { PieChart as PieChartIcon, TableProperties, ChevronLeft, ChevronRight } from "lucide-react"
+import { DollarSign, Users, PieChart as PieChartIcon } from "lucide-react"
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   Legend,
   ReferenceLine,
+  LabelList,
 } from "recharts"
+
+type ConcentrationPeriod = "monthly" | "quarterly" | "ttm"
 
 interface ConcentrationEntry {
   period: string
+  label: string
   totalRevenue: number
   customerCount: number
   top1: { pct: number; revenue: number; name: string }
   top3: { pct: number; revenue: number; names: string[] }
   top5: { pct: number; revenue: number; names: string[] }
+}
+
+interface ConcentrationResponse {
+  monthly: ConcentrationEntry[]
+  quarterly: ConcentrationEntry[]
+  ttm: ConcentrationEntry[]
+}
+
+interface CohortResponse {
+  cohortData: {
+    total: { month: number; average: number; customerCount: number }[]
+  }
 }
 
 function formatCurrency(value: number): string {
@@ -36,177 +50,158 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
-function formatPct(value: number): string {
-  return `${value.toFixed(1)}%`
-}
-
-const DETAIL_PAGE_SIZE = 6
+const PERIOD_OPTIONS: { value: ConcentrationPeriod; label: string }[] = [
+  { value: "monthly", label: "Month" },
+  { value: "quarterly", label: "Quarter" },
+  { value: "ttm", label: "TTM" },
+]
 
 export function ConcentrationChart() {
-  const [data, setData] = useState<ConcentrationEntry[]>([])
+  const [data, setData] = useState<ConcentrationResponse | null>(null)
+  const [ltv, setLtv] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
-  const [showDetails, setShowDetails] = useState(false)
-  const [detailPage, setDetailPage] = useState(1)
+  const [period, setPeriod] = useState<ConcentrationPeriod>("monthly")
 
   useEffect(() => {
-    fetch("/api/metrics/concentration")
-      .then((res) => res.json())
-      .then((result) => setData(result.data || []))
-      .catch((err) => console.error("Failed to fetch concentration data:", err))
+    Promise.all([
+      fetch("/api/metrics/concentration").then((r) => r.json()),
+      fetch("/api/metrics/cohort-revenue").then((r) => r.json()),
+    ])
+      .then(([concResult, cohortResult]: [ConcentrationResponse, CohortResponse]) => {
+        setData(concResult)
+        if (cohortResult.cohortData?.total) {
+          const total = cohortResult.cohortData.total.reduce((sum: number, e: { average: number }) => sum + e.average, 0)
+          setLtv(total)
+        }
+      })
+      .catch((err) => console.error("Failed to fetch data:", err))
       .finally(() => setLoading(false))
   }, [])
 
   if (loading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Customer Concentration</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[350px] flex items-center justify-center">
-            <div className="animate-pulse text-muted-foreground">Loading...</div>
-          </div>
+        <CardContent className="py-16 text-center text-muted-foreground">
+          Loading customer metrics...
         </CardContent>
       </Card>
     )
   }
 
-  if (data.length === 0) {
+  if (!data || (data.monthly.length === 0 && data.quarterly.length === 0 && data.ttm.length === 0)) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-16">
           <PieChartIcon className="h-12 w-12 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-semibold">No concentration data</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Import revenue files to see customer concentration analysis
-          </p>
+          <h3 className="text-lg font-semibold">No customer data</h3>
+          <p className="text-sm text-muted-foreground mt-1">Import revenue files to see customer metrics</p>
         </CardContent>
       </Card>
     )
   }
 
-  const chartData = data.map((entry) => {
-    const [year, month] = entry.period.split("-")
-    const monthName = new Date(Number(year), Number(month) - 1).toLocaleString("en-US", { month: "short" })
-    return {
-      period: entry.period,
-      label: `${monthName} ${year.slice(2)}`,
-      "Top 1": entry.top1.pct,
-      "Top 3": entry.top3.pct,
-      "Top 5": entry.top5.pct,
-    }
-  })
+  const fullDataset = period === "monthly" ? data.monthly : period === "quarterly" ? data.quarterly : data.ttm
+  const dataset = fullDataset.slice(-18)
+  const latest = dataset.length > 0 ? dataset[dataset.length - 1] : null
 
-  const totalDetailPages = Math.max(1, Math.ceil(data.length / DETAIL_PAGE_SIZE))
-  const paginatedDetails = data.slice(
-    (detailPage - 1) * DETAIL_PAGE_SIZE,
-    detailPage * DETAIL_PAGE_SIZE
-  )
+  // Stacked bar data: Top 1, Next 2 (top3 - top1), Next 2 (top5 - top3), Rest (100 - top5)
+  const chartData = dataset.map((d) => ({
+    label: d.label,
+    "Top 1": d.top1.pct,
+    "Top 2-3": Math.max(0, d.top3.pct - d.top1.pct),
+    "Top 4-5": Math.max(0, d.top5.pct - d.top3.pct),
+    "Others": Math.max(0, 100 - d.top5.pct),
+  }))
+
+  // KPI cards
+  const avgRevenuePerCustomer = latest && latest.customerCount > 0 ? latest.totalRevenue / latest.customerCount : 0
+
+  const kpiCards = [
+    {
+      title: "Lifetime Value",
+      value: ltv != null ? formatCurrency(ltv) : "N/A",
+      sub: "Avg total revenue per new customer",
+      icon: DollarSign,
+    },
+    {
+      title: "Customer Concentration",
+      value: latest ? `${latest.top1.pct.toFixed(1)}%` : "N/A",
+      sub: latest ? `Top customer: ${latest.top1.name}` : "",
+      icon: PieChartIcon,
+      warn: latest ? latest.top1.pct > 25 : false,
+    },
+    {
+      title: "Avg Revenue Per Customer",
+      value: latest ? formatCurrency(avgRevenuePerCustomer) : "N/A",
+      sub: latest ? `${latest.label} — ${latest.customerCount} customers` : "",
+      icon: Users,
+    },
+  ]
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              Customer Revenue Concentration
-              <InfoTooltip text="% of total revenue from top 1, 3, and 5 customers by month. Lower concentration = healthier, more diversified revenue base." />
-            </CardTitle>
-          </div>
+    <div className="space-y-6">
+      {/* Period toggle */}
+      <div className="flex items-center gap-1">
+        {PERIOD_OPTIONS.map((p) => (
           <Button
-            variant={showDetails ? "default" : "outline"}
+            key={p.value}
+            variant={period === p.value ? "default" : "ghost"}
             size="sm"
-            onClick={() => { setShowDetails(!showDetails); setDetailPage(1) }}
-            className="gap-1"
+            onClick={() => setPeriod(p.value)}
           >
-            <TableProperties className="h-4 w-4" />
-            {showDetails ? "Chart" : "Details"}
+            {p.label}
           </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {!showDetails ? (
-          <ResponsiveContainer width="100%" height={225}>
-            <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+        ))}
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {kpiCards.map((kpi) => (
+          <Card key={kpi.title}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardDescription className="text-sm font-medium">{kpi.title}</CardDescription>
+              <kpi.icon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${kpi.warn ? "text-red-600" : ""}`}>{kpi.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">{kpi.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Stacked Bar Concentration Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Customer Revenue Concentration
+            <InfoTooltip text="Stacked % of total revenue by customer rank. Shows how concentrated revenue is among top customers. Lower Top 1 concentration = healthier, more diversified revenue." />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11 }}
-                angle={-45}
-                textAnchor="end"
-                height={50}
-                interval={0}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tickFormatter={(val) => `${val}%`}
-                tick={{ fontSize: 11 }}
-                width={40}
-              />
-              <Tooltip
-                formatter={(value) => `${Number(value).toFixed(1)}%`}
-                contentStyle={{
-                  backgroundColor: "hsl(var(--popover))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                }}
-              />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} domain={[0, 100]} />
               <Legend />
-              <ReferenceLine y={50} stroke="#999" strokeDasharray="3 3" label={{ value: "50%", position: "right", fontSize: 12 }} />
-              <Line type="monotone" dataKey="Top 1" stroke="#e76e50" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              <Line type="monotone" dataKey="Top 3" stroke="#2a9d8f" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              <Line type="monotone" dataKey="Top 5" stroke="#264653" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-            </LineChart>
+              <ReferenceLine y={50} stroke="#999" strokeDasharray="3 3" />
+              <Bar dataKey="Top 1" name="Top 1" stackId="a" fill="#e76e50" radius={[0, 0, 0, 0]}>
+                <LabelList dataKey="Top 1" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+              </Bar>
+              <Bar dataKey="Top 2-3" name="Top 2–3" stackId="a" fill="#2a9d8f" radius={[0, 0, 0, 0]}>
+                <LabelList dataKey="Top 2-3" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+              </Bar>
+              <Bar dataKey="Top 4-5" name="Top 4–5" stackId="a" fill="#264653" radius={[0, 0, 0, 0]}>
+                <LabelList dataKey="Top 4-5" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+              </Bar>
+              <Bar dataKey="Others" name="Others" stackId="a" fill="#e9c46a" radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="Others" position="center" fill="#333" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
-        ) : (
-          <div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Period</TableHead>
-                  <TableHead className="text-right">Revenue</TableHead>
-                  <TableHead className="text-right">Top 1 %</TableHead>
-                  <TableHead>Top Customer</TableHead>
-                  <TableHead className="text-right">Top 3 %</TableHead>
-                  <TableHead className="text-right">Top 5 %</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedDetails.map((entry) => (
-                  <TableRow key={entry.period}>
-                    <TableCell className="font-medium">{entry.period}</TableCell>
-                    <TableCell className="text-right font-mono">{formatCurrency(entry.totalRevenue)}</TableCell>
-                    <TableCell className={`text-right font-mono ${entry.top1.pct > 25 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(entry.top1.pct)}
-                    </TableCell>
-                    <TableCell className="text-sm">{entry.top1.name}</TableCell>
-                    <TableCell className={`text-right font-mono ${entry.top3.pct > 50 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(entry.top3.pct)}
-                    </TableCell>
-                    <TableCell className={`text-right font-mono ${entry.top5.pct > 70 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(entry.top5.pct)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {data.length > DETAIL_PAGE_SIZE && (
-              <div className="flex items-center justify-between mt-3 text-sm text-muted-foreground">
-                <span>{data.length} months</span>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={detailPage <= 1} onClick={() => setDetailPage((p) => p - 1)}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span>{detailPage}/{totalDetailPages}</span>
-                  <Button variant="outline" size="sm" disabled={detailPage >= totalDetailPages} onClick={() => setDetailPage((p) => p + 1)}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   )
 }

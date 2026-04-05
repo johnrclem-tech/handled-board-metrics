@@ -40,7 +40,7 @@ export type ChurnPeriod = "monthly" | "quarterly" | "annually"
 
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
-  financials: "Revenue",
+  financials: "By Customer",
   churn: "Churn",
   "revenue-metrics": "Revenue Metrics",
 }
@@ -169,8 +169,8 @@ export function Dashboard() {
 
           {activePage === "financials" && (
             <div className="space-y-6">
+              <ConcentrationChart key={`concentration-${refreshKey}`} />
               <div className="grid gap-6 md:grid-cols-2">
-                <ConcentrationChart key={`concentration-${refreshKey}`} />
                 <NewCustomersChart key={`new-customers-${refreshKey}`} />
               </div>
               <CohortSummaryChart
