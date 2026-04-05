@@ -17,6 +17,7 @@ import {
   ResponsiveContainer,
   Legend,
   ReferenceLine,
+  LabelList,
 } from "recharts"
 import type { ChurnSegment } from "@/components/dashboard"
 
@@ -77,7 +78,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
   const [data, setData] = useState<RevenueMetricsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<ServicePeriod>("monthly")
-
+  const [revenueMode, setRevenueMode] = useState<"dollars" | "percent">("dollars")
 
   useEffect(() => {
     setLoading(true)
@@ -113,6 +114,18 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
   const fullDataset = period === "monthly" ? data.monthly : period === "quarterly" ? data.quarterly : data.ttm
   const dataset = fullDataset.slice(-18)
   const latest = dataset.length > 0 ? dataset[dataset.length - 1] : null
+
+  // Compute 100% stacked mix data (with yoyTotal for growth line)
+  const mixData = dataset.map((d) => {
+    const t = d.total || 1
+    return {
+      label: d.label,
+      storagePct: (d.storage / t) * 100,
+      shippingPct: (d.shipping / t) * 100,
+      handlingPct: (d.handling / t) * 100,
+      yoyTotal: d.yoyTotal,
+    }
+  })
 
   const tooltipStyle = {
     backgroundColor: "hsl(var(--popover))",
@@ -210,59 +223,133 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
 
       {/* Revenue by Service Chart */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2">
             Revenue by Service
-            <InfoTooltip text="Stacked revenue by service type with total year-over-year growth rate." />
+            <InfoTooltip text="Stacked revenue by service type with total year-over-year growth rate. Toggle between dollar amounts and percentage mix." />
           </CardTitle>
+          <div className="flex gap-1 rounded-lg border p-0.5">
+            <Button
+              variant={revenueMode === "dollars" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setRevenueMode("dollars")}
+              className="h-7 px-2.5 text-xs"
+            >
+              $
+            </Button>
+            <Button
+              variant={revenueMode === "percent" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setRevenueMode("percent")}
+              className="h-7 px-2.5 text-xs"
+            >
+              %
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <ComposedChart data={dataset} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-              <YAxis
-                yAxisId="left"
-                tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
-                tick={{ fontSize: 11 }}
-                width={55}
-                label={{ value: "Revenue ($)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
-              />
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                tickFormatter={(val) => `${val}%`}
-                tick={{ fontSize: 11 }}
-                width={55}
-                label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
-              />
-              <Tooltip
-                formatter={(value, name) => {
-                  const v = Number(value)
-                  const n = String(name)
-                  if (n === "YoY Growth") return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, n]
-                  return [formatCurrency(v), n]
-                }}
-                contentStyle={tooltipStyle}
-              />
-              <Legend />
-              <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
-              <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]} />
-              <Bar yAxisId="left" dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
-              <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]} />
-              <Line
-                yAxisId="right"
-                type="monotone"
-                dataKey="yoyTotal"
-                name="YoY Growth"
-                stroke="#666"
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                dot={{ r: 3 }}
-                connectNulls={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+          {revenueMode === "dollars" ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <ComposedChart data={dataset} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis
+                  yAxisId="left"
+                  tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`}
+                  tick={{ fontSize: 11 }}
+                  width={55}
+                  label={{ value: "Revenue ($)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tickFormatter={(val) => `${val}%`}
+                  tick={{ fontSize: 11 }}
+                  width={55}
+                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                />
+                <Tooltip
+                  formatter={(value, name) => {
+                    const v = Number(value)
+                    const n = String(name)
+                    if (n === "YoY Growth") return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, n]
+                    return [formatCurrency(v), n]
+                  }}
+                  contentStyle={tooltipStyle}
+                />
+                <Legend />
+                <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
+                <Bar yAxisId="left" dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]} />
+                <Bar yAxisId="left" dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
+                <Bar yAxisId="left" dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]} />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="yoyTotal"
+                  name="YoY Growth"
+                  stroke="#666"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <ComposedChart data={mixData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis
+                  yAxisId="left"
+                  tickFormatter={(val) => `${val}%`}
+                  tick={{ fontSize: 11 }}
+                  width={45}
+                  domain={[0, 100]}
+                  label={{ value: "Revenue (%)", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tickFormatter={(val) => `${val}%`}
+                  tick={{ fontSize: 11 }}
+                  width={55}
+                  label={{ value: "Growth (%)", angle: 90, position: "insideRight", offset: 10, style: { fontSize: 11, fill: "hsl(var(--muted-foreground))" } }}
+                />
+                <Tooltip
+                  formatter={(value, name) => {
+                    const v = Number(value)
+                    const n = String(name)
+                    if (n === "YoY Growth") return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, n]
+                    return [`${v.toFixed(1)}%`, n]
+                  }}
+                  contentStyle={tooltipStyle}
+                />
+                <Legend />
+                <ReferenceLine yAxisId="right" y={0} stroke="#999" strokeDasharray="3 3" />
+                <Bar yAxisId="left" dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                </Bar>
+                <Bar yAxisId="left" dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                </Bar>
+                <Bar yAxisId="left" dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                </Bar>
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="yoyTotal"
+                  name="YoY Growth"
+                  stroke="#666"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  dot={{ r: 3 }}
+                  connectNulls={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
