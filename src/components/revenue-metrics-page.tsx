@@ -78,6 +78,7 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
   const [data, setData] = useState<RevenueMetricsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [period, setPeriod] = useState<ServicePeriod>("monthly")
+  const [revenueMode, setRevenueMode] = useState<"dollars" | "percent">("percent")
 
   useEffect(() => {
     setLoading(true)
@@ -216,32 +217,65 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
         })}
       </div>
 
-      {/* 100% Stacked Service Mix Chart */}
+      {/* Revenue by Service Chart */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2">
-            Service Mix
-            <InfoTooltip text="Percentage breakdown of revenue by service type. Each bar represents 100% of that period's revenue." />
+            Revenue by Service
+            <InfoTooltip text="Revenue breakdown by service type. Toggle between dollar amounts and percentage mix." />
           </CardTitle>
+          <div className="flex gap-1 rounded-lg border p-0.5">
+            <Button
+              variant={revenueMode === "dollars" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setRevenueMode("dollars")}
+              className="h-7 px-2.5 text-xs"
+            >
+              $
+            </Button>
+            <Button
+              variant={revenueMode === "percent" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setRevenueMode("percent")}
+              className="h-7 px-2.5 text-xs"
+            >
+              %
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={mixData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} domain={[0, 100]} />
-              <Legend />
-              <Bar dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
-                <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-              </Bar>
-              <Bar dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
-                <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-              </Bar>
-              <Bar dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
-                <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          {revenueMode === "percent" ? (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={mixData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} domain={[0, 100]} />
+                <Legend />
+                <Bar dataKey="storagePct" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="storagePct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                </Bar>
+                <Bar dataKey="handlingPct" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]}>
+                  <LabelList dataKey="handlingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                </Bar>
+                <Bar dataKey="shippingPct" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="shippingPct" position="center" fill="#fff" fontSize={10} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={dataset} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={55} />
+                <Tooltip formatter={(value) => [formatCurrency(Number(value))]} contentStyle={tooltipStyle} />
+                <Legend />
+                <Bar dataKey="storage" name="Storage" stackId="a" fill={COLORS.storage} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="handling" name="Handling" stackId="a" fill={COLORS.handling} radius={[0, 0, 0, 0]} />
+                <Bar dataKey="shipping" name="Shipping" stackId="a" fill={COLORS.shipping} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </CardContent>
       </Card>
 
