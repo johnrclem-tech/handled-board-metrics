@@ -166,10 +166,17 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
 
   // Per-service chart configs
   const serviceCharts = [
-    { key: "handling" as const, yoyKey: "yoyHandling" as const, title: "Handling Revenue", color: COLORS.handling },
     { key: "shipping" as const, yoyKey: "yoyShipping" as const, title: "Shipping Revenue", color: COLORS.shipping },
     { key: "storage" as const, yoyKey: "yoyStorage" as const, title: "Storage Revenue", color: COLORS.storage },
   ]
+
+  // Handling chart data (split into two charts)
+  const handlingChartData = dataset.map((d) => ({
+    label: d.label,
+    revenue: d.handling,
+    yoy: d.yoyHandling,
+  }))
+  const handlingHasYoy = handlingChartData.some((d) => d.yoy != null)
 
   return (
     <div className="space-y-6">
@@ -279,7 +286,62 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
         </CardContent>
       </Card>
 
-      {/* Individual Service Charts */}
+      {/* Handling Revenue — split into Revenue + Growth */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Handling Revenue
+              <InfoTooltip text="Total handling revenue per period." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={handlingChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={55} />
+                <Tooltip formatter={(value) => [formatCurrency(Number(value))]} contentStyle={tooltipStyle} />
+                <Bar dataKey="revenue" name="Revenue" fill={COLORS.handling} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Handling Growth
+              <InfoTooltip text="Year-over-year growth rate for handling revenue." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {handlingHasYoy ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={handlingChartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
+                  <Tooltip
+                    formatter={(value) => {
+                      const v = Number(value)
+                      return [`${v >= 0 ? "+" : ""}${v.toFixed(1)}%`]
+                    }}
+                    contentStyle={tooltipStyle}
+                  />
+                  <ReferenceLine y={0} stroke="#999" strokeDasharray="3 3" />
+                  <Bar dataKey="yoy" name="YoY Growth" fill={COLORS.handling} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-sm text-muted-foreground">
+                Not enough historical data for YoY comparison
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Other Service Charts */}
       {serviceCharts.map((svc) => {
         const chartData = dataset.map((d) => ({
           label: d.label,
