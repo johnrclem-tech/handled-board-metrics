@@ -5,17 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Button } from "@/components/ui/button"
 import { DollarSign, Users, PieChart as PieChartIcon } from "lucide-react"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Legend,
-  ReferenceLine,
-  LabelList,
-} from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, LabelList, Legend, ResponsiveContainer, YAxis } from "recharts"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 type ConcentrationPeriod = "monthly" | "quarterly" | "ttm"
 
@@ -123,14 +114,28 @@ export function ConcentrationChart() {
   const dataset = fullDataset.slice(-18)
   const latest = dataset.length > 0 ? dataset[dataset.length - 1] : null
 
-  // Stacked bar data: Top 1, Next 2 (top3 - top1), Next 2 (top5 - top3), Rest (100 - top5)
+  // Area chart data: each value is the cumulative % (not incremental)
   const chartData = dataset.map((d) => ({
     label: d.label,
-    "Top 1": d.top1.pct,
-    "Top 2-3": Math.max(0, d.top3.pct - d.top1.pct),
-    "Top 4-5": Math.max(0, d.top5.pct - d.top3.pct),
-    "Others": Math.max(0, 100 - d.top5.pct),
+    top1: d.top1.pct,
+    top3: d.top3.pct,
+    top5: d.top5.pct,
   }))
+
+  const concentrationChartConfig = {
+    top1: {
+      label: "Top 1",
+      color: "var(--chart-1)",
+    },
+    top3: {
+      label: "Top 3",
+      color: "var(--chart-2)",
+    },
+    top5: {
+      label: "Top 5",
+      color: "var(--chart-3)",
+    },
+  } satisfies ChartConfig
 
   // KPI cards
   const avgRevenuePerCustomer = latest && latest.customerCount > 0 ? latest.totalRevenue / latest.customerCount : 0
@@ -191,36 +196,72 @@ export function ConcentrationChart() {
         ))}
       </div>
 
-      {/* Stacked Bar Concentration Chart */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            Customer Revenue Concentration
-            <InfoTooltip text="Stacked % of total revenue by customer rank. Shows how concentrated revenue is among top customers. Lower Top 1 concentration = healthier, more diversified revenue." />
-          </CardTitle>
+      {/* Concentration Area Chart */}
+      <Card className="gap-4">
+        <CardHeader className="flex justify-between border-b">
+          <div className="flex flex-col gap-1">
+            <span className="text-lg font-semibold">Customer Revenue Concentration</span>
+            <span className="text-muted-foreground text-sm">% of total revenue from top customers by period</span>
+          </div>
+          <InfoTooltip text="Shows how concentrated revenue is among top customers. Lower Top 1 concentration = healthier, more diversified revenue." />
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} domain={[0, 100]} />
-              <Legend />
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex items-center gap-6 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="bg-chart-1 h-10 w-1 rounded-sm" />
+              <div className="flex flex-col">
+                <span className="text-lg font-medium">{latest ? `${latest.top1.pct.toFixed(0)}%` : "—"}</span>
+                <span className="text-muted-foreground text-sm">Top 1</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="bg-chart-2 h-10 w-1 rounded-sm" />
+              <div className="flex flex-col">
+                <span className="text-lg font-medium">{latest ? `${latest.top3.pct.toFixed(0)}%` : "—"}</span>
+                <span className="text-muted-foreground text-sm">Top 3</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="bg-chart-3 h-10 w-1 rounded-sm" />
+              <div className="flex flex-col">
+                <span className="text-lg font-medium">{latest ? `${latest.top5.pct.toFixed(0)}%` : "—"}</span>
+                <span className="text-muted-foreground text-sm">Top 5</span>
+              </div>
+            </div>
+          </div>
+
+          <ChartContainer config={concentrationChartConfig} className="aspect-auto h-[325px] w-full">
+            <AreaChart
+              data={chartData}
+              margin={{ left: 10, right: 10, top: 10, bottom: 5 }}
+              className="stroke-2"
+            >
+              <defs>
+                <linearGradient id="fillTop1" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-top1)" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="var(--color-top1)" stopOpacity={0.1} />
+                </linearGradient>
+                <linearGradient id="fillTop3" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-top3)" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="var(--color-top3)" stopOpacity={0.1} />
+                </linearGradient>
+                <linearGradient id="fillTop5" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-top5)" stopOpacity={0.8} />
+                  <stop offset="95%" stopColor="var(--color-top5)" stopOpacity={0.1} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="5 4" vertical={false} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} minTickGap={30} tick={{ fontSize: 11 }} />
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent labelFormatter={(label) => label} />}
+              />
               <ReferenceLine y={50} stroke="#999" strokeDasharray="3 3" />
-              <Bar dataKey="Top 1" name="Top 1" stackId="a" fill="var(--chart-3)" radius={[0, 0, 0, 0]}>
-                <LabelList dataKey="Top 1" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-              </Bar>
-              <Bar dataKey="Top 2-3" name="Top 2–3" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]}>
-                <LabelList dataKey="Top 2-3" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-              </Bar>
-              <Bar dataKey="Top 4-5" name="Top 4–5" stackId="a" fill="var(--chart-2)" radius={[0, 0, 0, 0]}>
-                <LabelList dataKey="Top 4-5" position="center" fill="#fff" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-              </Bar>
-              <Bar dataKey="Others" name="Others" stackId="a" fill="var(--chart-5)" radius={[4, 4, 0, 0]}>
-                <LabelList dataKey="Others" position="center" fill="#333" fontSize={11} fontWeight={600} formatter={(v: unknown) => { const n = Number(v); return n >= 5 ? `${Math.round(n)}%` : "" }} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              <Area dataKey="top5" type="monotone" fill="url(#fillTop5)" stroke="var(--color-top5)" />
+              <Area dataKey="top3" type="monotone" fill="url(#fillTop3)" stroke="var(--color-top3)" />
+              <Area dataKey="top1" type="monotone" fill="url(#fillTop1)" stroke="var(--color-top1)" />
+            </AreaChart>
+          </ChartContainer>
         </CardContent>
       </Card>
 
