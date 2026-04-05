@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { DollarSign, TrendingUp, TrendingDown, BarChart3, Package, Truck, Warehouse } from "lucide-react"
 import {
@@ -178,19 +178,15 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
     <div className="space-y-6">
       {/* Period toggle */}
       <div className="flex items-center">
-        <TabsList className="bg-muted h-9">
-          {PERIOD_OPTIONS.map((p) => (
-            <TabsTrigger
-              key={p.value}
-              value={p.value}
-              className="px-5"
-              data-state={period === p.value ? "active" : "inactive"}
-              onClick={() => setPeriod(p.value)}
-            >
-              {p.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <Tabs value={period} onValueChange={(v) => setPeriod(v as ServicePeriod)}>
+          <TabsList className="bg-muted h-9">
+            {PERIOD_OPTIONS.map((p) => (
+              <TabsTrigger key={p.value} value={p.value} className="px-5">
+                {p.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* KPI Cards */}

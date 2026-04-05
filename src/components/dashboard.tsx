@@ -115,35 +115,27 @@ export function Dashboard() {
 
           {(activePage === "churn" || activePage === "revenue-metrics") && (
             <div className="ml-auto flex items-center gap-3">
-              <TabsList className="bg-muted h-9">
-                {SEGMENTS.map((s) => (
-                  <TabsTrigger
-                    key={s.value}
-                    value={s.value}
-                    className="px-4"
-                    data-state={churnSegment === s.value ? "active" : "inactive"}
-                    onClick={() => setChurnSegment(s.value)}
-                  >
-                    {s.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+              <Tabs value={churnSegment} onValueChange={(v) => setChurnSegment(v as ChurnSegment)}>
+                <TabsList className="bg-muted h-9">
+                  {SEGMENTS.map((s) => (
+                    <TabsTrigger key={s.value} value={s.value} className="px-4">
+                      {s.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
               {activePage === "churn" && (
                 <>
                   <Separator orientation="vertical" className="h-4" />
-                  <TabsList className="bg-muted h-9">
-                    {PERIODS.map((p) => (
-                      <TabsTrigger
-                        key={p.value}
-                        value={p.value}
-                        className="px-4"
-                        data-state={churnPeriod === p.value ? "active" : "inactive"}
-                        onClick={() => setChurnPeriod(p.value)}
-                      >
-                        {p.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
+                  <Tabs value={churnPeriod} onValueChange={(v) => setChurnPeriod(v as ChurnPeriod)}>
+                    <TabsList className="bg-muted h-9">
+                      {PERIODS.map((p) => (
+                        <TabsTrigger key={p.value} value={p.value} className="px-4">
+                          {p.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
                 </>
               )}
             </div>
@@ -151,19 +143,15 @@ export function Dashboard() {
 
           {activePage === "financials" && (
             <div className="ml-auto flex items-center gap-3">
-              <TabsList className="bg-muted h-9">
-                {CUSTOMER_PERIODS.map((p) => (
-                  <TabsTrigger
-                    key={p.value}
-                    value={p.value}
-                    className="px-4"
-                    data-state={customerPeriod === p.value ? "active" : "inactive"}
-                    onClick={() => setCustomerPeriod(p.value)}
-                  >
-                    {p.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
+              <Tabs value={customerPeriod} onValueChange={(v) => setCustomerPeriod(v as ConcentrationPeriod)}>
+                <TabsList className="bg-muted h-9">
+                  {CUSTOMER_PERIODS.map((p) => (
+                    <TabsTrigger key={p.value} value={p.value} className="px-4">
+                      {p.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             </div>
           )}
         </header>
