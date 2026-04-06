@@ -35,9 +35,9 @@ export type ChurnPeriod = "monthly" | "quarterly" | "annually"
 
 const PAGE_TITLES: Record<string, string> = {
   overview: "KPI Overview",
-  financials: "By Customer",
+  "revenue-metrics": "Service Revenue",
+  financials: "Customer Revenue",
   churn: "Churn",
-  "revenue-metrics": "Revenue Metrics",
   leads: "Leads",
   import: "Import",
 }
