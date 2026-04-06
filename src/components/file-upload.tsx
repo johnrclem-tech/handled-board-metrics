@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Trash2 } from "lucide-react"
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Trash2, Eye } from "lucide-react"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { useEffect } from "react"
 
 interface UploadRecord {
@@ -17,6 +18,24 @@ interface UploadRecord {
   uploadedAt: string
   recordCount: number
   status: string
+}
+
+interface PreviewCell {
+  col: number
+  value: unknown
+  type: string
+}
+
+interface PreviewRow {
+  rowIndex: number
+  cells: PreviewCell[]
+}
+
+interface PreviewData {
+  fileName: string
+  sheetName: string
+  totalRows: number
+  preview: PreviewRow[]
 }
 
 interface FileUploadProps {
@@ -30,6 +49,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const [uploads, setUploads] = useState<UploadRecord[]>([])
   const [dragActive, setDragActive] = useState(false)
+  const [preview, setPreview] = useState<PreviewData | null>(null)
+  const [previewing, setPreviewing] = useState(false)
 
   useEffect(() => {
     fetchUploads()
@@ -44,6 +65,31 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       console.error("Failed to fetch uploads:", error)
     }
   }
+
+  const fetchPreview = useCallback(async (f: File) => {
+    setPreviewing(true)
+    setPreview(null)
+    try {
+      const formData = new FormData()
+      formData.append("file", f)
+      const response = await fetch("/api/preview", { method: "POST", body: formData })
+      const data = await response.json()
+      if (response.ok) {
+        setPreview(data)
+      }
+    } catch {
+      // Preview is best-effort
+    } finally {
+      setPreviewing(false)
+    }
+  }, [])
+
+  const selectFile = useCallback((f: File) => {
+    setFile(f)
+    setResult(null)
+    setPreview(null)
+    fetchPreview(f)
+  }, [fetchPreview])
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -67,18 +113,16 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         droppedFile.name.endsWith(".xls") ||
         droppedFile.name.endsWith(".csv")
       ) {
-        setFile(droppedFile)
-        setResult(null)
+        selectFile(droppedFile)
       } else {
         setResult({ success: false, message: "Please upload an Excel file (.xlsx, .xls) or CSV file." })
       }
     }
-  }, [])
+  }, [selectFile])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0])
-      setResult(null)
+      selectFile(e.target.files[0])
     }
   }
 
@@ -107,6 +151,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         })
         setFile(null)
         setReportType("")
+        setPreview(null)
         fetchUploads()
         onUploadComplete()
       } else {
@@ -249,6 +294,64 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
           )}
         </CardContent>
       </Card>
+
+      {(preview || previewing) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              File Preview
+            </CardTitle>
+            {preview && (
+              <CardDescription>
+                {preview.fileName} &mdash; Sheet: {preview.sheetName} &mdash; {preview.totalRows.toLocaleString()} rows
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {previewing ? (
+              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading preview...
+              </div>
+            ) : preview ? (
+              <ScrollArea className="w-full">
+                <div className="min-w-max">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="py-2 px-3 text-left font-medium text-muted-foreground text-xs">Row</th>
+                        {preview.preview[0]?.cells.map((_, i) => (
+                          <th key={i} className="py-2 px-3 text-left font-medium text-muted-foreground text-xs">
+                            Col {i}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.preview.map((row) => (
+                        <tr key={row.rowIndex} className={`border-b ${row.rowIndex === 0 ? "bg-muted/50 font-semibold" : ""}`}>
+                          <td className="py-1.5 px-3 text-xs text-muted-foreground">{row.rowIndex}</td>
+                          {row.cells.map((cell) => (
+                            <td key={cell.col} className="py-1.5 px-3 max-w-[200px] truncate">
+                              {cell.value == null ? (
+                                <span className="text-muted-foreground/40">—</span>
+                              ) : (
+                                String(cell.value)
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            ) : null}
+          </CardContent>
+        </Card>
+      )}
 
       {uploads.length > 0 && (
         <Card>
