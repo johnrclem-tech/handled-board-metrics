@@ -52,8 +52,22 @@ interface AnnualNrrEntry {
   customers: AnnualNrrCustomer[]
 }
 
+interface PeriodChurn {
+  label: string
+  period: string
+  logoChurnRate: number
+  revenueChurnRate: number
+  nrr: number
+  startingActive: number
+  startingRevenue: number
+  totalChurned: number
+  cohortLostRevenue: number
+}
+
 interface ChurnResponse {
   months: ChurnMonth[]
+  quarterly: PeriodChurn[]
+  ttm: PeriodChurn[]
   annualNrr: AnnualNrrEntry[]
   summary: {
     lastQuarter: { logoChurn: number; revenueChurn: number }
@@ -139,39 +153,13 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
     label: formatPeriodLabel(m.period),
   }))
 
-  // Quarterly data — true quarterly churn: total churned / starting active count
-  const quarterlyLogoData: { label: string; quarterlyLogoChurnRate: number }[] = []
-  const quarterlyRevData: { label: string; quarterlyRevenueChurnRate: number }[] = []
-  const quarterlyNrrData: { label: string; quarterlyNrr: number }[] = []
-  for (let i = 0; i < monthlyData.length; i += 3) {
-    const chunk = monthlyData.slice(i, i + 3)
-    if (chunk.length < 3) break
-    const lastMonth = chunk[chunk.length - 1]
-    const [year, month] = lastMonth.period.split("-").map(Number)
-    const q = Math.ceil(month / 3)
-    const label = `Q${q} ${String(year).slice(2)}`
-    // Starting active count = activeCount of the month before the first month in the chunk
-    const firstMonthIdx = months.findIndex((m) => m.period === chunk[0].period)
-    const startingActive = firstMonthIdx > 0 ? months[firstMonthIdx - 1].activeCount : 0
-    const totalChurned = chunk.reduce((s, m) => s + m.churnedCount, 0)
-    const totalLostRevenue = chunk.reduce((s, m) => s + m.lostRevenue, 0)
-    const startingRevenue = firstMonthIdx > 0 ? months[firstMonthIdx - 1].totalRevenue : 0
-    quarterlyLogoData.push({ label, quarterlyLogoChurnRate: startingActive > 0 ? Math.round(totalChurned / startingActive * 10000) / 100 : 0 })
-    quarterlyRevData.push({ label, quarterlyRevenueChurnRate: startingRevenue > 0 ? Math.round(totalLostRevenue / startingRevenue * 10000) / 100 : 0 })
-    quarterlyNrrData.push({ label, quarterlyNrr: Math.round(chunk.reduce((s, m) => s + m.nrr, 0) / chunk.length * 100) / 100 })
-  }
+  // Use API-computed quarterly and TTM data (true cohort churn)
+  const quarterlyLogoData = (data.quarterly || []).map((q) => ({ label: q.label, quarterlyLogoChurnRate: q.logoChurnRate }))
+  const quarterlyRevData = (data.quarterly || []).map((q) => ({ label: q.label, quarterlyRevenueChurnRate: q.revenueChurnRate }))
+  const quarterlyNrrData = (data.quarterly || []).map((q) => ({ label: q.label, quarterlyNrr: q.nrr }))
 
-  // Rolling TTM data — true TTM churn: total churned / starting active count
-  const rollingTtmLogoData = monthlyData
-    .map((m, i) => {
-      if (i < 11) return null
-      const window = monthlyData.slice(i - 11, i + 1)
-      const firstMonthIdx = months.findIndex((mo) => mo.period === window[0].period)
-      const startingActive = firstMonthIdx > 0 ? months[firstMonthIdx - 1].activeCount : 0
-      const totalChurned = window.reduce((s, w) => s + w.churnedCount, 0)
-      return { label: formatPeriodLabel(m.period), ttmLogoChurnRate: startingActive > 0 ? Math.round(totalChurned / startingActive * 10000) / 100 : 0 }
-    })
-    .filter((d): d is NonNullable<typeof d> => d !== null)
+  const rollingTtmLogoData = (data.ttm || []).map((t) => ({ label: t.label, ttmLogoChurnRate: t.logoChurnRate }))
+  const rollingTtmRevData = (data.ttm || []).map((t) => ({ label: t.label, ttmRevenueChurnRate: t.revenueChurnRate }))
 
   // Annual NRR data (year-over-year same-customer comparison)
   const annualNrrData = (data?.annualNrr || []).map((d) => ({
@@ -210,17 +198,18 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
     kpiLogo = lastQ.quarterlyLogoChurnRate
     kpiLogoSub = "Avg monthly rate for quarter"
     kpiRevChurn = lastQRev.quarterlyRevenueChurnRate
-    kpiRevSub = "Avg monthly rate for quarter"
+    kpiRevSub = "True quarterly cohort churn"
     kpiNrr = lastQNrr.quarterlyNrr
     kpiNrrSub = "Avg monthly NRR for quarter"
   } else if (period === "annually") {
     const lastAnnualNrr = annualNrrData.length > 0 ? annualNrrData[annualNrrData.length - 1] : null
     const lastTtmLogo = rollingTtmLogoData.length > 0 ? rollingTtmLogoData[rollingTtmLogoData.length - 1] : null
-    kpiLabel = lastAnnualNrr?.label || lastTtmLogo?.label || formatPeriodLabel(latestMonth.period)
+    const lastTtmRev = rollingTtmRevData.length > 0 ? rollingTtmRevData[rollingTtmRevData.length - 1] : null
+    kpiLabel = lastTtmLogo?.label || lastAnnualNrr?.label || formatPeriodLabel(latestMonth.period)
     kpiLogo = lastTtmLogo?.ttmLogoChurnRate || 0
-    kpiLogoSub = "Rolling 12-month average"
-    kpiRevChurn = lastAnnualNrr?.nrr || 0
-    kpiRevSub = lastAnnualNrr ? `${lastAnnualNrr.customerCount} customers YoY` : "No YoY data yet"
+    kpiLogoSub = "True TTM cohort churn"
+    kpiRevChurn = lastTtmRev?.ttmRevenueChurnRate || 0
+    kpiRevSub = "True TTM cohort revenue churn"
     kpiNrr = lastAnnualNrr?.nrr || 0
     kpiNrrSub = lastAnnualNrr ? `${formatCurrency(lastAnnualNrr.priorRevenue)} prior → ${formatCurrency(lastAnnualNrr.currentRevenue)} current` : "No YoY data yet"
   }
@@ -234,11 +223,11 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
       warn: kpiLogo > 10,
     },
     {
-      title: period === "annually" ? "Annual NRR" : "Revenue Churn",
+      title: "Revenue Churn",
       value: formatPct(kpiRevChurn),
       sub: `${kpiLabel} — ${kpiRevSub}`,
       icon: DollarSign,
-      warn: period === "annually" ? kpiRevChurn < 90 : kpiRevChurn > 10,
+      warn: kpiRevChurn > 10,
     },
     {
       title: "Net Revenue Retention",
@@ -326,13 +315,13 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {period === "annually" ? "Annual NRR" : "Revenue Churn"}
+              Revenue Churn
               <InfoTooltip text={
                 period === "monthly"
                   ? "% of prior month\u2019s revenue lost from customers who dropped to $0 in the current month."
                   : period === "quarterly"
-                    ? "Average of the 3 monthly revenue churn rates per calendar quarter."
-                    : "Year-over-year revenue from the same customers. Only customers with revenue in the same month last year are included. >100% = growth, <100% = net contraction."
+                    ? "True quarterly cohort churn: period-start revenue of customers who churned during the quarter / total period-start revenue."
+                    : "True TTM cohort churn: 12-month-ago revenue of customers who churned during the TTM window / total 12-month-ago revenue."
               } />
             </CardTitle>
           </CardHeader>
@@ -357,20 +346,12 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
                   <Line type="monotone" dataKey="quarterlyRevenueChurnRate" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               ) : (
-                <LineChart data={annualNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <LineChart data={rollingTtmRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
-                  <Tooltip
-                    formatter={(value, _name, props) => {
-                      const entry = props?.payload
-                      return [`${Number(value).toFixed(1)}% (${entry?.customerCount || 0} customers)`, "Annual NRR"]
-                    }}
-                    labelFormatter={(l) => l}
-                    contentStyle={tooltipStyle}
-                  />
-                  <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="nrr" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                  <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
+                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Revenue Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
+                  <Line type="monotone" dataKey="ttmRevenueChurnRate" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                 </LineChart>
               )}
             </ResponsiveContainer>

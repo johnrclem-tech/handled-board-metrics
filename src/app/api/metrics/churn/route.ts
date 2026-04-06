@@ -7,6 +7,14 @@ export const dynamic = "force-dynamic"
 
 const CATEGORIES = ["Storage Revenue", "Shipping Revenue", "Handling Revenue"] as const
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+function roundPct(n: number): number {
+  return Math.round(n * 10000) / 100
+}
+
 export async function GET(request: NextRequest) {
   try {
     const segment = request.nextUrl.searchParams.get("segment") || "all"
@@ -24,7 +32,7 @@ export async function GET(request: NextRequest) {
       .groupBy(financialData.accountName, financialData.period, financialData.category)
 
     if (rows.length === 0) {
-      return NextResponse.json({ months: [], summary: null })
+      return NextResponse.json({ months: [], quarterly: [], ttm: [], annualNrr: [], summary: null })
     }
 
     // Build per-customer per-period totals
@@ -60,6 +68,16 @@ export async function GET(request: NextRequest) {
     // Sort periods
     const sortedPeriods = [...allPeriods].sort()
 
+    // Helper: get active customers with revenue for a given period
+    function getActiveCustomers(period: string): Map<string, number> {
+      const active = new Map<string, number>()
+      for (const customer of filteredCustomers) {
+        const rev = customerPeriodTotals.get(customer)!.get(period) || 0
+        if (rev > 0) active.set(customer, rev)
+      }
+      return active
+    }
+
     // For each month, determine active and churned customers
     const months: {
       period: string
@@ -73,19 +91,11 @@ export async function GET(request: NextRequest) {
       churnedCustomers: { name: string; lastRevenue: number; revenueSharePct: number }[]
     }[] = []
 
-    let prevActive = new Map<string, number>() // customer -> revenue in prior month
+    let prevActive = new Map<string, number>()
 
     for (const period of sortedPeriods) {
-      // Current month: who is active?
-      const currActive = new Map<string, number>()
-      for (const customer of filteredCustomers) {
-        const rev = customerPeriodTotals.get(customer)!.get(period) || 0
-        if (rev > 0) {
-          currActive.set(customer, rev)
-        }
-      }
+      const currActive = getActiveCustomers(period)
 
-      // Churned: was in prevActive, not in currActive
       let churnedCount = 0
       let lostRevenue = 0
       const churnedCustomers: { name: string; lastRevenue: number; revenueSharePct: number }[] = []
@@ -97,23 +107,18 @@ export async function GET(request: NextRequest) {
           lostRevenue += prevRev
           churnedCustomers.push({
             name: customer,
-            lastRevenue: Math.round(prevRev * 100) / 100,
-            revenueSharePct: totalPrevRevenue > 0
-              ? Math.round((prevRev / totalPrevRevenue) * 10000) / 100
-              : 0,
+            lastRevenue: round2(prevRev),
+            revenueSharePct: totalPrevRevenue > 0 ? roundPct(prevRev / totalPrevRevenue) : 0,
           })
         }
       }
 
-      // Sort churned by revenue impact descending
       churnedCustomers.sort((a, b) => b.lastRevenue - a.lastRevenue)
 
       const prevActiveCount = prevActive.size
-
       const logoChurnRate = prevActiveCount > 0 ? churnedCount / prevActiveCount : 0
       const revenueChurnRate = totalPrevRevenue > 0 ? lostRevenue / totalPrevRevenue : 0
 
-      // NRR: revenue in current month from customers who were active in prior month / prior month total revenue
       let retainedRevenue = 0
       for (const [customer, currRev] of currActive) {
         if (prevActive.has(customer)) {
@@ -126,32 +131,145 @@ export async function GET(request: NextRequest) {
         period,
         activeCount: currActive.size,
         churnedCount,
-        logoChurnRate: Math.round(logoChurnRate * 10000) / 100,
-        revenueChurnRate: Math.round(revenueChurnRate * 10000) / 100,
-        lostRevenue: Math.round(lostRevenue * 100) / 100,
-        totalRevenue: Math.round([...currActive.values()].reduce((s, v) => s + v, 0) * 100) / 100,
-        nrr: Math.round(nrr * 100) / 100,
+        logoChurnRate: roundPct(logoChurnRate),
+        revenueChurnRate: roundPct(revenueChurnRate),
+        lostRevenue: round2(lostRevenue),
+        totalRevenue: round2([...currActive.values()].reduce((s, v) => s + v, 0)),
+        nrr: round2(nrr),
         churnedCustomers,
       })
 
       prevActive = currActive
     }
 
-    // Compute Annual NRR: for each month where N-12 exists,
-    // sum revenue from customers who had revenue in N-12, compare to their N revenue
+    // ── True Cohort Churn: Quarterly ──
+    // For each quarter, find customers active at period-start (month before Q),
+    // then identify which of those churned during Q, using their period-start revenue.
+    interface PeriodChurn {
+      label: string
+      period: string
+      logoChurnRate: number
+      revenueChurnRate: number
+      nrr: number
+      startingActive: number
+      startingRevenue: number
+      totalChurned: number
+      cohortLostRevenue: number
+    }
+
+    const quarterly: PeriodChurn[] = []
+    // Group sortedPeriods into calendar quarters
+    const quarterGroups = new Map<string, string[]>()
+    for (const period of sortedPeriods) {
+      const [y, m] = period.split("-").map(Number)
+      const q = Math.ceil(m / 3)
+      const qKey = `${y}-Q${q}`
+      if (!quarterGroups.has(qKey)) quarterGroups.set(qKey, [])
+      quarterGroups.get(qKey)!.push(period)
+    }
+
+    for (const [qKey, qPeriods] of [...quarterGroups.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      if (qPeriods.length < 3) continue // only complete quarters
+
+      const firstPeriodIdx = sortedPeriods.indexOf(qPeriods[0])
+      if (firstPeriodIdx <= 0) continue // need a prior month for starting cohort
+
+      const startPeriod = sortedPeriods[firstPeriodIdx - 1]
+      const startingCohort = getActiveCustomers(startPeriod)
+      const startingActive = startingCohort.size
+      const startingRevenue = [...startingCohort.values()].reduce((s, v) => s + v, 0)
+
+      // Which starting-cohort customers churned during the quarter?
+      // A customer churned if they had $0 revenue in the LAST month of the quarter
+      const endCohort = getActiveCustomers(qPeriods[qPeriods.length - 1])
+      let totalChurned = 0
+      let cohortLostRevenue = 0
+
+      for (const [customer, startRev] of startingCohort) {
+        if (!endCohort.has(customer)) {
+          totalChurned++
+          cohortLostRevenue += startRev // use their period-START revenue
+        }
+      }
+
+      // NRR: end-of-quarter revenue from starting cohort / starting revenue
+      let retainedRev = 0
+      for (const [customer, endRev] of endCohort) {
+        if (startingCohort.has(customer)) {
+          retainedRev += endRev
+        }
+      }
+
+      const [y, qPart] = qKey.split("-Q")
+      quarterly.push({
+        label: `Q${qPart} ${y.slice(2)}`,
+        period: qKey,
+        logoChurnRate: startingActive > 0 ? roundPct(totalChurned / startingActive) : 0,
+        revenueChurnRate: startingRevenue > 0 ? roundPct(cohortLostRevenue / startingRevenue) : 0,
+        nrr: startingRevenue > 0 ? round2((retainedRev / startingRevenue) * 100) : 0,
+        startingActive,
+        startingRevenue: round2(startingRevenue),
+        totalChurned,
+        cohortLostRevenue: round2(cohortLostRevenue),
+      })
+    }
+
+    // ── True Cohort Churn: Rolling TTM ──
+    const ttm: PeriodChurn[] = []
+    for (let i = 12; i < sortedPeriods.length; i++) {
+      // TTM window: sortedPeriods[i-11] through sortedPeriods[i]
+      // Starting cohort: active in sortedPeriods[i-12] (the month before the window)
+      const startPeriod = sortedPeriods[i - 12]
+      const endPeriod = sortedPeriods[i]
+
+      const startingCohort = getActiveCustomers(startPeriod)
+      const startingActive = startingCohort.size
+      const startingRevenue = [...startingCohort.values()].reduce((s, v) => s + v, 0)
+
+      const endCohort = getActiveCustomers(endPeriod)
+
+      let totalChurned = 0
+      let cohortLostRevenue = 0
+
+      for (const [customer, startRev] of startingCohort) {
+        if (!endCohort.has(customer)) {
+          totalChurned++
+          cohortLostRevenue += startRev // period-start revenue
+        }
+      }
+
+      let retainedRev = 0
+      for (const [customer, endRev] of endCohort) {
+        if (startingCohort.has(customer)) {
+          retainedRev += endRev
+        }
+      }
+
+      const [ey, em] = endPeriod.split("-").map(Number)
+      const monthName = new Date(ey, em - 1).toLocaleString("en-US", { month: "short" })
+
+      ttm.push({
+        label: `${monthName} ${String(ey).slice(2)}`,
+        period: endPeriod,
+        logoChurnRate: startingActive > 0 ? roundPct(totalChurned / startingActive) : 0,
+        revenueChurnRate: startingRevenue > 0 ? roundPct(cohortLostRevenue / startingRevenue) : 0,
+        nrr: startingRevenue > 0 ? round2((retainedRev / startingRevenue) * 100) : 0,
+        startingActive,
+        startingRevenue: round2(startingRevenue),
+        totalChurned,
+        cohortLostRevenue: round2(cohortLostRevenue),
+      })
+    }
+
+    // ── Annual NRR ──
     const annualNrr: { period: string; priorPeriod: string; nrr: number; customerCount: number; priorRevenue: number; currentRevenue: number; customers: { name: string; priorRevenue: number; currentRevenue: number; change: number }[] }[] = []
 
     for (const period of sortedPeriods) {
-      // Compute period N-12
       const [y, m] = period.split("-").map(Number)
-      const priorYear = m <= 12 ? y - 1 : y
-      const priorMonth = m
-      const priorPeriod = `${priorYear}-${String(priorMonth).padStart(2, "0")}`
+      const priorPeriod = `${y - 1}-${String(m).padStart(2, "0")}`
 
-      // Only report if prior year period exists in the dataset
       if (!sortedPeriods.includes(priorPeriod)) continue
 
-      // Find customers who had revenue in the prior year same month
       let priorRevenue = 0
       let currentRevenue = 0
       let customerCount = 0
@@ -166,9 +284,9 @@ export async function GET(request: NextRequest) {
           customerCount++
           customers.push({
             name: customer,
-            priorRevenue: Math.round(priorRev * 100) / 100,
-            currentRevenue: Math.round(currRev * 100) / 100,
-            change: Math.round((currRev - priorRev) * 100) / 100,
+            priorRevenue: round2(priorRev),
+            currentRevenue: round2(currRev),
+            change: round2(currRev - priorRev),
           })
         }
       }
@@ -179,46 +297,31 @@ export async function GET(request: NextRequest) {
         annualNrr.push({
           period,
           priorPeriod,
-          nrr: Math.round((currentRevenue / priorRevenue) * 10000) / 100,
+          nrr: roundPct(currentRevenue / priorRevenue),
           customerCount,
-          priorRevenue: Math.round(priorRevenue * 100) / 100,
-          currentRevenue: Math.round(currentRevenue * 100) / 100,
+          priorRevenue: round2(priorRevenue),
+          currentRevenue: round2(currentRevenue),
           customers,
         })
       }
     }
 
-    // Compute summaries using true churn: total churned / starting active count
-    const ratesWithData = months.filter((m) => m.period !== sortedPeriods[0])
-
-    const lastQuarterMonths = ratesWithData.slice(-3)
-    const ttmMonths = ratesWithData.slice(-12)
-
-    // Starting active count = activeCount of the month before the window
-    const qStartIdx = months.indexOf(lastQuarterMonths[0]) - 1
-    const qStartActive = qStartIdx >= 0 ? months[qStartIdx].activeCount : 0
-    const qStartRevenue = qStartIdx >= 0 ? months[qStartIdx].totalRevenue : 0
-    const qTotalChurned = lastQuarterMonths.reduce((s, m) => s + m.churnedCount, 0)
-    const qTotalLostRevenue = lastQuarterMonths.reduce((s, m) => s + m.lostRevenue, 0)
-
-    const ttmStartIdx = months.indexOf(ttmMonths[0]) - 1
-    const ttmStartActive = ttmStartIdx >= 0 ? months[ttmStartIdx].activeCount : 0
-    const ttmStartRevenue = ttmStartIdx >= 0 ? months[ttmStartIdx].totalRevenue : 0
-    const ttmTotalChurned = ttmMonths.reduce((s, m) => s + m.churnedCount, 0)
-    const ttmTotalLostRevenue = ttmMonths.reduce((s, m) => s + m.lostRevenue, 0)
+    // ── Summary ──
+    const lastQ = quarterly.length > 0 ? quarterly[quarterly.length - 1] : null
+    const lastTtm = ttm.length > 0 ? ttm[ttm.length - 1] : null
 
     const summary = {
       lastQuarter: {
-        logoChurn: qStartActive > 0 ? Math.round(qTotalChurned / qStartActive * 10000) / 100 : 0,
-        revenueChurn: qStartRevenue > 0 ? Math.round(qTotalLostRevenue / qStartRevenue * 10000) / 100 : 0,
+        logoChurn: lastQ?.logoChurnRate || 0,
+        revenueChurn: lastQ?.revenueChurnRate || 0,
       },
       ttm: {
-        logoChurn: ttmStartActive > 0 ? Math.round(ttmTotalChurned / ttmStartActive * 10000) / 100 : 0,
-        revenueChurn: ttmStartRevenue > 0 ? Math.round(ttmTotalLostRevenue / ttmStartRevenue * 10000) / 100 : 0,
+        logoChurn: lastTtm?.logoChurnRate || 0,
+        revenueChurn: lastTtm?.revenueChurnRate || 0,
       },
     }
 
-    return NextResponse.json({ months, annualNrr, summary })
+    return NextResponse.json({ months, quarterly, ttm, annualNrr, summary })
   } catch (error) {
     console.error("Churn error:", error)
     return NextResponse.json(
