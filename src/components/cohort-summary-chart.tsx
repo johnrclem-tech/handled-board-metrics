@@ -4,10 +4,11 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Users, TableProperties, RefreshCw } from "lucide-react"
+import { Users, RefreshCw } from "lucide-react"
 import {
   BarChart,
   Bar,
@@ -201,16 +202,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
     })
   }
 
-  const viewLabels: Record<ViewMode, string> = {
-    chart: "Chart",
-    table: "Cohort Table",
-    decay: "Decay Curves",
-  }
-  const nextView: Record<ViewMode, ViewMode> = {
-    chart: "table",
-    table: "decay",
-    decay: "chart",
-  }
+
 
   return (
     <Card>
@@ -249,21 +241,19 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
               </div>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {viewMode !== "chart" && (
               <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1">
                 <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               </Button>
             )}
-            <Button
-              variant={viewMode !== "chart" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode(nextView[viewMode])}
-              className="gap-1"
-            >
-              <TableProperties className="h-4 w-4" />
-              {viewLabels[nextView[viewMode]]}
-            </Button>
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+              <TabsList className="bg-muted h-9">
+                <TabsTrigger value="chart" className="px-4">Chart</TabsTrigger>
+                <TabsTrigger value="table" className="px-4">Table</TabsTrigger>
+                <TabsTrigger value="decay" className="px-4">Decay</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
         </div>
       </CardHeader>
