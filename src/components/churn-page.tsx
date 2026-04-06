@@ -271,10 +271,10 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
               Logo Churn
               <InfoTooltip text={
                 period === "monthly"
-                  ? "% of prior month\u2019s active customers who had $0 revenue in the current month."
+                  ? "Churned customers / prior month active customers × 100. A customer is churned if they had revenue in M-1 but $0 in M."
                   : period === "quarterly"
-                    ? "Average of the 3 monthly logo churn rates per calendar quarter."
-                    : "12-month rolling average of monthly logo churn rates."
+                    ? "Total logos churned in the quarter / active logos at quarter-start × 100. Starting cohort = customers active in the month before the quarter. A customer churned if they were in the starting cohort but had $0 in the last month of the quarter."
+                    : "Total logos churned in 12 months / active logos at start of 12-month window × 100. Starting cohort = customers active 12 months before the window end. Customers who joined mid-window and churned do not affect the rate."
               } />
             </CardTitle>
           </CardHeader>
@@ -318,10 +318,10 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
               Revenue Churn
               <InfoTooltip text={
                 period === "monthly"
-                  ? "% of prior month\u2019s revenue lost from customers who dropped to $0 in the current month."
+                  ? "Lost revenue / prior month total revenue × 100. Lost revenue = sum of M-1 revenue from customers who had $0 in M. Only counts complete departures, not contraction."
                   : period === "quarterly"
-                    ? "True quarterly cohort churn: period-start revenue of customers who churned during the quarter / total period-start revenue."
-                    : "True TTM cohort churn: 12-month-ago revenue of customers who churned during the TTM window / total 12-month-ago revenue."
+                    ? "Sum of quarter-start revenue of customers who churned during Q / total quarter-start revenue × 100. Uses each churned customer's revenue at the start of the quarter (not at time of departure) to avoid the intra-period expansion mismatch. Customers who joined mid-quarter and churned are excluded (not in starting cohort)."
+                    : "Sum of 12-month-ago revenue of customers who churned during the TTM window / total 12-month-ago revenue × 100. Uses each churned customer's revenue from 12 months ago (not at time of departure). Customers who joined mid-window and churned are excluded."
               } />
             </CardTitle>
           </CardHeader>
@@ -365,10 +365,10 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
             {period === "annually" ? "Annual Net Revenue Retention" : "Net Revenue Retention"}
             <InfoTooltip text={
               period === "monthly"
-                ? "Revenue from prior month\u2019s customers as % of prior month\u2019s total revenue. >100% = expansion outpaces churn."
+                ? "Current month revenue from prior month's customers / prior month total revenue × 100. Includes expansion (customers paying more), contraction (paying less), and churn ($0). Does NOT include new customers. >100% = expansion outpaces churn."
                 : period === "quarterly"
-                  ? "Average of the 3 monthly NRR values per calendar quarter."
-                  : "Year-over-year revenue retention. For each month, compares revenue from customers who had revenue in the same month last year. Click a point to see customer details."
+                  ? "End-of-quarter revenue from starting cohort / starting cohort revenue × 100. Starting cohort = customers active in the month before the quarter. Compares their quarter-end revenue snapshot to their quarter-start revenue. A customer who churned mid-quarter but returned by quarter-end is counted as retained."
+                  : "Year-over-year same-customer comparison. For each month M, finds customers with revenue in M-12 and compares their M revenue to their M-12 revenue. NRR = current month revenue / same-month-last-year revenue × 100. Click a point to see per-customer detail."
             } />
           </CardTitle>
         </CardHeader>
