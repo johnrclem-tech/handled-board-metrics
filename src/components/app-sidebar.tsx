@@ -91,21 +91,21 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={activePage === "import"}
-                  onClick={() => onNavigate("import")}
-                >
-                  <Upload className="size-4" />
-                  <span>Import</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={activePage === "import"}
+              onClick={() => onNavigate("import")}
+            >
+              <Upload className="size-4" />
+              <span>Import</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton>
               <Settings className="size-4" />

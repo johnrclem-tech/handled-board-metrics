@@ -206,6 +206,8 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                   <SelectItem value="expenses_by_vendor">Expenses by Vendor</SelectItem>
                   <SelectItem value="ar_aging">Accounts Receivable Aging</SelectItem>
                   <SelectItem value="ap_aging">Accounts Payable Aging</SelectItem>
+                  <SelectItem value="leads">Leads</SelectItem>
+                  <SelectItem value="opportunities">Opportunities</SelectItem>
                 </SelectContent>
               </Select>
             </div>

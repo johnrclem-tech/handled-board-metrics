@@ -190,7 +190,7 @@ export function Dashboard() {
             </div>
           )}
           {activePage === "import" && (
-            <div className="mx-auto max-w-2xl space-y-6">
+            <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold">Import Data</h2>
                 <p className="text-sm text-muted-foreground">
