@@ -27,10 +27,9 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
   Legend,
 } from "recharts"
+import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 // ── Types ──
 
@@ -289,13 +288,11 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
             </Card>
           ))}
         </div>
-        <div className="grid gap-6 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="pt-6"><div className="h-[300px] animate-pulse rounded bg-muted" /></CardContent>
-            </Card>
-          ))}
-        </div>
+        {[...Array(3)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="pt-6"><div className="h-[300px] animate-pulse rounded bg-muted" /></CardContent>
+          </Card>
+        ))}
       </div>
     )
   }
@@ -346,12 +343,6 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     },
   ]
 
-  const tooltipStyle = {
-    backgroundColor: "hsl(var(--popover))",
-    border: "1px solid hsl(var(--border))",
-    borderRadius: "8px",
-  }
-
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
@@ -373,29 +364,24 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       </div>
 
       {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <SourceStackedChart
-          title="Leads by Source"
-          tooltip="Leads + Opportunities per period, stacked by source."
-          data={leadsChartData}
-          sources={allSources}
-          tooltipStyle={tooltipStyle}
-        />
-        <SourceStackedChart
-          title="Opportunities by Source"
-          tooltip="Opportunities per period, stacked by source."
-          data={oppsChartData}
-          sources={allSources}
-          tooltipStyle={tooltipStyle}
-        />
-        <SourceStackedChart
-          title="Conversions by Source"
-          tooltip="Closed Won opportunities per period, stacked by source."
-          data={convChartData}
-          sources={allSources}
-          tooltipStyle={tooltipStyle}
-        />
-      </div>
+      <SourceStackedChart
+        title="Leads by Source"
+        tooltip="Leads + Opportunities per period, stacked by source."
+        data={leadsChartData}
+        sources={allSources}
+      />
+      <SourceStackedChart
+        title="Opportunities by Source"
+        tooltip="Opportunities per period, stacked by source."
+        data={oppsChartData}
+        sources={allSources}
+      />
+      <SourceStackedChart
+        title="Conversions by Source"
+        tooltip="Closed Won opportunities per period, stacked by source."
+        data={convChartData}
+        sources={allSources}
+      />
 
       {/* Data Table */}
       <Card>
@@ -482,18 +468,23 @@ function SourceStackedChart({
   tooltip,
   data,
   sources,
-  tooltipStyle,
 }: {
   title: string
   tooltip: string
   data: StackedData[]
   sources: string[]
-  tooltipStyle: React.CSSProperties
 }) {
+  const chartConfig = Object.fromEntries(
+    sources.map((src, i) => [
+      src,
+      { label: src, color: SOURCE_COLORS[i % SOURCE_COLORS.length] },
+    ])
+  ) satisfies ChartConfig
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
+        <CardTitle className="flex items-center gap-2">
           {title}
           <InfoTooltip text={tooltip} />
         </CardTitle>
@@ -504,12 +495,15 @@ function SourceStackedChart({
             No data for this period
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="label" className="text-xs" tickLine={false} axisLine={false} />
-              <YAxis className="text-xs" tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} />
+          <ChartContainer config={chartConfig} className="aspect-auto h-[300px] w-full">
+            <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="5 4" vertical={false} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+              <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent className="min-w-[200px]" />}
+              />
               <Legend />
               {sources.map((src, i) => (
                 <Bar
@@ -522,7 +516,7 @@ function SourceStackedChart({
                 />
               ))}
             </BarChart>
-          </ResponsiveContainer>
+          </ChartContainer>
         )}
       </CardContent>
     </Card>
