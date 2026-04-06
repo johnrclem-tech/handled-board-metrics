@@ -15,7 +15,7 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
 } from "@/components/ui/sidebar"
-import { Package, BarChart3, Table2, Settings, UserX, DollarSign, TrendingUp, Upload } from "lucide-react"
+import { Package, BarChart3, Table2, Settings, UserX, DollarSign, TrendingUp, Upload, Users } from "lucide-react"
 
 interface AppSidebarProps {
   activePage: string
@@ -90,6 +90,15 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 </SidebarMenuSub>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={activePage === "leads"}
+                  onClick={() => onNavigate("leads")}
+                >
+                  <Users className="size-4" />
+                  <span>Leads</span>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>

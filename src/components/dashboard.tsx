@@ -21,6 +21,7 @@ import { NewCustomersChart } from "@/components/new-customers-chart"
 import { ExistingCustomersChart } from "@/components/existing-customers-chart"
 import { ChurnPage } from "@/components/churn-page"
 import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
+import { LeadsPage } from "@/components/leads-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -37,6 +38,7 @@ const PAGE_TITLES: Record<string, string> = {
   financials: "By Customer",
   churn: "Churn",
   "revenue-metrics": "Revenue Metrics",
+  leads: "Leads",
   import: "Import",
 }
 
@@ -189,6 +191,10 @@ export function Dashboard() {
               />
             </div>
           )}
+          {activePage === "leads" && (
+            <LeadsPage key={`leads-${refreshKey}`} />
+          )}
+
           {activePage === "import" && (
             <div className="space-y-6">
               <div>
