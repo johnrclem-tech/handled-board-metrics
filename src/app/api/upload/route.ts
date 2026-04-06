@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { parseExcelFile, parseCrmFile } from "@/lib/excel-parser"
 import { getDb } from "@/lib/db"
 import { financialData, leads, opportunities, uploads } from "@/lib/db/schema"
-import { and, eq, inArray } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 
 const CRM_TYPES = ["leads", "opportunities"]
 
@@ -90,18 +90,11 @@ export async function POST(request: NextRequest) {
     const parsed = parseExcelFile(buffer, reportType)
 
     const uniquePeriods = [...new Set(parsed.rows.map((r) => r.period))].sort()
-    const uniqueCategories = [...new Set(parsed.rows.map((r) => r.category))]
 
-    if (uniquePeriods.length > 0 && uniqueCategories.length > 0) {
-      await db
-        .delete(financialData)
-        .where(
-          and(
-            inArray(financialData.category, uniqueCategories),
-            inArray(financialData.period, uniquePeriods)
-          )
-        )
-    }
+    // Delete all existing data for this report type so re-uploads fully overwrite
+    await db
+      .delete(financialData)
+      .where(eq(financialData.reportType, reportType))
 
     const [upload] = await db
       .insert(uploads)
