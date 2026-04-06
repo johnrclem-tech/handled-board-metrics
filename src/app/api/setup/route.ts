@@ -43,6 +43,36 @@ export async function GET() {
     `
 
     await sql`
+      CREATE TABLE IF NOT EXISTS leads (
+        id SERIAL PRIMARY KEY,
+        company TEXT,
+        lead_source TEXT,
+        ad_campaign_name TEXT,
+        ad TEXT,
+        full_name TEXT,
+        lead_status TEXT,
+        created_time TIMESTAMP,
+        upload_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `
+
+    await sql`
+      CREATE TABLE IF NOT EXISTS opportunities (
+        id SERIAL PRIMARY KEY,
+        closing_date DATE,
+        opportunity_name TEXT,
+        lead_source TEXT,
+        lead_source_detail TEXT,
+        created_time TIMESTAMP,
+        stage TEXT,
+        ad TEXT,
+        upload_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `
+
+    await sql`
       CREATE TABLE IF NOT EXISTS kpi_targets (
         id SERIAL PRIMARY KEY,
         kpi_name TEXT NOT NULL,
