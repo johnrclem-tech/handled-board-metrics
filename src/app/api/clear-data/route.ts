@@ -15,6 +15,8 @@ export async function POST() {
     const sql = neon(process.env.DATABASE_URL)
 
     await sql`DELETE FROM financial_data`
+    await sql`DELETE FROM leads`
+    await sql`DELETE FROM opportunities`
     await sql`DELETE FROM uploads`
 
     return NextResponse.json({ success: true, message: "All data cleared successfully" })

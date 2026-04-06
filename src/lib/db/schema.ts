@@ -24,6 +24,32 @@ export const uploads = pgTable("uploads", {
   metadata: jsonb("metadata"),
 })
 
+export const leads = pgTable("leads", {
+  id: serial("id").primaryKey(),
+  company: text("company"),
+  leadSource: text("lead_source"),
+  adCampaignName: text("ad_campaign_name"),
+  ad: text("ad"),
+  fullName: text("full_name"),
+  leadStatus: text("lead_status"),
+  createdTime: timestamp("created_time"),
+  uploadId: integer("upload_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
+export const opportunities = pgTable("opportunities", {
+  id: serial("id").primaryKey(),
+  closingDate: date("closing_date"),
+  opportunityName: text("opportunity_name"),
+  leadSource: text("lead_source"),
+  leadSourceDetail: text("lead_source_detail"),
+  createdTime: timestamp("created_time"),
+  stage: text("stage"),
+  ad: text("ad"),
+  uploadId: integer("upload_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
 export const kpiTargets = pgTable("kpi_targets", {
   id: serial("id").primaryKey(),
   kpiName: text("kpi_name").notNull(),

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { parseExcelFile } from "@/lib/excel-parser"
+import { parseExcelFile, parseCrmFile } from "@/lib/excel-parser"
 import { getDb } from "@/lib/db"
-import { financialData, uploads } from "@/lib/db/schema"
+import { financialData, leads, opportunities, uploads } from "@/lib/db/schema"
 import { and, eq, inArray } from "drizzle-orm"
+
+const CRM_TYPES = ["leads", "opportunities"]
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,15 +21,77 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer()
-    const parsed = parseExcelFile(buffer, reportType)
     const db = getDb()
 
-    // Collect unique periods and categories for metadata
+    // ── CRM uploads (leads / opportunities) ──
+    if (CRM_TYPES.includes(reportType)) {
+      const parsed = parseCrmFile(buffer, reportType)
+
+      // Clear previous data for this type (both new table and any stale financial_data rows)
+      if (reportType === "leads") {
+        await db.delete(leads)
+      } else {
+        await db.delete(opportunities)
+      }
+      // Clean up any mangled rows from the old parser
+      await db.delete(financialData).where(eq(financialData.reportType, reportType))
+
+      // Insert upload record
+      const [upload] = await db
+        .insert(uploads)
+        .values({
+          fileName: file.name,
+          fileType: reportType,
+          recordCount: parsed.rowCount,
+          status: "processed",
+          metadata: { recordCount: parsed.rowCount },
+        })
+        .returning()
+
+      // Insert rows
+      if (reportType === "leads" && parsed.leads && parsed.leads.length > 0) {
+        await db.insert(leads).values(
+          parsed.leads.map((row) => ({
+            company: row.company,
+            leadSource: row.leadSource,
+            adCampaignName: row.adCampaignName,
+            ad: row.ad,
+            fullName: row.fullName,
+            leadStatus: row.leadStatus,
+            createdTime: row.createdTime,
+            uploadId: upload.id,
+          }))
+        )
+      }
+
+      if (reportType === "opportunities" && parsed.opportunities && parsed.opportunities.length > 0) {
+        await db.insert(opportunities).values(
+          parsed.opportunities.map((row) => ({
+            closingDate: row.closingDate,
+            opportunityName: row.opportunityName,
+            leadSource: row.leadSource,
+            leadSourceDetail: row.leadSourceDetail,
+            createdTime: row.createdTime,
+            stage: row.stage,
+            ad: row.ad,
+            uploadId: upload.id,
+          }))
+        )
+      }
+
+      return NextResponse.json({
+        success: true,
+        upload,
+        rowCount: parsed.rowCount,
+      })
+    }
+
+    // ── Financial uploads (revenue, P&L, etc.) ──
+    const parsed = parseExcelFile(buffer, reportType)
+
     const uniquePeriods = [...new Set(parsed.rows.map((r) => r.period))].sort()
     const uniqueCategories = [...new Set(parsed.rows.map((r) => r.category))]
 
-    // Delete existing data for the same category and periods being imported
-    // This ensures re-uploading a file overwrites old values instead of duplicating
     if (uniquePeriods.length > 0 && uniqueCategories.length > 0) {
       await db
         .delete(financialData)
@@ -39,7 +103,6 @@ export async function POST(request: NextRequest) {
         )
     }
 
-    // Insert upload record
     const [upload] = await db
       .insert(uploads)
       .values({
@@ -51,7 +114,6 @@ export async function POST(request: NextRequest) {
       })
       .returning()
 
-    // Insert financial data rows
     if (parsed.rows.length > 0) {
       await db.insert(financialData).values(
         parsed.rows.map((row) => ({

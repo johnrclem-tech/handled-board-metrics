@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getDb } from "@/lib/db"
-import { financialData, uploads } from "@/lib/db/schema"
+import { financialData, leads, opportunities, uploads } from "@/lib/db/schema"
 import { eq, sql } from "drizzle-orm"
 
 export async function GET(request: NextRequest) {
@@ -8,13 +8,22 @@ export async function GET(request: NextRequest) {
   const db = getDb()
 
   // Record counts by report type
-  const counts = await db
+  const financialCounts = await db
     .select({
       reportType: financialData.reportType,
       count: sql<number>`count(*)`,
     })
     .from(financialData)
     .groupBy(financialData.reportType)
+
+  const leadsCount = await db.select({ count: sql<number>`count(*)` }).from(leads)
+  const oppsCount = await db.select({ count: sql<number>`count(*)` }).from(opportunities)
+
+  const counts = [
+    ...financialCounts,
+    { reportType: "leads", count: leadsCount[0]?.count ?? 0 },
+    { reportType: "opportunities", count: oppsCount[0]?.count ?? 0 },
+  ]
 
   // Recent uploads
   const recentUploads = await db
@@ -25,7 +34,11 @@ export async function GET(request: NextRequest) {
 
   // Sample data for a specific type
   let sample: unknown[] = []
-  if (type) {
+  if (type === "leads") {
+    sample = await db.select().from(leads).limit(50)
+  } else if (type === "opportunities") {
+    sample = await db.select().from(opportunities).limit(50)
+  } else if (type) {
     sample = await db
       .select()
       .from(financialData)
@@ -33,21 +46,5 @@ export async function GET(request: NextRequest) {
       .limit(50)
   }
 
-  // Distinct categories and fields for leads/opportunities
-  let fieldSummary: unknown[] = []
-  if (type) {
-    fieldSummary = await db
-      .select({
-        category: financialData.category,
-        subcategory: financialData.subcategory,
-        sampleAccount: sql<string>`MIN(account_name)`,
-        count: sql<number>`count(*)`,
-        periods: sql<string>`string_agg(DISTINCT period, ', ' ORDER BY period)`,
-      })
-      .from(financialData)
-      .where(eq(financialData.reportType, type))
-      .groupBy(financialData.category, financialData.subcategory)
-  }
-
-  return NextResponse.json({ counts, recentUploads, sample, fieldSummary })
+  return NextResponse.json({ counts, recentUploads, sample })
 }
