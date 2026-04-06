@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
-import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Breadcrumb,
@@ -11,13 +10,6 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog"
 import { AppSidebar } from "@/components/app-sidebar"
 import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
@@ -45,6 +37,7 @@ const PAGE_TITLES: Record<string, string> = {
   financials: "By Customer",
   churn: "Churn",
   "revenue-metrics": "Revenue Metrics",
+  import: "Import",
 }
 
 const SEGMENTS: { value: ChurnSegment; label: string }[] = [
@@ -69,7 +62,6 @@ export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("overview")
   const [drillFilter, setDrillFilter] = useState<CohortDrillFilter | null>(null)
-  const [importOpen, setImportOpen] = useState(false)
   const [churnSegment, setChurnSegment] = useState<ChurnSegment>("all")
   const [churnPeriod, setChurnPeriod] = useState<ChurnPeriod>("monthly")
   const [customerPeriod, setCustomerPeriod] = useState<ConcentrationPeriod>("monthly")
@@ -194,27 +186,22 @@ export function Dashboard() {
                 key={`table-${refreshKey}`}
                 drillFilter={drillFilter}
                 onClearDrill={handleClearDrill}
-                onImport={() => setImportOpen(true)}
               />
+            </div>
+          )}
+          {activePage === "import" && (
+            <div className="mx-auto max-w-2xl space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold">Import Data</h2>
+                <p className="text-sm text-muted-foreground">
+                  Upload QuickBooks Excel exports to populate your dashboard.
+                </p>
+              </div>
+              <FileUpload onUploadComplete={handleUploadComplete} />
             </div>
           )}
         </main>
       </SidebarInset>
-
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Import Data</DialogTitle>
-            <DialogDescription>
-              Upload QuickBooks Excel exports to populate your dashboard.
-            </DialogDescription>
-          </DialogHeader>
-          <FileUpload onUploadComplete={() => {
-            handleUploadComplete()
-            setImportOpen(false)
-          }} />
-        </DialogContent>
-      </Dialog>
     </SidebarProvider>
   )
 }
