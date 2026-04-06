@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { UserX, DollarSign, Users, TableProperties, TrendingUp } from "lucide-react"
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   ReferenceLine,
+  LabelList,
 } from "recharts"
 import type { ChurnSegment, ChurnPeriod } from "@/components/dashboard"
 
@@ -239,7 +239,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
   ]
 
   // Shared chart tooltip style
-  const tooltipStyle = { backgroundColor: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: "8px" }
+
 
   return (
     <div className="space-y-6">
@@ -281,32 +281,35 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
               {period === "monthly" ? (
-                <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Logo Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="logoChurnRate" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
+                  <Bar dataKey="logoChurnRate" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="logoChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                  </Bar>
+                </BarChart>
               ) : period === "quarterly" ? (
-                <LineChart data={quarterlyLogoData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={quarterlyLogoData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly Logo Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="quarterlyLogoChurnRate" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
+                  <Bar dataKey="quarterlyLogoChurnRate" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="quarterlyLogoChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                  </Bar>
+                </BarChart>
               ) : (
-                <LineChart data={rollingTtmLogoData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={rollingTtmLogoData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Logo Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="ttmLogoChurnRate" stroke="var(--chart-3)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
+                  <Bar dataKey="ttmLogoChurnRate" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="ttmLogoChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                  </Bar>
+                </BarChart>
               )}
             </ResponsiveContainer>
           </CardContent>
@@ -328,31 +331,34 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
               {period === "monthly" ? (
-                <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Revenue Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="revenueChurnRate" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
+                  <Bar dataKey="revenueChurnRate" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="revenueChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                  </Bar>
+                </BarChart>
               ) : period === "quarterly" ? (
-                <LineChart data={quarterlyRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={quarterlyRevData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly Revenue Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
                   <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
-                  <Line type="monotone" dataKey="quarterlyRevenueChurnRate" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                </LineChart>
+                  <Bar dataKey="quarterlyRevenueChurnRate" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="quarterlyRevenueChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                  </Bar>
+                </BarChart>
               ) : (
-                <LineChart data={rollingTtmRevData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={rollingTtmRevData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "TTM Revenue Churn"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="ttmRevenueChurnRate" stroke="var(--chart-1)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                </LineChart>
+                  <Bar dataKey="ttmRevenueChurnRate" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="ttmRevenueChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                  </Bar>
+                </BarChart>
               )}
             </ResponsiveContainer>
           </CardContent>
@@ -375,27 +381,29 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>
             {period === "monthly" ? (
-              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
-                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "NRR"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
+                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
                 <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Line type="monotone" dataKey="nrr" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              </LineChart>
+                <Bar dataKey="nrr" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="nrr" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                </Bar>
+              </BarChart>
             ) : period === "quarterly" ? (
-              <LineChart data={quarterlyNrrData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <BarChart data={quarterlyNrrData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
-                <Tooltip formatter={(value) => [`${Number(value).toFixed(1)}%`, "Quarterly NRR"]} labelFormatter={(l) => l} contentStyle={tooltipStyle} />
+                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
                 <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Line type="monotone" dataKey="quarterlyNrr" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
+                <Bar dataKey="quarterlyNrr" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="quarterlyNrr" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                </Bar>
+              </BarChart>
             ) : (
-              <LineChart
+              <BarChart
                 data={annualNrrData}
-                margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+                margin={{ top: 20, right: 10, left: 0, bottom: 5 }}
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 onClick={(state: any) => {
                   const payload = state?.activePayload?.[0]?.payload
@@ -408,18 +416,12 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
               >
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} domain={["dataMin - 5", "dataMax + 5"]} />
-                <Tooltip
-                  formatter={(value, _name, props) => {
-                    const entry = props?.payload
-                    return [`${Number(value).toFixed(1)}% (${entry?.customerCount || 0} customers)`, "Annual NRR"]
-                  }}
-                  labelFormatter={(l) => `${l} — click for details`}
-                  contentStyle={tooltipStyle}
-                />
+                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
                 <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Line type="monotone" dataKey="nrr" stroke="var(--chart-2)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 7, stroke: "var(--chart-2)", strokeWidth: 3 }} />
-              </LineChart>
+                <Bar dataKey="nrr" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="nrr" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
+                </Bar>
+              </BarChart>
             )}
           </ResponsiveContainer>
         </CardContent>
