@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { InfoTooltip } from "@/components/info-tooltip"
-import { UserX, DollarSign, Users, TableProperties, TrendingUp } from "lucide-react"
+import { UserX, DollarSign, Users, TrendingUp } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   BarChart,
   Bar,
@@ -62,6 +63,7 @@ interface PeriodChurn {
   startingRevenue: number
   totalChurned: number
   cohortLostRevenue: number
+  churnedCustomers: { name: string; startRevenue: number; revenueSharePct: number }[]
 }
 
 interface ChurnResponse {
@@ -490,23 +492,80 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
         </Card>
       )}
 
-      <ChurnDetailsTable months={months} />
+      <ChurnDetailsTable months={months} period={period} quarterly={data.quarterly || []} ttm={data.ttm || []} />
     </div>
   )
 }
 
-function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
-  const [showCustomers, setShowCustomers] = useState(false)
+function ChurnDetailsTable({ months, period, quarterly, ttm }: { months: ChurnMonth[]; period: ChurnPeriod; quarterly: PeriodChurn[]; ttm: PeriodChurn[] }) {
+  const [view, setView] = useState<"summary" | "customers">("summary")
 
   const dataMonths = months.slice(1)
 
-  const allChurned = dataMonths.flatMap((m) =>
-    m.churnedCustomers.map((c) => ({
-      ...c,
-      churnMonth: m.period,
-      churnMonthLabel: formatPeriodLabel(m.period),
-    }))
-  )
+  const periodLabel = period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : "TTM"
+
+  // Summary rows
+  const summaryRows = period === "monthly"
+    ? dataMonths.map((m) => ({
+        label: formatPeriodLabel(m.period),
+        active: m.activeCount,
+        churned: m.churnedCount,
+        logoChurn: m.logoChurnRate,
+        revenue: m.totalRevenue,
+        lost: m.lostRevenue,
+        revChurn: m.revenueChurnRate,
+      }))
+    : period === "quarterly"
+      ? quarterly.map((q) => ({
+          label: q.label,
+          active: q.startingActive,
+          churned: q.totalChurned,
+          logoChurn: q.logoChurnRate,
+          revenue: q.startingRevenue,
+          lost: q.cohortLostRevenue,
+          revChurn: q.revenueChurnRate,
+        }))
+      : ttm.map((t) => ({
+          label: t.label,
+          active: t.startingActive,
+          churned: t.totalChurned,
+          logoChurn: t.logoChurnRate,
+          revenue: t.startingRevenue,
+          lost: t.cohortLostRevenue,
+          revChurn: t.revenueChurnRate,
+        }))
+
+  // Churned customers
+  const churnedCustomers = period === "monthly"
+    ? dataMonths.flatMap((m) =>
+        m.churnedCustomers.map((c) => ({
+          name: c.name,
+          periodLabel: formatPeriodLabel(m.period),
+          revenue: c.lastRevenue,
+          revShare: c.revenueSharePct,
+        }))
+      )
+    : period === "quarterly"
+      ? quarterly.flatMap((q) =>
+          q.churnedCustomers.map((c) => ({
+            name: c.name,
+            periodLabel: q.label,
+            revenue: c.startRevenue,
+            revShare: c.revenueSharePct,
+          }))
+        )
+      : ttm.length > 0
+        ? ttm[ttm.length - 1].churnedCustomers.map((c) => ({
+            name: c.name,
+            periodLabel: ttm[ttm.length - 1].label,
+            revenue: c.startRevenue,
+            revShare: c.revenueSharePct,
+          }))
+        : []
+
+  const revenueLabel = period === "monthly" ? "Revenue" : "Starting Revenue"
+  const lostLabel = period === "monthly" ? "Lost" : "Cohort Lost"
+  const periodColLabel = period === "monthly" ? "Month" : period === "quarterly" ? "Quarter" : "TTM Period"
 
   return (
     <Card>
@@ -514,52 +573,49 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-              Monthly Churn Details
-              <InfoTooltip text={showCustomers
-                ? `${allChurned.length} churned customers across all months, sorted by revenue impact.`
-                : "Active customers, churned count, and lost revenue by month."
+              {periodLabel} Churn Details
+              <InfoTooltip text={view === "customers"
+                ? `${churnedCustomers.length} churned customers, sorted by revenue impact.`
+                : `Active customers, churned count, and lost revenue by ${periodLabel.toLowerCase()} period.`
               } />
             </CardTitle>
           </div>
-          <Button
-            variant={showCustomers ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowCustomers(!showCustomers)}
-            className="gap-1"
-          >
-            <TableProperties className="h-4 w-4" />
-            {showCustomers ? "Summary" : "Churned Customers"}
-          </Button>
+          <Tabs value={view} onValueChange={(v) => setView(v as "summary" | "customers")}>
+            <TabsList className="bg-muted h-9">
+              <TabsTrigger value="summary" className="px-4">Summary</TabsTrigger>
+              <TabsTrigger value="customers" className="px-4">Churned Customers</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </CardHeader>
       <CardContent>
-        {!showCustomers ? (
+        {view === "summary" ? (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Month</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Active</th>
+                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">{periodColLabel}</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{period === "monthly" ? "Active" : "Starting"}</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">Churned</th>
                   <th className="text-right py-2 px-3 font-medium text-muted-foreground">Logo %</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Revenue</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Lost</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{revenueLabel}</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{lostLabel}</th>
                   <th className="text-right py-2 pl-3 font-medium text-muted-foreground">Rev %</th>
                 </tr>
               </thead>
               <tbody>
-                {dataMonths.map((m) => (
-                  <tr key={m.period} className="border-b last:border-0">
-                    <td className="py-2 pr-4 font-medium">{formatPeriodLabel(m.period)}</td>
-                    <td className="text-right py-2 px-3">{m.activeCount}</td>
-                    <td className="text-right py-2 px-3">{m.churnedCount}</td>
-                    <td className={`text-right py-2 px-3 font-mono ${m.logoChurnRate > 10 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(m.logoChurnRate)}
+                {summaryRows.map((r) => (
+                  <tr key={r.label} className="border-b last:border-0">
+                    <td className="py-2 pr-4 font-medium">{r.label}</td>
+                    <td className="text-right py-2 px-3">{r.active}</td>
+                    <td className="text-right py-2 px-3">{r.churned}</td>
+                    <td className={`text-right py-2 px-3 font-mono ${r.logoChurn > 10 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(r.logoChurn)}
                     </td>
-                    <td className="text-right py-2 px-3 font-mono">{formatCurrency(m.totalRevenue)}</td>
-                    <td className="text-right py-2 px-3 font-mono text-red-600">{m.lostRevenue > 0 ? formatCurrency(m.lostRevenue) : "-"}</td>
-                    <td className={`text-right py-2 pl-3 font-mono ${m.revenueChurnRate > 10 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(m.revenueChurnRate)}
+                    <td className="text-right py-2 px-3 font-mono">{formatCurrency(r.revenue)}</td>
+                    <td className="text-right py-2 px-3 font-mono text-red-600">{r.lost > 0 ? formatCurrency(r.lost) : "-"}</td>
+                    <td className={`text-right py-2 pl-3 font-mono ${r.revChurn > 10 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(r.revChurn)}
                     </td>
                   </tr>
                 ))}
@@ -567,28 +623,28 @@ function ChurnDetailsTable({ months }: { months: ChurnMonth[] }) {
             </table>
           </div>
         ) : (
-          <div>
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Customer</th>
-                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">Churn Month</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Last Monthly Revenue</th>
+                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">{periodColLabel}</th>
+                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{period === "monthly" ? "Last Monthly Revenue" : "Period-Start Revenue"}</th>
                   <th className="text-right py-2 pl-3 font-medium text-muted-foreground">% of Total Revenue</th>
                 </tr>
               </thead>
               <tbody>
-                {allChurned.map((c, i) => (
-                  <tr key={`${c.name}-${c.churnMonth}-${i}`} className="border-b last:border-0">
+                {churnedCustomers.map((c, i) => (
+                  <tr key={`${c.name}-${c.periodLabel}-${i}`} className="border-b last:border-0">
                     <td className="py-2 pr-4 font-medium">{c.name}</td>
-                    <td className="py-2 px-3">{c.churnMonthLabel}</td>
-                    <td className="text-right py-2 px-3 font-mono text-red-600">{formatCurrency(c.lastRevenue)}</td>
-                    <td className={`text-right py-2 pl-3 font-mono ${c.revenueSharePct > 5 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(c.revenueSharePct)}
+                    <td className="py-2 px-3">{c.periodLabel}</td>
+                    <td className="text-right py-2 px-3 font-mono text-red-600">{formatCurrency(c.revenue)}</td>
+                    <td className={`text-right py-2 pl-3 font-mono ${c.revShare > 5 ? "text-red-600 font-semibold" : ""}`}>
+                      {formatPct(c.revShare)}
                     </td>
                   </tr>
                 ))}
-                {allChurned.length === 0 && (
+                {churnedCustomers.length === 0 && (
                   <tr>
                     <td colSpan={4} className="text-center py-8 text-muted-foreground">
                       No churned customers in this segment

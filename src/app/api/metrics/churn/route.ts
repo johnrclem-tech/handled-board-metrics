@@ -155,6 +155,7 @@ export async function GET(request: NextRequest) {
       startingRevenue: number
       totalChurned: number
       cohortLostRevenue: number
+      churnedCustomers: { name: string; startRevenue: number; revenueSharePct: number }[]
     }
 
     const quarterly: PeriodChurn[] = []
@@ -184,15 +185,21 @@ export async function GET(request: NextRequest) {
       const endCohort = getActiveCustomers(qPeriods[qPeriods.length - 1])
       let totalChurned = 0
       let cohortLostRevenue = 0
+      const qChurnedCustomers: { name: string; startRevenue: number; revenueSharePct: number }[] = []
 
       for (const [customer, startRev] of startingCohort) {
         if (!endCohort.has(customer)) {
           totalChurned++
-          cohortLostRevenue += startRev // use their period-START revenue
+          cohortLostRevenue += startRev
+          qChurnedCustomers.push({
+            name: customer,
+            startRevenue: round2(startRev),
+            revenueSharePct: startingRevenue > 0 ? roundPct(startRev / startingRevenue) : 0,
+          })
         }
       }
+      qChurnedCustomers.sort((a, b) => b.startRevenue - a.startRevenue)
 
-      // NRR: end-of-quarter revenue from starting cohort / starting revenue
       let retainedRev = 0
       for (const [customer, endRev] of endCohort) {
         if (startingCohort.has(customer)) {
@@ -211,6 +218,7 @@ export async function GET(request: NextRequest) {
         startingRevenue: round2(startingRevenue),
         totalChurned,
         cohortLostRevenue: round2(cohortLostRevenue),
+        churnedCustomers: qChurnedCustomers,
       })
     }
 
@@ -230,13 +238,20 @@ export async function GET(request: NextRequest) {
 
       let totalChurned = 0
       let cohortLostRevenue = 0
+      const ttmChurnedCustomers: { name: string; startRevenue: number; revenueSharePct: number }[] = []
 
       for (const [customer, startRev] of startingCohort) {
         if (!endCohort.has(customer)) {
           totalChurned++
-          cohortLostRevenue += startRev // period-start revenue
+          cohortLostRevenue += startRev
+          ttmChurnedCustomers.push({
+            name: customer,
+            startRevenue: round2(startRev),
+            revenueSharePct: startingRevenue > 0 ? roundPct(startRev / startingRevenue) : 0,
+          })
         }
       }
+      ttmChurnedCustomers.sort((a, b) => b.startRevenue - a.startRevenue)
 
       let retainedRev = 0
       for (const [customer, endRev] of endCohort) {
@@ -258,6 +273,7 @@ export async function GET(request: NextRequest) {
         startingRevenue: round2(startingRevenue),
         totalChurned,
         cohortLostRevenue: round2(cohortLostRevenue),
+        churnedCustomers: ttmChurnedCustomers,
       })
     }
 
