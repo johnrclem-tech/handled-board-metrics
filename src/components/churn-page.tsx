@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { InfoTooltip } from "@/components/info-tooltip"
-import { UserX, DollarSign, Users, TrendingUp } from "lucide-react"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { UserX, DollarSign, Users, TrendingUp, ChevronDown } from "lucide-react"
 import {
   BarChart,
   Bar,
@@ -498,15 +497,28 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
 }
 
 function ChurnDetailsTable({ months, period, quarterly, ttm }: { months: ChurnMonth[]; period: ChurnPeriod; quarterly: PeriodChurn[]; ttm: PeriodChurn[] }) {
-  const [view, setView] = useState<"summary" | "customers">("summary")
+  const [expandedRow, setExpandedRow] = useState<string | null>(null)
 
   const dataMonths = months.slice(1)
 
   const periodLabel = period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : "TTM"
 
-  // Summary rows
-  const summaryRows = period === "monthly"
+  // Build rows with associated churned customers
+  interface SummaryRow {
+    key: string
+    label: string
+    active: number
+    churned: number
+    logoChurn: number
+    revenue: number
+    lost: number
+    revChurn: number
+    customers: { name: string; revenue: number; revShare: number }[]
+  }
+
+  const rows: SummaryRow[] = period === "monthly"
     ? dataMonths.map((m) => ({
+        key: m.period,
         label: formatPeriodLabel(m.period),
         active: m.activeCount,
         churned: m.churnedCount,
@@ -514,9 +526,15 @@ function ChurnDetailsTable({ months, period, quarterly, ttm }: { months: ChurnMo
         revenue: m.totalRevenue,
         lost: m.lostRevenue,
         revChurn: m.revenueChurnRate,
+        customers: m.churnedCustomers.map((c) => ({
+          name: c.name,
+          revenue: c.lastRevenue,
+          revShare: c.revenueSharePct,
+        })),
       }))
     : period === "quarterly"
       ? quarterly.map((q) => ({
+          key: q.period,
           label: q.label,
           active: q.startingActive,
           churned: q.totalChurned,
@@ -524,8 +542,14 @@ function ChurnDetailsTable({ months, period, quarterly, ttm }: { months: ChurnMo
           revenue: q.startingRevenue,
           lost: q.cohortLostRevenue,
           revChurn: q.revenueChurnRate,
+          customers: q.churnedCustomers.map((c) => ({
+            name: c.name,
+            revenue: c.startRevenue,
+            revShare: c.revenueSharePct,
+          })),
         }))
       : ttm.map((t) => ({
+          key: t.period,
           label: t.label,
           active: t.startingActive,
           churned: t.totalChurned,
@@ -533,128 +557,103 @@ function ChurnDetailsTable({ months, period, quarterly, ttm }: { months: ChurnMo
           revenue: t.startingRevenue,
           lost: t.cohortLostRevenue,
           revChurn: t.revenueChurnRate,
-        }))
-
-  // Churned customers
-  const churnedCustomers = period === "monthly"
-    ? dataMonths.flatMap((m) =>
-        m.churnedCustomers.map((c) => ({
-          name: c.name,
-          periodLabel: formatPeriodLabel(m.period),
-          revenue: c.lastRevenue,
-          revShare: c.revenueSharePct,
-        }))
-      )
-    : period === "quarterly"
-      ? quarterly.flatMap((q) =>
-          q.churnedCustomers.map((c) => ({
+          customers: t.churnedCustomers.map((c) => ({
             name: c.name,
-            periodLabel: q.label,
             revenue: c.startRevenue,
             revShare: c.revenueSharePct,
-          }))
-        )
-      : ttm.length > 0
-        ? ttm[ttm.length - 1].churnedCustomers.map((c) => ({
-            name: c.name,
-            periodLabel: ttm[ttm.length - 1].label,
-            revenue: c.startRevenue,
-            revShare: c.revenueSharePct,
-          }))
-        : []
+          })),
+        }))
 
   const revenueLabel = period === "monthly" ? "Revenue" : "Starting Revenue"
   const lostLabel = period === "monthly" ? "Lost" : "Cohort Lost"
   const periodColLabel = period === "monthly" ? "Month" : period === "quarterly" ? "Quarter" : "TTM Period"
+  const revLabel = period === "monthly" ? "Last Monthly Revenue" : "Period-Start Revenue"
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              {periodLabel} Churn Details
-              <InfoTooltip text={view === "customers"
-                ? `${churnedCustomers.length} churned customers, sorted by revenue impact.`
-                : `Active customers, churned count, and lost revenue by ${periodLabel.toLowerCase()} period.`
-              } />
-            </CardTitle>
-          </div>
-          <Tabs value={view} onValueChange={(v) => setView(v as "summary" | "customers")}>
-            <TabsList className="bg-muted h-9">
-              <TabsTrigger value="summary" className="px-4">Summary</TabsTrigger>
-              <TabsTrigger value="customers" className="px-4">Churned Customers</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          {periodLabel} Churn Details
+          <InfoTooltip text={`Active customers, churned count, and lost revenue by ${periodLabel.toLowerCase()} period. Click a row to see churned customers.`} />
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        {view === "summary" ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">{periodColLabel}</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{period === "monthly" ? "Active" : "Starting"}</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Churned</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">Logo %</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{revenueLabel}</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{lostLabel}</th>
-                  <th className="text-right py-2 pl-3 font-medium text-muted-foreground">Rev %</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summaryRows.map((r) => (
-                  <tr key={r.label} className="border-b last:border-0">
-                    <td className="py-2 pr-4 font-medium">{r.label}</td>
-                    <td className="text-right py-2 px-3">{r.active}</td>
-                    <td className="text-right py-2 px-3">{r.churned}</td>
-                    <td className={`text-right py-2 px-3 font-mono ${r.logoChurn > 10 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(r.logoChurn)}
-                    </td>
-                    <td className="text-right py-2 px-3 font-mono">{formatCurrency(r.revenue)}</td>
-                    <td className="text-right py-2 px-3 font-mono text-red-600">{r.lost > 0 ? formatCurrency(r.lost) : "-"}</td>
-                    <td className={`text-right py-2 pl-3 font-mono ${r.revChurn > 10 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(r.revChurn)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Customer</th>
-                  <th className="text-left py-2 px-3 font-medium text-muted-foreground">{periodColLabel}</th>
-                  <th className="text-right py-2 px-3 font-medium text-muted-foreground">{period === "monthly" ? "Last Monthly Revenue" : "Period-Start Revenue"}</th>
-                  <th className="text-right py-2 pl-3 font-medium text-muted-foreground">% of Total Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
-                {churnedCustomers.map((c, i) => (
-                  <tr key={`${c.name}-${c.periodLabel}-${i}`} className="border-b last:border-0">
-                    <td className="py-2 pr-4 font-medium">{c.name}</td>
-                    <td className="py-2 px-3">{c.periodLabel}</td>
-                    <td className="text-right py-2 px-3 font-mono text-red-600">{formatCurrency(c.revenue)}</td>
-                    <td className={`text-right py-2 pl-3 font-mono ${c.revShare > 5 ? "text-red-600 font-semibold" : ""}`}>
-                      {formatPct(c.revShare)}
-                    </td>
-                  </tr>
-                ))}
-                {churnedCustomers.length === 0 && (
-                  <tr>
-                    <td colSpan={4} className="text-center py-8 text-muted-foreground">
-                      No churned customers in this segment
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b">
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground w-6"></th>
+                <th className="text-left py-2 pr-4 font-medium text-muted-foreground">{periodColLabel}</th>
+                <th className="text-right py-2 px-3 font-medium text-muted-foreground">{period === "monthly" ? "Active" : "Starting"}</th>
+                <th className="text-right py-2 px-3 font-medium text-muted-foreground">Churned</th>
+                <th className="text-right py-2 px-3 font-medium text-muted-foreground">Logo %</th>
+                <th className="text-right py-2 px-3 font-medium text-muted-foreground">{revenueLabel}</th>
+                <th className="text-right py-2 px-3 font-medium text-muted-foreground">{lostLabel}</th>
+                <th className="text-right py-2 pl-3 font-medium text-muted-foreground">Rev %</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const isExpanded = expandedRow === r.key
+                return (
+                  <React.Fragment key={r.key}>
+                    <tr
+                      className={`border-b cursor-pointer transition-colors hover:bg-muted/50 ${isExpanded ? "bg-muted/30" : ""}`}
+                      onClick={() => setExpandedRow(isExpanded ? null : r.key)}
+                    >
+                      <td className="py-2 pr-1">
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      </td>
+                      <td className="py-2 pr-4 font-medium">{r.label}</td>
+                      <td className="text-right py-2 px-3">{r.active}</td>
+                      <td className="text-right py-2 px-3">{r.churned}</td>
+                      <td className={`text-right py-2 px-3 font-mono ${r.logoChurn > 10 ? "text-red-600 font-semibold" : ""}`}>
+                        {formatPct(r.logoChurn)}
+                      </td>
+                      <td className="text-right py-2 px-3 font-mono">{formatCurrency(r.revenue)}</td>
+                      <td className="text-right py-2 px-3 font-mono text-red-600">{r.lost > 0 ? formatCurrency(r.lost) : "-"}</td>
+                      <td className={`text-right py-2 pl-3 font-mono ${r.revChurn > 10 ? "text-red-600 font-semibold" : ""}`}>
+                        {formatPct(r.revChurn)}
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr className="border-b bg-muted/20">
+                        <td colSpan={8} className="p-0">
+                          <div className="px-6 py-3">
+                            {r.customers.length > 0 ? (
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground">Customer</th>
+                                    <th className="text-right py-1.5 px-3 font-medium text-muted-foreground">{revLabel}</th>
+                                    <th className="text-right py-1.5 pl-3 font-medium text-muted-foreground">% of Total Revenue</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {r.customers.map((c, i) => (
+                                    <tr key={`${c.name}-${i}`} className="border-b last:border-0">
+                                      <td className="py-1.5 pr-4 font-medium">{c.name}</td>
+                                      <td className="text-right py-1.5 px-3 font-mono text-red-600">{formatCurrency(c.revenue)}</td>
+                                      <td className={`text-right py-1.5 pl-3 font-mono ${c.revShare > 5 ? "text-red-600 font-semibold" : ""}`}>
+                                        {formatPct(c.revShare)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            ) : (
+                              <p className="text-sm text-muted-foreground py-2">No churned customers this period</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </CardContent>
     </Card>
   )
