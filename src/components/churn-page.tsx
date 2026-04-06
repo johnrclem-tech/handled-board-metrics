@@ -139,7 +139,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
     label: formatPeriodLabel(m.period),
   }))
 
-  // Quarterly data
+  // Quarterly data — true quarterly churn: total churned / starting active count
   const quarterlyLogoData: { label: string; quarterlyLogoChurnRate: number }[] = []
   const quarterlyRevData: { label: string; quarterlyRevenueChurnRate: number }[] = []
   const quarterlyNrrData: { label: string; quarterlyNrr: number }[] = []
@@ -150,17 +150,26 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
     const [year, month] = lastMonth.period.split("-").map(Number)
     const q = Math.ceil(month / 3)
     const label = `Q${q} ${String(year).slice(2)}`
-    quarterlyLogoData.push({ label, quarterlyLogoChurnRate: Math.round(chunk.reduce((s, m) => s + m.logoChurnRate, 0) / chunk.length * 100) / 100 })
-    quarterlyRevData.push({ label, quarterlyRevenueChurnRate: Math.round(chunk.reduce((s, m) => s + m.revenueChurnRate, 0) / chunk.length * 100) / 100 })
+    // Starting active count = activeCount of the month before the first month in the chunk
+    const firstMonthIdx = months.findIndex((m) => m.period === chunk[0].period)
+    const startingActive = firstMonthIdx > 0 ? months[firstMonthIdx - 1].activeCount : 0
+    const totalChurned = chunk.reduce((s, m) => s + m.churnedCount, 0)
+    const totalLostRevenue = chunk.reduce((s, m) => s + m.lostRevenue, 0)
+    const startingRevenue = firstMonthIdx > 0 ? months[firstMonthIdx - 1].totalRevenue : 0
+    quarterlyLogoData.push({ label, quarterlyLogoChurnRate: startingActive > 0 ? Math.round(totalChurned / startingActive * 10000) / 100 : 0 })
+    quarterlyRevData.push({ label, quarterlyRevenueChurnRate: startingRevenue > 0 ? Math.round(totalLostRevenue / startingRevenue * 10000) / 100 : 0 })
     quarterlyNrrData.push({ label, quarterlyNrr: Math.round(chunk.reduce((s, m) => s + m.nrr, 0) / chunk.length * 100) / 100 })
   }
 
-  // Rolling TTM data
+  // Rolling TTM data — true TTM churn: total churned / starting active count
   const rollingTtmLogoData = monthlyData
     .map((m, i) => {
       if (i < 11) return null
       const window = monthlyData.slice(i - 11, i + 1)
-      return { label: formatPeriodLabel(m.period), ttmLogoChurnRate: Math.round(window.reduce((s, w) => s + w.logoChurnRate, 0) / window.length * 100) / 100 }
+      const firstMonthIdx = months.findIndex((mo) => mo.period === window[0].period)
+      const startingActive = firstMonthIdx > 0 ? months[firstMonthIdx - 1].activeCount : 0
+      const totalChurned = window.reduce((s, w) => s + w.churnedCount, 0)
+      return { label: formatPeriodLabel(m.period), ttmLogoChurnRate: startingActive > 0 ? Math.round(totalChurned / startingActive * 10000) / 100 : 0 }
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
 

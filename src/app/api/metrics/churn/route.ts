@@ -188,22 +188,33 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Compute summaries (skip first month which has no prior)
+    // Compute summaries using true churn: total churned / starting active count
     const ratesWithData = months.filter((m) => m.period !== sortedPeriods[0])
 
     const lastQuarterMonths = ratesWithData.slice(-3)
     const ttmMonths = ratesWithData.slice(-12)
 
-    const avg = (arr: number[]) => arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length * 100) / 100 : 0
+    // Starting active count = activeCount of the month before the window
+    const qStartIdx = months.indexOf(lastQuarterMonths[0]) - 1
+    const qStartActive = qStartIdx >= 0 ? months[qStartIdx].activeCount : 0
+    const qStartRevenue = qStartIdx >= 0 ? months[qStartIdx].totalRevenue : 0
+    const qTotalChurned = lastQuarterMonths.reduce((s, m) => s + m.churnedCount, 0)
+    const qTotalLostRevenue = lastQuarterMonths.reduce((s, m) => s + m.lostRevenue, 0)
+
+    const ttmStartIdx = months.indexOf(ttmMonths[0]) - 1
+    const ttmStartActive = ttmStartIdx >= 0 ? months[ttmStartIdx].activeCount : 0
+    const ttmStartRevenue = ttmStartIdx >= 0 ? months[ttmStartIdx].totalRevenue : 0
+    const ttmTotalChurned = ttmMonths.reduce((s, m) => s + m.churnedCount, 0)
+    const ttmTotalLostRevenue = ttmMonths.reduce((s, m) => s + m.lostRevenue, 0)
 
     const summary = {
       lastQuarter: {
-        logoChurn: avg(lastQuarterMonths.map((m) => m.logoChurnRate)),
-        revenueChurn: avg(lastQuarterMonths.map((m) => m.revenueChurnRate)),
+        logoChurn: qStartActive > 0 ? Math.round(qTotalChurned / qStartActive * 10000) / 100 : 0,
+        revenueChurn: qStartRevenue > 0 ? Math.round(qTotalLostRevenue / qStartRevenue * 10000) / 100 : 0,
       },
       ttm: {
-        logoChurn: avg(ttmMonths.map((m) => m.logoChurnRate)),
-        revenueChurn: avg(ttmMonths.map((m) => m.revenueChurnRate)),
+        logoChurn: ttmStartActive > 0 ? Math.round(ttmTotalChurned / ttmStartActive * 10000) / 100 : 0,
+        revenueChurn: ttmStartRevenue > 0 ? Math.round(ttmTotalLostRevenue / ttmStartRevenue * 10000) / 100 : 0,
       },
     }
 
