@@ -22,6 +22,7 @@ import { ExistingCustomersChart } from "@/components/existing-customers-chart"
 import { ChurnPage } from "@/components/churn-page"
 import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
+import type { LeadsPeriod } from "@/components/leads-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -60,6 +61,12 @@ const CUSTOMER_PERIODS: { value: ConcentrationPeriod; label: string }[] = [
   { value: "ttm", label: "TTM" },
 ]
 
+const LEADS_PERIODS: { value: LeadsPeriod; label: string }[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "annually", label: "Annually" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("overview")
@@ -67,6 +74,7 @@ export function Dashboard() {
   const [churnSegment, setChurnSegment] = useState<ChurnSegment>("all")
   const [churnPeriod, setChurnPeriod] = useState<ChurnPeriod>("monthly")
   const [customerPeriod, setCustomerPeriod] = useState<ConcentrationPeriod>("monthly")
+  const [leadsPeriod, setLeadsPeriod] = useState<LeadsPeriod>("monthly")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -148,6 +156,20 @@ export function Dashboard() {
               </Tabs>
             </div>
           )}
+
+          {activePage === "leads" && (
+            <div className="ml-auto flex items-center gap-3">
+              <Tabs value={leadsPeriod} onValueChange={(v) => setLeadsPeriod(v as LeadsPeriod)}>
+                <TabsList className="bg-muted h-9">
+                  {LEADS_PERIODS.map((p) => (
+                    <TabsTrigger key={p.value} value={p.value} className="px-4">
+                      {p.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
@@ -192,7 +214,7 @@ export function Dashboard() {
             </div>
           )}
           {activePage === "leads" && (
-            <LeadsPage key={`leads-${refreshKey}`} />
+            <LeadsPage key={`leads-${refreshKey}`} period={leadsPeriod} />
           )}
 
           {activePage === "import" && (

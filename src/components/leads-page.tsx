@@ -9,8 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { InfoTooltip } from "@/components/info-tooltip"
 import {
   Users,
-  UserPlus,
-  Globe,
+  Handshake,
+  Trophy,
   TrendingUp,
   TrendingDown,
   Search,
@@ -30,35 +30,32 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
-  Cell,
 } from "recharts"
+
+// ── Types ──
+
+export type LeadsPeriod = "monthly" | "quarterly" | "annually"
 
 interface LeadRow {
   id: number
   company: string | null
   fullName: string | null
-  leadSource: string | null
+  leadSource: string
   adCampaignName: string | null
   ad: string | null
   leadStatus: string | null
   createdTime: string | null
 }
 
-interface LeadsSummary {
-  totalLeads: number
-  totalOpportunities: number
-  currentMonthLeads: number
-  priorMonthLeads: number
-  conversionRate: number
-  topSource: { source: string; count: number } | null
-}
-
-interface LeadsResponse {
-  summary: LeadsSummary
-  bySource: { source: string; count: number }[]
-  byMonth: Record<string, unknown>[]
-  allSources: string[]
-  leads: LeadRow[]
+interface OppRow {
+  id: number
+  opportunityName: string | null
+  leadSource: string
+  leadSourceDetail: string | null
+  stage: string | null
+  closingDate: string | null
+  createdTime: string | null
+  ad: string | null
 }
 
 type SortField = "company" | "fullName" | "leadSource" | "leadStatus" | "createdTime"
@@ -66,44 +63,118 @@ type SortDir = "asc" | "desc"
 
 const PAGE_SIZE = 50
 
-const SOURCE_COLORS: Record<string, string> = {
-  Website: "var(--chart-1)",
-  "Google AdWords": "var(--chart-2)",
-  "Customer Referral": "var(--chart-3)",
-  Unknown: "var(--chart-4)",
+const SOURCE_COLORS: string[] = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+]
+
+// ── Helpers ──
+
+function getMonth(d: string | null): string | null {
+  if (!d) return null
+  const date = new Date(d)
+  if (isNaN(date.getTime())) return null
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
-function getSourceColor(source: string, index: number): string {
-  if (SOURCE_COLORS[source]) return SOURCE_COLORS[source]
-  const fallbacks = [
-    "var(--chart-5)",
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-  ]
-  return fallbacks[index % fallbacks.length]
+function getQuarter(d: string | null): string | null {
+  if (!d) return null
+  const date = new Date(d)
+  if (isNaN(date.getTime())) return null
+  const q = Math.ceil((date.getMonth() + 1) / 3)
+  return `${date.getFullYear()}-Q${q}`
+}
+
+function getYear(d: string | null): string | null {
+  if (!d) return null
+  const date = new Date(d)
+  if (isNaN(date.getTime())) return null
+  return `${date.getFullYear()}`
+}
+
+function getPeriodKey(d: string | null, period: LeadsPeriod): string | null {
+  if (period === "monthly") return getMonth(d)
+  if (period === "quarterly") return getQuarter(d)
+  return getYear(d)
+}
+
+function formatPeriodLabel(key: string, period: LeadsPeriod): string {
+  if (period === "monthly") {
+    const [year, m] = key.split("-")
+    const date = new Date(Number(year), Number(m) - 1)
+    return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
+  }
+  if (period === "quarterly") {
+    return key // "2026-Q1"
+  }
+  return key // "2026"
+}
+
+/** Get the last complete period key before "now" */
+function getLastCompletePeriod(period: LeadsPeriod): string {
+  const now = new Date()
+  if (period === "monthly") {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+  }
+  if (period === "quarterly") {
+    const currentQ = Math.ceil((now.getMonth() + 1) / 3)
+    if (currentQ === 1) return `${now.getFullYear() - 1}-Q4`
+    return `${now.getFullYear()}-Q${currentQ - 1}`
+  }
+  return `${now.getFullYear() - 1}`
 }
 
 function formatDate(d: string | null): string {
   if (!d) return "—"
   const date = new Date(d)
   if (isNaN(date.getTime())) return "—"
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  })
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
-function formatMonthLabel(month: string): string {
-  const [year, m] = month.split("-")
-  const date = new Date(Number(year), Number(m) - 1)
-  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
+interface StackedData {
+  period: string
+  label: string
+  total: number
+  [source: string]: string | number
 }
 
-export function LeadsPage() {
-  const [data, setData] = useState<LeadsResponse | null>(null)
+function buildStackedData(
+  items: { createdTime: string | null; source: string }[],
+  period: LeadsPeriod,
+  allSources: string[]
+): StackedData[] {
+  const map = new Map<string, Map<string, number>>()
+  for (const item of items) {
+    const key = getPeriodKey(item.createdTime, period)
+    if (!key) continue
+    if (!map.has(key)) map.set(key, new Map())
+    const sources = map.get(key)!
+    sources.set(item.source, (sources.get(item.source) || 0) + 1)
+  }
+  return Array.from(map.entries())
+    .map(([key, sources]) => {
+      const entry: StackedData = {
+        period: key,
+        label: formatPeriodLabel(key, period),
+        total: Array.from(sources.values()).reduce((a, b) => a + b, 0),
+      }
+      for (const src of allSources) {
+        entry[src] = sources.get(src) || 0
+      }
+      return entry
+    })
+    .sort((a, b) => a.period.localeCompare(b.period))
+}
+
+// ── Component ──
+
+export function LeadsPage({ period }: { period: LeadsPeriod }) {
+  const [leadRows, setLeadRows] = useState<LeadRow[]>([])
+  const [oppRows, setOppRows] = useState<OppRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [sortField, setSortField] = useState<SortField>("createdTime")
@@ -113,11 +184,61 @@ export function LeadsPage() {
   useEffect(() => {
     fetch("/api/leads")
       .then((r) => r.json())
-      .then(setData)
+      .then((data) => {
+        setLeadRows(data.leads || [])
+        setOppRows(data.opportunities || [])
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
 
+  // Reset page when period changes
+  useEffect(() => setPage(1), [period])
+
+  // All unique sources across leads + opportunities
+  const allSources = useMemo(() => {
+    const set = new Set<string>()
+    for (const l of leadRows) set.add(l.leadSource)
+    for (const o of oppRows) set.add(o.leadSource)
+    return Array.from(set).sort()
+  }, [leadRows, oppRows])
+
+  // Combined items for "Leads" chart (leads + opportunities)
+  const allItems = useMemo(
+    () => [
+      ...leadRows.map((l) => ({ createdTime: l.createdTime, source: l.leadSource })),
+      ...oppRows.map((o) => ({ createdTime: o.createdTime, source: o.leadSource })),
+    ],
+    [leadRows, oppRows]
+  )
+
+  // Opportunity items
+  const oppItems = useMemo(
+    () => oppRows.map((o) => ({ createdTime: o.createdTime, source: o.leadSource })),
+    [oppRows]
+  )
+
+  // Conversion items (Closed Won only)
+  const conversionItems = useMemo(
+    () =>
+      oppRows
+        .filter((o) => o.stage === "Closed Won")
+        .map((o) => ({ createdTime: o.createdTime, source: o.leadSource })),
+    [oppRows]
+  )
+
+  // Chart data
+  const leadsChartData = useMemo(() => buildStackedData(allItems, period, allSources), [allItems, period, allSources])
+  const oppsChartData = useMemo(() => buildStackedData(oppItems, period, allSources), [oppItems, period, allSources])
+  const convChartData = useMemo(() => buildStackedData(conversionItems, period, allSources), [conversionItems, period, allSources])
+
+  // KPI cards — last complete period
+  const lastPeriod = getLastCompletePeriod(period)
+  const lastPeriodLeads = leadsChartData.find((d) => d.period === lastPeriod)?.total ?? 0
+  const lastPeriodOpps = oppsChartData.find((d) => d.period === lastPeriod)?.total ?? 0
+  const lastPeriodConv = convChartData.find((d) => d.period === lastPeriod)?.total ?? 0
+
+  // Sort + filter table
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDir(sortDir === "asc" ? "desc" : "asc")
@@ -134,26 +255,24 @@ export function LeadsPage() {
   }
 
   const filtered = useMemo(() => {
-    if (!data) return []
-    let rows = data.leads
+    let rows = leadRows
     if (search) {
       const q = search.toLowerCase()
       rows = rows.filter(
         (r) =>
           (r.company || "").toLowerCase().includes(q) ||
           (r.fullName || "").toLowerCase().includes(q) ||
-          (r.leadSource || "").toLowerCase().includes(q) ||
+          r.leadSource.toLowerCase().includes(q) ||
           (r.adCampaignName || "").toLowerCase().includes(q)
       )
     }
-    rows = [...rows].sort((a, b) => {
+    return [...rows].sort((a, b) => {
       const av = a[sortField] || ""
       const bv = b[sortField] || ""
       const cmp = String(av).localeCompare(String(bv))
       return sortDir === "asc" ? cmp : -cmp
     })
-    return rows
-  }, [data, search, sortField, sortDir])
+  }, [leadRows, search, sortField, sortDir])
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -162,24 +281,18 @@ export function LeadsPage() {
   if (loading) {
     return (
       <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid gap-4 md:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
             <Card key={i}>
-              <CardHeader className="pb-2">
-                <CardDescription>Loading...</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-8 w-24 animate-pulse rounded bg-muted" />
-              </CardContent>
+              <CardHeader className="pb-2"><CardDescription>Loading...</CardDescription></CardHeader>
+              <CardContent><div className="h-8 w-24 animate-pulse rounded bg-muted" /></CardContent>
             </Card>
           ))}
         </div>
-        <div className="grid gap-6 md:grid-cols-2">
-          {[...Array(2)].map((_, i) => (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
             <Card key={i}>
-              <CardContent className="pt-6">
-                <div className="h-[300px] animate-pulse rounded bg-muted" />
-              </CardContent>
+              <CardContent className="pt-6"><div className="h-[300px] animate-pulse rounded bg-muted" /></CardContent>
             </Card>
           ))}
         </div>
@@ -188,73 +301,61 @@ export function LeadsPage() {
   }
 
   // ── Empty ──
-  if (!data || data.summary.totalLeads === 0) {
+  if (leadRows.length === 0 && oppRows.length === 0) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-16">
           <Package className="h-12 w-12 text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-semibold">No leads data</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Import leads data from the Import page to get started
+            Import leads and opportunities from the Import page to get started
           </p>
         </CardContent>
       </Card>
     )
   }
 
-  const { summary, bySource, byMonth, allSources } = data
-
-  const momChange =
-    summary.priorMonthLeads > 0
-      ? ((summary.currentMonthLeads - summary.priorMonthLeads) / summary.priorMonthLeads) * 100
-      : null
+  const periodLabel =
+    period === "monthly" ? "Month" : period === "quarterly" ? "Quarter" : "Year"
+  const lastPeriodLabel = formatPeriodLabel(lastPeriod, period)
 
   const kpis = [
     {
-      title: "Total Leads",
-      value: summary.totalLeads.toLocaleString(),
-      description: `${summary.totalLeads - summary.totalOpportunities} unconverted, ${summary.totalOpportunities} opportunities`,
+      title: "Leads",
+      value: lastPeriodLeads.toLocaleString(),
+      description: `${lastPeriodLabel} (last complete ${periodLabel.toLowerCase()})`,
       icon: Users,
       color: "text-chart-1",
       bg: "bg-chart-1/15",
     },
     {
-      title: "This Month",
-      value: summary.currentMonthLeads.toLocaleString(),
-      description: momChange !== null ? `${momChange >= 0 ? "+" : ""}${momChange.toFixed(1)}% vs prior month` : "First month of data",
-      icon: UserPlus,
+      title: "Opportunities",
+      value: lastPeriodOpps.toLocaleString(),
+      description: `${lastPeriodLabel} (last complete ${periodLabel.toLowerCase()})`,
+      icon: Handshake,
       color: "text-chart-2",
       bg: "bg-chart-2/15",
-      trend: momChange !== null ? (momChange >= 0 ? "up" : "down") : null,
     },
     {
-      title: "Top Source",
-      value: summary.topSource ? summary.topSource.source : "—",
-      description: summary.topSource ? `${summary.topSource.count.toLocaleString()} leads` : "",
-      icon: Globe,
+      title: "Conversions",
+      value: lastPeriodConv.toLocaleString(),
+      description: `${lastPeriodLabel} — Closed Won`,
+      icon: Trophy,
       color: "text-chart-3",
       bg: "bg-chart-3/15",
     },
-    {
-      title: "Conversion Rate",
-      value: `${summary.conversionRate.toFixed(1)}%`,
-      description: `${summary.totalOpportunities} of ${summary.totalLeads} became opportunities`,
-      icon: TrendingUp,
-      color: "text-chart-4",
-      bg: "bg-chart-4/15",
-    },
   ]
 
-  // Chart data
-  const chartMonths = byMonth.map((entry) => ({
-    ...entry,
-    month: formatMonthLabel(entry.month as string),
-  }))
+  const tooltipStyle = {
+    backgroundColor: "hsl(var(--popover))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "8px",
+  }
 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {kpis.map((kpi) => (
           <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -265,95 +366,35 @@ export function LeadsPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{kpi.value}</div>
-              <div className="flex items-center gap-1 mt-1">
-                {kpi.trend === "up" && (
-                  <Badge variant="secondary" className="text-green-600 bg-green-50">
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    Up
-                  </Badge>
-                )}
-                {kpi.trend === "down" && (
-                  <Badge variant="secondary" className="text-red-600 bg-red-50">
-                    <TrendingDown className="h-3 w-3 mr-1" />
-                    Down
-                  </Badge>
-                )}
-                <span className="text-xs text-muted-foreground">{kpi.description}</span>
-              </div>
+              <span className="text-xs text-muted-foreground">{kpi.description}</span>
             </CardContent>
           </Card>
         ))}
       </div>
 
       {/* Charts */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Leads Over Time */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Leads Over Time
-              <InfoTooltip text="Monthly lead count by source, combining leads and opportunities." />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartMonths} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="month" className="text-xs" tickLine={false} axisLine={false} />
-                <YAxis className="text-xs" tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Legend />
-                {allSources.map((src, i) => (
-                  <Bar
-                    key={src}
-                    dataKey={src}
-                    name={src}
-                    stackId="a"
-                    fill={getSourceColor(src, i)}
-                    radius={i === allSources.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Leads by Source */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Leads by Source
-              <InfoTooltip text="Total lead count per source across all time, combining leads and opportunities." />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={bySource} layout="vertical" margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
-                <XAxis type="number" className="text-xs" tickLine={false} axisLine={false} allowDecimals={false} />
-                <YAxis dataKey="source" type="category" className="text-xs" width={130} tickLine={false} axisLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--popover))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Bar dataKey="count" name="Leads" radius={[0, 4, 4, 0]}>
-                  {bySource.map((_, i) => (
-                    <Cell key={i} fill={getSourceColor(bySource[i].source, i)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <SourceStackedChart
+          title="Leads by Source"
+          tooltip="Leads + Opportunities per period, stacked by source."
+          data={leadsChartData}
+          sources={allSources}
+          tooltipStyle={tooltipStyle}
+        />
+        <SourceStackedChart
+          title="Opportunities by Source"
+          tooltip="Opportunities per period, stacked by source."
+          data={oppsChartData}
+          sources={allSources}
+          tooltipStyle={tooltipStyle}
+        />
+        <SourceStackedChart
+          title="Conversions by Source"
+          tooltip="Closed Won opportunities per period, stacked by source."
+          data={convChartData}
+          sources={allSources}
+          tooltipStyle={tooltipStyle}
+        />
       </div>
 
       {/* Data Table */}
@@ -371,10 +412,7 @@ export function LeadsPage() {
               <Input
                 placeholder="Search leads..."
                 value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value)
-                  setPage(1)
-                }}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 className="pl-8"
               />
             </div>
@@ -408,11 +446,9 @@ export function LeadsPage() {
                   <TableRow key={lead.id}>
                     <TableCell className="font-medium">{lead.company || "—"}</TableCell>
                     <TableCell>{lead.fullName || "—"}</TableCell>
-                    <TableCell>{lead.leadSource || "—"}</TableCell>
+                    <TableCell>{lead.leadSource}</TableCell>
                     <TableCell className="max-w-[200px] truncate">{lead.adCampaignName || "—"}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{lead.leadStatus || "Unknown"}</Badge>
-                    </TableCell>
+                    <TableCell><Badge variant="secondary">{lead.leadStatus || "Unknown"}</Badge></TableCell>
                     <TableCell className="whitespace-nowrap">{formatDate(lead.createdTime)}</TableCell>
                   </TableRow>
                 ))}
@@ -422,9 +458,7 @@ export function LeadsPage() {
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
-              <p className="text-sm text-muted-foreground">
-                Page {page} of {totalPages}
-              </p>
+              <p className="text-sm text-muted-foreground">Page {page} of {totalPages}</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft className="h-4 w-4" />
@@ -438,5 +472,59 @@ export function LeadsPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+// ── Reusable stacked bar chart ──
+
+function SourceStackedChart({
+  title,
+  tooltip,
+  data,
+  sources,
+  tooltipStyle,
+}: {
+  title: string
+  tooltip: string
+  data: StackedData[]
+  sources: string[]
+  tooltipStyle: React.CSSProperties
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          {title}
+          <InfoTooltip text={tooltip} />
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+            No data for this period
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis dataKey="label" className="text-xs" tickLine={false} axisLine={false} />
+              <YAxis className="text-xs" tickLine={false} axisLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Legend />
+              {sources.map((src, i) => (
+                <Bar
+                  key={src}
+                  dataKey={src}
+                  name={src}
+                  stackId="a"
+                  fill={SOURCE_COLORS[i % SOURCE_COLORS.length]}
+                  radius={i === sources.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </CardContent>
+    </Card>
   )
 }
