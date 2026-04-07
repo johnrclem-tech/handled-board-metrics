@@ -8,13 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
+import StatisticsTrendCard from "@/components/shadcn-studio/blocks/statistics-trend-card"
 import { cn } from "@/lib/utils"
 import {
-  Users,
-  Handshake,
-  Trophy,
-  TrendingUp,
-  TrendingDown,
   Search,
   ArrowUpDown,
   ArrowUp,
@@ -227,20 +223,6 @@ function formatPeriodLabel(key: string, period: LeadsPeriod): string {
   return key // "2026"
 }
 
-/** Get the last complete period key before "now" */
-function getLastCompletePeriod(period: LeadsPeriod): string {
-  const now = new Date()
-  if (period === "monthly" || period === "ttm") {
-    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-  }
-  if (period === "quarterly") {
-    const currentQ = Math.ceil((now.getMonth() + 1) / 3)
-    if (currentQ === 1) return `${now.getFullYear() - 1}-Q4`
-    return `${now.getFullYear()}-Q${currentQ - 1}`
-  }
-  return `${now.getFullYear() - 1}`
-}
 
 function formatDate(d: string | null): string {
   if (!d) return "—"
@@ -416,12 +398,6 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const oppsChartData = useMemo(() => buildStackedData(oppItems, period), [oppItems, period])
   const convChartData = useMemo(() => buildStackedData(conversionItems, period), [conversionItems, period])
 
-  // KPI cards — last complete period
-  const lastPeriod = getLastCompletePeriod(period)
-  const lastPeriodLeads = leadsChartData.find((d) => d.period === lastPeriod)?.total ?? 0
-  const lastPeriodOpps = oppsChartData.find((d) => d.period === lastPeriod)?.total ?? 0
-  const lastPeriodConv = convChartData.find((d) => d.period === lastPeriod)?.total ?? 0
-
   // Sort + filter table
   const handleLeadSort = (field: LeadSortField) => {
     if (leadSortField === field) {
@@ -546,55 +522,53 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     )
   }
 
-  const periodLabel =
-    period === "monthly" ? "Month" : period === "quarterly" ? "Quarter" : period === "ttm" ? "TTM period" : "Year"
-  const lastPeriodLabel = formatPeriodLabel(lastPeriod, period)
+  // Build trend data for StatisticsTrendCards
+  const trendData = useMemo(() => {
+    // Build a map of period -> { leads, opportunities, conversions }
+    const leadsMap = new Map(leadsChartData.map((d) => [d.period, d.total]))
+    const oppsMap = new Map(oppsChartData.map((d) => [d.period, d.total]))
+    const convMap = new Map(convChartData.map((d) => [d.period, d.total]))
+    const allPeriods = [...new Set([
+      ...leadsChartData.map((d) => d.period),
+      ...oppsChartData.map((d) => d.period),
+      ...convChartData.map((d) => d.period),
+    ])].sort()
+    return allPeriods.map((p) => ({
+      date: formatPeriodLabel(p, period),
+      leads: leadsMap.get(p) || 0,
+      opportunities: oppsMap.get(p) || 0,
+      conversions: convMap.get(p) || 0,
+    }))
+  }, [leadsChartData, oppsChartData, convChartData, period])
 
-  const kpis = [
-    {
-      title: "Leads",
-      value: lastPeriodLeads.toLocaleString(),
-      description: `${lastPeriodLabel} (last complete ${periodLabel.toLowerCase()})`,
-      icon: Users,
-      color: "text-chart-1",
-      bg: "bg-chart-1/15",
-    },
-    {
-      title: "Opportunities",
-      value: lastPeriodOpps.toLocaleString(),
-      description: `${lastPeriodLabel} (last complete ${periodLabel.toLowerCase()})`,
-      icon: Handshake,
-      color: "text-chart-2",
-      bg: "bg-chart-2/15",
-    },
-    {
-      title: "Conversions",
-      value: lastPeriodConv.toLocaleString(),
-      description: `${lastPeriodLabel} — Closed Won`,
-      icon: Trophy,
-      color: "text-chart-3",
-      bg: "bg-chart-3/15",
-    },
-  ]
+  const periodLabel =
+    period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : period === "ttm" ? "TTM" : "Annual"
 
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        {kpis.map((kpi) => (
-          <Card key={kpi.title}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardDescription className="text-sm font-medium">{kpi.title}</CardDescription>
-              <div className={`flex h-8 w-8 items-center justify-center rounded-md ${kpi.bg}`}>
-                <kpi.icon className={`h-4 w-4 ${kpi.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{kpi.value}</div>
-              <span className="text-xs text-muted-foreground">{kpi.description}</span>
-            </CardContent>
-          </Card>
-        ))}
+        <StatisticsTrendCard
+          title={`${periodLabel} Leads`}
+          data={trendData}
+          dateKey="date"
+          dataKey="leads"
+          format="compact"
+        />
+        <StatisticsTrendCard
+          title={`${periodLabel} Opportunities`}
+          data={trendData}
+          dateKey="date"
+          dataKey="opportunities"
+          format="compact"
+        />
+        <StatisticsTrendCard
+          title={`${periodLabel} Conversions`}
+          data={trendData}
+          dateKey="date"
+          dataKey="conversions"
+          format="compact"
+        />
       </div>
 
       {/* Charts */}
