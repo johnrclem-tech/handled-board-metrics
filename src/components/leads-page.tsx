@@ -9,6 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
 import StatisticsTrendCard from "@/components/shadcn-studio/blocks/statistics-trend-card"
+import DonutBreakdownChart from "@/components/shadcn-studio/blocks/chart-budget-breakdown"
+import type { DonutSegment } from "@/components/shadcn-studio/blocks/chart-budget-breakdown"
 import { cn } from "@/lib/utils"
 import {
   Search,
@@ -504,6 +506,20 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     }))
   }, [leadsChartData, oppsChartData, convChartData, period])
 
+  const EXCLUDED_LEAD_STATUSES = new Set(["Junk", "Unknown"])
+
+  const openLeadsSegments: DonutSegment[] = useMemo(() => {
+    const statusMap = new Map<string, number>()
+    for (const l of leadRows) {
+      const status = l.leadStatus || "Unknown"
+      if (EXCLUDED_LEAD_STATUSES.has(status)) continue
+      statusMap.set(status, (statusMap.get(status) || 0) + 1)
+    }
+    return Array.from(statusMap.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [leadRows])
+
   const periodLabel =
     period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : period === "ttm" ? "TTM" : "Annual"
 
@@ -571,11 +587,21 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       </div>
 
       {/* Charts */}
-      <SourceStackedChart
-        title="Leads by Source"
-        tooltip="Leads + Opportunities per period, stacked by source."
-        data={leadsChartData}
-      />
+      <div className="grid gap-6 grid-cols-3">
+        <SourceStackedChart
+          title="Leads by Source"
+          tooltip="Leads + Opportunities per period, stacked by source."
+          data={leadsChartData}
+          className="col-span-2"
+        />
+        <DonutBreakdownChart
+          title="Open Leads"
+          segments={openLeadsSegments}
+          centerLabel="open leads"
+          colLabel="Status"
+          className="col-span-1"
+        />
+      </div>
       <SourceStackedChart
         title="Opportunities by Source"
         tooltip="Opportunities per period, stacked by source."
@@ -758,13 +784,15 @@ function SourceStackedChart({
   title,
   tooltip,
   data,
+  className,
 }: {
   title: string
   tooltip: string
   data: StackedData[]
+  className?: string
 }) {
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           {title}
