@@ -50,6 +50,18 @@ const StatisticsTrendCard = <T extends Record<string, unknown>>({
 }: StatisticsTrendCardProps<T>) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
 
+  if (!data || data.length === 0) {
+    return (
+      <Card className={cn(className)}>
+        <CardContent className='flex flex-col gap-1.5'>
+          <span className='text-muted-foreground text-sm'>{title}</span>
+          <span className='text-3xl font-bold tracking-tight'>0</span>
+          <span className='text-muted-foreground text-sm'>No data available</span>
+        </CardContent>
+      </Card>
+    )
+  }
+
   const idx = activeIndex ?? data.length - 1
   const point = data[idx]
   const firstVal = data[0][dataKey] as number
