@@ -35,7 +35,7 @@ export type ChurnSegment = "all" | "new" | "existing"
 export type ChurnPeriod = "monthly" | "quarterly" | "annually"
 
 const PAGE_TITLES: Record<string, string> = {
-  overview: "KPI Overview",
+  overview: "Dashboard",
   "revenue-metrics": "Service Revenue",
   financials: "Customer Revenue",
   churn: "Churn",
@@ -110,7 +110,7 @@ export function Dashboard() {
           <Breadcrumb>
             <BreadcrumbList>
               <BreadcrumbItem>
-                <BreadcrumbPage>{PAGE_TITLES[activePage] || "Dashboard"}</BreadcrumbPage>
+                <BreadcrumbPage className="text-2xl font-bold tracking-tight text-foreground">{PAGE_TITLES[activePage] || "Dashboard"}</BreadcrumbPage>
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>

@@ -48,7 +48,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                   onClick={() => onNavigate("overview")}
                 >
                   <BarChart3 className="size-4" />
-                  <span>KPI Overview</span>
+                  <span>Dashboard</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

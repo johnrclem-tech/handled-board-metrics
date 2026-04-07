@@ -135,14 +135,8 @@ export function KpiOverview() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Key Performance Indicators</h2>
-          <p className="text-muted-foreground">
-            {hasData ? "Financial overview for selected period" : "Import QuickBooks data to view KPIs"}
-          </p>
-        </div>
-        {hasData && (
+      {hasData && (
+        <div className="flex justify-end">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select period" />
@@ -155,8 +149,8 @@ export function KpiOverview() {
               ))}
             </SelectContent>
           </Select>
-        )}
-      </div>
+        </div>
+      )}
 
       {!hasData ? (
         <Card>
