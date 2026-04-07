@@ -513,7 +513,7 @@ function SourceStackedChart({
           </div>
         ) : (
           <ChartContainer config={CHART_CONFIG} className="aspect-auto h-[300px] w-full">
-            <BarChart data={data} margin={{ top: 5, right: 120, left: 20, bottom: 5 }}>
+            <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="5 4" vertical={false} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
               <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
@@ -526,12 +526,7 @@ function SourceStackedChart({
                   />
                 }
               />
-              <Legend
-                layout="vertical"
-                align="right"
-                verticalAlign="middle"
-                wrapperStyle={{ paddingLeft: 16 }}
-              />
+              <Legend />
               {SOURCE_CATEGORIES.map((cat, i) => (
                 <Bar
                   key={cat}
