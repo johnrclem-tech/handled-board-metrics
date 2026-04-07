@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
-import StatisticsTrendCard from "@/components/shadcn-studio/blocks/statistics-trend-card"
+import StatisticsAreaCard from "@/components/shadcn-studio/blocks/statistics-area-card"
 import DonutBreakdownChart from "@/components/shadcn-studio/blocks/chart-budget-breakdown"
 import type { DonutSegment } from "@/components/shadcn-studio/blocks/chart-budget-breakdown"
 import { cn } from "@/lib/utils"
@@ -563,24 +563,21 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <StatisticsTrendCard
+        <StatisticsAreaCard
           title={`${periodLabel} Leads`}
           data={trendData}
-          dateKey="date"
           dataKey="leads"
           format="compact"
         />
-        <StatisticsTrendCard
+        <StatisticsAreaCard
           title={`${periodLabel} Opportunities`}
           data={trendData}
-          dateKey="date"
           dataKey="opportunities"
           format="compact"
         />
-        <StatisticsTrendCard
+        <StatisticsAreaCard
           title={`${periodLabel} Conversions`}
           data={trendData}
-          dateKey="date"
           dataKey="conversions"
           format="compact"
         />
