@@ -141,15 +141,22 @@ interface StackedData {
   [source: string]: string | number
 }
 
+const CHART_START: Record<LeadsPeriod, string> = {
+  monthly: "2025-02",
+  quarterly: "2025-Q1",
+  annually: "2025",
+}
+
 function buildStackedData(
   items: { createdTime: string | null; source: string }[],
   period: LeadsPeriod,
   allSources: string[]
 ): StackedData[] {
+  const minPeriod = CHART_START[period]
   const map = new Map<string, Map<string, number>>()
   for (const item of items) {
     const key = getPeriodKey(item.createdTime, period)
-    if (!key) continue
+    if (!key || key < minPeriod) continue
     if (!map.has(key)) map.set(key, new Map())
     const sources = map.get(key)!
     sources.set(item.source, (sources.get(item.source) || 0) + 1)
