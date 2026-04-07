@@ -464,13 +464,17 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const oppsChartData = useMemo(() => buildStackedData(oppItems, period), [oppItems, period])
   const convChartData = useMemo(() => buildStackedData(conversionItems, period), [conversionItems, period])
 
-  // Status-based items for "By Status" view (leads + opps, excluding junk/unknown)
+  // Status-based items for "By Status" view, excluding closed/junk statuses
+  const EXCLUDED_STATUS_VIEW = new Set(["Junk", "Unknown", "Junk Lead", "Closed Lost", "Closed Won"])
+
   const allItemsWithStatus = useMemo(
     () => [
       ...leadRows
-        .filter((l) => !EXCLUDED_STATUSES.has(l.leadStatus || ""))
+        .filter((l) => !EXCLUDED_STATUS_VIEW.has(l.leadStatus || "Unknown"))
         .map((l) => ({ createdTime: l.createdTime, status: l.leadStatus || "Unknown" })),
-      ...oppRows.map((o) => ({ createdTime: o.createdTime, status: o.stage || "Unknown" })),
+      ...oppRows
+        .filter((o) => !EXCLUDED_STATUS_VIEW.has(o.stage || "Unknown"))
+        .map((o) => ({ createdTime: o.createdTime, status: o.stage || "Unknown" })),
     ],
     [leadRows, oppRows]
   )
@@ -679,7 +683,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 Leads {leadsChartMode === "source" ? "by Source" : "by Status"}
-                <InfoTooltip text="Leads + Opportunities per period. Toggle between source and status grouping." />
+                <InfoTooltip text="Leads + Opportunities per period. By Source excludes Junk and Unknown leads. By Status also excludes Closed Won, Junk Lead, and Closed Lost." />
               </CardTitle>
               <Tabs value={leadsChartMode} onValueChange={(v) => setLeadsChartMode(v as LeadsChartMode)}>
                 <TabsList className="bg-muted h-9">
