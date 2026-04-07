@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
+import { cn } from "@/lib/utils"
 import {
   Users,
   Handshake,
@@ -20,6 +21,8 @@ import {
   ArrowDown,
   ChevronLeft,
   ChevronRight,
+  Check,
+  ChevronsUpDown,
   Package,
 } from "lucide-react"
 import {
@@ -94,6 +97,92 @@ const SOURCE_CATEGORY_COLORS: Record<string, string> = {
 
 function categorizeSource(source: string): string {
   return SOURCE_CATEGORY_MAP[source] || "Other"
+}
+
+// ── MultiSelect ──
+
+function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder,
+  width = "w-[160px]",
+}: {
+  options: string[]
+  selected: Set<string>
+  onChange: (selected: Set<string>) => void
+  placeholder: string
+  width?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  const allSelected = selected.size === 0 || selected.size === options.length
+  const label = allSelected
+    ? `All ${placeholder}`
+    : selected.size === 1
+      ? [...selected][0]
+      : `${selected.size} selected`
+
+  const toggle = (value: string) => {
+    const next = new Set(selected)
+    if (next.has(value)) next.delete(value)
+    else next.add(value)
+    if (next.size === options.length) onChange(new Set())
+    else onChange(next)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <Button
+        variant="outline"
+        role="combobox"
+        className={cn("justify-between text-sm font-normal", width)}
+        onClick={() => setOpen(!open)}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+      </Button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover p-1 shadow-md">
+          <div
+            className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+            onClick={() => onChange(new Set())}
+          >
+            <div className={cn("flex h-4 w-4 items-center justify-center rounded-sm border", allSelected ? "bg-primary border-primary" : "border-input")}>
+              {allSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+            </div>
+            All
+          </div>
+          <div className="max-h-60 overflow-auto">
+            {options.map((opt) => {
+              const isSelected = selected.has(opt)
+              return (
+                <div
+                  key={opt}
+                  className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                  onClick={() => toggle(opt)}
+                >
+                  <div className={cn("flex h-4 w-4 items-center justify-center rounded-sm border", isSelected ? "bg-primary border-primary" : "border-input")}>
+                    {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                  </div>
+                  {opt}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ── Helpers ──
@@ -214,6 +303,10 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const [oppSortField, setOppSortField] = useState<OppSortField>("createdTime")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [page, setPage] = useState(1)
+  const [filterSource, setFilterSource] = useState<Set<string>>(new Set())
+  const [filterCampaign, setFilterCampaign] = useState<Set<string>>(new Set())
+  const [filterStatus, setFilterStatus] = useState<Set<string>>(new Set())
+  const [filterStage, setFilterStage] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch("/api/leads")
@@ -295,6 +388,13 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     return sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
   }
 
+  // Filter options derived from data
+  const leadSourceOptions = useMemo(() => [...new Set(leadRows.map((r) => r.leadSource))].sort(), [leadRows])
+  const leadCampaignOptions = useMemo(() => [...new Set(leadRows.map((r) => r.adCampaignName || "—").filter(Boolean))].sort(), [leadRows])
+  const leadStatusOptions = useMemo(() => [...new Set(leadRows.map((r) => r.leadStatus || "Unknown"))].sort(), [leadRows])
+  const oppSourceOptions = useMemo(() => [...new Set(oppRows.map((r) => r.leadSource))].sort(), [oppRows])
+  const oppStageOptions = useMemo(() => [...new Set(oppRows.map((r) => r.stage || "Unknown"))].sort(), [oppRows])
+
   const filteredLeads = useMemo(() => {
     let rows = leadRows
     if (search) {
@@ -307,13 +407,16 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           (r.adCampaignName || "").toLowerCase().includes(q)
       )
     }
+    if (filterSource.size > 0) rows = rows.filter((r) => filterSource.has(r.leadSource))
+    if (filterCampaign.size > 0) rows = rows.filter((r) => filterCampaign.has(r.adCampaignName || "—"))
+    if (filterStatus.size > 0) rows = rows.filter((r) => filterStatus.has(r.leadStatus || "Unknown"))
     return [...rows].sort((a, b) => {
       const av = a[leadSortField] || ""
       const bv = b[leadSortField] || ""
       const cmp = String(av).localeCompare(String(bv))
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [leadRows, search, leadSortField, sortDir])
+  }, [leadRows, search, leadSortField, sortDir, filterSource, filterCampaign, filterStatus])
 
   const filteredOpps = useMemo(() => {
     let rows = oppRows
@@ -327,13 +430,15 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           (r.leadSourceDetail || "").toLowerCase().includes(q)
       )
     }
+    if (filterSource.size > 0) rows = rows.filter((r) => filterSource.has(r.leadSource))
+    if (filterStage.size > 0) rows = rows.filter((r) => filterStage.has(r.stage || "Unknown"))
     return [...rows].sort((a, b) => {
       const av = a[oppSortField] || ""
       const bv = b[oppSortField] || ""
       const cmp = String(av).localeCompare(String(bv))
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [oppRows, search, oppSortField, sortDir])
+  }, [oppRows, search, oppSortField, sortDir, filterSource, filterStage])
 
   const activeRows = tableView === "leads" ? filteredLeads : filteredOpps
   const totalPages = Math.ceil(activeRows.length / PAGE_SIZE)
@@ -449,7 +554,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Tabs value={tableView} onValueChange={(v) => { setTableView(v as TableView); setSearch(""); setPage(1) }}>
+              <Tabs value={tableView} onValueChange={(v) => { setTableView(v as TableView); setSearch(""); setPage(1); setFilterSource(new Set()); setFilterCampaign(new Set()); setFilterStatus(new Set()); setFilterStage(new Set()) }}>
                 <TabsList className="bg-muted h-9">
                   <TabsTrigger value="leads" className="px-4">Leads</TabsTrigger>
                   <TabsTrigger value="opportunities" className="px-4">Opportunities</TabsTrigger>
@@ -468,6 +573,38 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
                 className="pl-8"
               />
             </div>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            <MultiSelect
+              options={tableView === "leads" ? leadSourceOptions : oppSourceOptions}
+              selected={filterSource}
+              onChange={(s) => { setFilterSource(s); setPage(1) }}
+              placeholder="Sources"
+            />
+            {tableView === "leads" ? (
+              <>
+                <MultiSelect
+                  options={leadCampaignOptions}
+                  selected={filterCampaign}
+                  onChange={(s) => { setFilterCampaign(s); setPage(1) }}
+                  placeholder="Campaigns"
+                  width="w-[200px]"
+                />
+                <MultiSelect
+                  options={leadStatusOptions}
+                  selected={filterStatus}
+                  onChange={(s) => { setFilterStatus(s); setPage(1) }}
+                  placeholder="Statuses"
+                />
+              </>
+            ) : (
+              <MultiSelect
+                options={oppStageOptions}
+                selected={filterStage}
+                onChange={(s) => { setFilterStage(s); setPage(1) }}
+                placeholder="Stages"
+              />
+            )}
           </div>
         </CardHeader>
         <CardContent>
