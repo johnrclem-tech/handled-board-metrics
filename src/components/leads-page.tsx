@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
 import {
   Users,
@@ -57,7 +58,9 @@ interface OppRow {
   ad: string | null
 }
 
-type SortField = "company" | "fullName" | "leadSource" | "leadStatus" | "createdTime"
+type TableView = "leads" | "opportunities"
+type LeadSortField = "company" | "fullName" | "leadSource" | "leadStatus" | "createdTime"
+type OppSortField = "opportunityName" | "leadSource" | "stage" | "closingDate" | "createdTime"
 type SortDir = "asc" | "desc"
 
 const PAGE_SIZE = 50
@@ -205,8 +208,10 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const [leadRows, setLeadRows] = useState<LeadRow[]>([])
   const [oppRows, setOppRows] = useState<OppRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [tableView, setTableView] = useState<TableView>("leads")
   const [search, setSearch] = useState("")
-  const [sortField, setSortField] = useState<SortField>("createdTime")
+  const [leadSortField, setLeadSortField] = useState<LeadSortField>("createdTime")
+  const [oppSortField, setOppSortField] = useState<OppSortField>("createdTime")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [page, setPage] = useState(1)
 
@@ -260,22 +265,37 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const lastPeriodConv = convChartData.find((d) => d.period === lastPeriod)?.total ?? 0
 
   // Sort + filter table
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
+  const handleLeadSort = (field: LeadSortField) => {
+    if (leadSortField === field) {
       setSortDir(sortDir === "asc" ? "desc" : "asc")
     } else {
-      setSortField(field)
+      setLeadSortField(field)
       setSortDir("asc")
     }
     setPage(1)
   }
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+  const handleOppSort = (field: OppSortField) => {
+    if (oppSortField === field) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc")
+    } else {
+      setOppSortField(field)
+      setSortDir("asc")
+    }
+    setPage(1)
+  }
+
+  const LeadSortIcon = ({ field }: { field: LeadSortField }) => {
+    if (leadSortField !== field) return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
     return sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
   }
 
-  const filtered = useMemo(() => {
+  const OppSortIcon = ({ field }: { field: OppSortField }) => {
+    if (oppSortField !== field) return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50" />
+    return sortDir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+  }
+
+  const filteredLeads = useMemo(() => {
     let rows = leadRows
     if (search) {
       const q = search.toLowerCase()
@@ -288,15 +308,37 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       )
     }
     return [...rows].sort((a, b) => {
-      const av = a[sortField] || ""
-      const bv = b[sortField] || ""
+      const av = a[leadSortField] || ""
+      const bv = b[leadSortField] || ""
       const cmp = String(av).localeCompare(String(bv))
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [leadRows, search, sortField, sortDir])
+  }, [leadRows, search, leadSortField, sortDir])
 
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
-  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const filteredOpps = useMemo(() => {
+    let rows = oppRows
+    if (search) {
+      const q = search.toLowerCase()
+      rows = rows.filter(
+        (r) =>
+          (r.opportunityName || "").toLowerCase().includes(q) ||
+          r.leadSource.toLowerCase().includes(q) ||
+          (r.stage || "").toLowerCase().includes(q) ||
+          (r.leadSourceDetail || "").toLowerCase().includes(q)
+      )
+    }
+    return [...rows].sort((a, b) => {
+      const av = a[oppSortField] || ""
+      const bv = b[oppSortField] || ""
+      const cmp = String(av).localeCompare(String(bv))
+      return sortDir === "asc" ? cmp : -cmp
+    })
+  }, [oppRows, search, oppSortField, sortDir])
+
+  const activeRows = tableView === "leads" ? filteredLeads : filteredOpps
+  const totalPages = Math.ceil(activeRows.length / PAGE_SIZE)
+  const leadPageRows = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const oppPageRows = filteredOpps.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // ── Loading ──
   if (loading) {
@@ -406,16 +448,21 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <CardTitle>All Leads</CardTitle>
+            <div className="flex items-center gap-4">
+              <Tabs value={tableView} onValueChange={(v) => { setTableView(v as TableView); setSearch(""); setPage(1) }}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="leads" className="px-4">Leads</TabsTrigger>
+                  <TabsTrigger value="opportunities" className="px-4">Opportunities</TabsTrigger>
+                </TabsList>
+              </Tabs>
               <CardDescription>
-                {filtered.length.toLocaleString()} leads from imported data
+                {activeRows.length.toLocaleString()} {tableView === "leads" ? "leads" : "opportunities"}
               </CardDescription>
             </div>
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search leads..."
+                placeholder={`Search ${tableView}...`}
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                 className="pl-8"
@@ -424,42 +471,85 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("company")}>
-                    <div className="flex items-center gap-1">Company <SortIcon field="company" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("fullName")}>
-                    <div className="flex items-center gap-1">Full Name <SortIcon field="fullName" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("leadSource")}>
-                    <div className="flex items-center gap-1">Source <SortIcon field="leadSource" /></div>
-                  </TableHead>
-                  <TableHead>Campaign</TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("leadStatus")}>
-                    <div className="flex items-center gap-1">Status <SortIcon field="leadStatus" /></div>
-                  </TableHead>
-                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("createdTime")}>
-                    <div className="flex items-center gap-1">Created <SortIcon field="createdTime" /></div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pageRows.map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.company || "—"}</TableCell>
-                    <TableCell>{lead.fullName || "—"}</TableCell>
-                    <TableCell>{lead.leadSource}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{lead.adCampaignName || "—"}</TableCell>
-                    <TableCell><Badge variant="secondary">{lead.leadStatus || "Unknown"}</Badge></TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDate(lead.createdTime)}</TableCell>
+          {tableView === "leads" ? (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleLeadSort("company")}>
+                      <div className="flex items-center gap-1">Company <LeadSortIcon field="company" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleLeadSort("fullName")}>
+                      <div className="flex items-center gap-1">Full Name <LeadSortIcon field="fullName" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleLeadSort("leadSource")}>
+                      <div className="flex items-center gap-1">Source <LeadSortIcon field="leadSource" /></div>
+                    </TableHead>
+                    <TableHead>Campaign</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleLeadSort("leadStatus")}>
+                      <div className="flex items-center gap-1">Status <LeadSortIcon field="leadStatus" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleLeadSort("createdTime")}>
+                      <div className="flex items-center gap-1">Created <LeadSortIcon field="createdTime" /></div>
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {leadPageRows.map((lead) => (
+                    <TableRow key={lead.id}>
+                      <TableCell className="font-medium">{lead.company || "—"}</TableCell>
+                      <TableCell>{lead.fullName || "—"}</TableCell>
+                      <TableCell>{lead.leadSource}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{lead.adCampaignName || "—"}</TableCell>
+                      <TableCell><Badge variant="secondary">{lead.leadStatus || "Unknown"}</Badge></TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(lead.createdTime)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleOppSort("opportunityName")}>
+                      <div className="flex items-center gap-1">Opportunity <OppSortIcon field="opportunityName" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleOppSort("leadSource")}>
+                      <div className="flex items-center gap-1">Source <OppSortIcon field="leadSource" /></div>
+                    </TableHead>
+                    <TableHead>Source Detail</TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleOppSort("stage")}>
+                      <div className="flex items-center gap-1">Stage <OppSortIcon field="stage" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleOppSort("closingDate")}>
+                      <div className="flex items-center gap-1">Closing Date <OppSortIcon field="closingDate" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer select-none" onClick={() => handleOppSort("createdTime")}>
+                      <div className="flex items-center gap-1">Created <OppSortIcon field="createdTime" /></div>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {oppPageRows.map((opp) => (
+                    <TableRow key={opp.id}>
+                      <TableCell className="font-medium">{opp.opportunityName || "—"}</TableCell>
+                      <TableCell>{opp.leadSource}</TableCell>
+                      <TableCell>{opp.leadSourceDetail || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant={opp.stage === "Closed Won" ? "default" : "secondary"}>
+                          {opp.stage || "Unknown"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(opp.closingDate)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(opp.createdTime)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-4">
