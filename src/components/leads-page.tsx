@@ -62,13 +62,36 @@ type SortDir = "asc" | "desc"
 
 const PAGE_SIZE = 50
 
-const SOURCE_COLORS: string[] = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-]
+// ── Source category mapping ──
+
+const SOURCE_CATEGORY_MAP: Record<string, string> = {
+  Website: "Website",
+  "Google AdWords": "PPC",
+  "Agency Partner": "Partners",
+  "Carrier Partner": "Partners",
+  "Fulfillment Partner": "Partners",
+  "Technology Partner": "Partners",
+  "Customer Referral": "Referral",
+  Employee: "Referral",
+  Organization: "Other",
+  Social: "Other",
+  "Trade Show": "Other",
+  Unknown: "Other",
+}
+
+const SOURCE_CATEGORIES = ["Website", "PPC", "Partners", "Referral", "Other"] as const
+
+const SOURCE_CATEGORY_COLORS: Record<string, string> = {
+  Website: "var(--chart-1)",
+  PPC: "var(--chart-2)",
+  Partners: "var(--chart-3)",
+  Referral: "var(--chart-4)",
+  Other: "var(--chart-5)",
+}
+
+function categorizeSource(source: string): string {
+  return SOURCE_CATEGORY_MAP[source] || "Other"
+}
 
 // ── Helpers ──
 
@@ -150,7 +173,6 @@ const CHART_START: Record<LeadsPeriod, string> = {
 function buildStackedData(
   items: { createdTime: string | null; source: string }[],
   period: LeadsPeriod,
-  allSources: string[]
 ): StackedData[] {
   const minPeriod = CHART_START[period]
   const map = new Map<string, Map<string, number>>()
@@ -158,18 +180,19 @@ function buildStackedData(
     const key = getPeriodKey(item.createdTime, period)
     if (!key || key < minPeriod) continue
     if (!map.has(key)) map.set(key, new Map())
-    const sources = map.get(key)!
-    sources.set(item.source, (sources.get(item.source) || 0) + 1)
+    const cats = map.get(key)!
+    const cat = categorizeSource(item.source)
+    cats.set(cat, (cats.get(cat) || 0) + 1)
   }
   return Array.from(map.entries())
-    .map(([key, sources]) => {
+    .map(([key, cats]) => {
       const entry: StackedData = {
         period: key,
         label: formatPeriodLabel(key, period),
-        total: Array.from(sources.values()).reduce((a, b) => a + b, 0),
+        total: Array.from(cats.values()).reduce((a, b) => a + b, 0),
       }
-      for (const src of allSources) {
-        entry[src] = sources.get(src) || 0
+      for (const cat of SOURCE_CATEGORIES) {
+        entry[cat] = cats.get(cat) || 0
       }
       return entry
     })
@@ -201,14 +224,6 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   // Reset page when period changes
   useEffect(() => setPage(1), [period])
 
-  // All unique sources across leads + opportunities
-  const allSources = useMemo(() => {
-    const set = new Set<string>()
-    for (const l of leadRows) set.add(l.leadSource)
-    for (const o of oppRows) set.add(o.leadSource)
-    return Array.from(set).sort()
-  }, [leadRows, oppRows])
-
   // Combined items for "Leads" chart (leads + opportunities)
   const allItems = useMemo(
     () => [
@@ -234,9 +249,9 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   )
 
   // Chart data
-  const leadsChartData = useMemo(() => buildStackedData(allItems, period, allSources), [allItems, period, allSources])
-  const oppsChartData = useMemo(() => buildStackedData(oppItems, period, allSources), [oppItems, period, allSources])
-  const convChartData = useMemo(() => buildStackedData(conversionItems, period, allSources), [conversionItems, period, allSources])
+  const leadsChartData = useMemo(() => buildStackedData(allItems, period), [allItems, period])
+  const oppsChartData = useMemo(() => buildStackedData(oppItems, period), [oppItems, period])
+  const convChartData = useMemo(() => buildStackedData(conversionItems, period), [conversionItems, period])
 
   // KPI cards — last complete period
   const lastPeriod = getLastCompletePeriod(period)
@@ -375,19 +390,16 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
         title="Leads by Source"
         tooltip="Leads + Opportunities per period, stacked by source."
         data={leadsChartData}
-        sources={allSources}
       />
       <SourceStackedChart
         title="Opportunities by Source"
         tooltip="Opportunities per period, stacked by source."
         data={oppsChartData}
-        sources={allSources}
       />
       <SourceStackedChart
         title="Conversions by Source"
         tooltip="Closed Won opportunities per period, stacked by source."
         data={convChartData}
-        sources={allSources}
       />
 
       {/* Data Table */}
@@ -470,24 +482,22 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
 
 // ── Reusable stacked bar chart ──
 
+const CHART_CONFIG = Object.fromEntries(
+  SOURCE_CATEGORIES.map((cat) => [
+    cat,
+    { label: cat, color: SOURCE_CATEGORY_COLORS[cat] },
+  ])
+) satisfies ChartConfig
+
 function SourceStackedChart({
   title,
   tooltip,
   data,
-  sources,
 }: {
   title: string
   tooltip: string
   data: StackedData[]
-  sources: string[]
 }) {
-  const chartConfig = Object.fromEntries(
-    sources.map((src, i) => [
-      src,
-      { label: src, color: SOURCE_COLORS[i % SOURCE_COLORS.length] },
-    ])
-  ) satisfies ChartConfig
-
   return (
     <Card>
       <CardHeader>
@@ -502,7 +512,7 @@ function SourceStackedChart({
             No data for this period
           </div>
         ) : (
-          <ChartContainer config={chartConfig} className="aspect-auto h-[300px] w-full">
+          <ChartContainer config={CHART_CONFIG} className="aspect-auto h-[300px] w-full">
             <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="5 4" vertical={false} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
@@ -512,14 +522,14 @@ function SourceStackedChart({
                 content={<ChartTooltipContent className="min-w-[200px]" />}
               />
               <Legend />
-              {sources.map((src, i) => (
+              {SOURCE_CATEGORIES.map((cat, i) => (
                 <Bar
-                  key={src}
-                  dataKey={src}
-                  name={src}
+                  key={cat}
+                  dataKey={cat}
+                  name={cat}
                   stackId="a"
-                  fill={SOURCE_COLORS[i % SOURCE_COLORS.length]}
-                  radius={i === sources.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                  fill={SOURCE_CATEGORY_COLORS[cat]}
+                  radius={i === SOURCE_CATEGORIES.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
                 />
               ))}
             </BarChart>
