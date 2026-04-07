@@ -53,7 +53,7 @@ const StatisticsTrendCard = <T extends Record<string, unknown>>({
   if (!data || data.length === 0) {
     return (
       <Card className={cn(className)}>
-        <CardContent className='flex flex-col gap-1.5'>
+        <CardContent className='flex flex-col gap-1.5 pt-5'>
           <span className='text-muted-foreground text-sm'>{title}</span>
           <span className='text-3xl font-bold tracking-tight'>0</span>
           <span className='text-muted-foreground text-sm'>No data available</span>
@@ -62,7 +62,9 @@ const StatisticsTrendCard = <T extends Record<string, unknown>>({
     )
   }
 
-  const idx = activeIndex ?? data.length - 1
+  // Default to second-to-last entry (last full period), fall back to last if only one
+  const defaultIdx = data.length >= 2 ? data.length - 2 : data.length - 1
+  const idx = activeIndex ?? defaultIdx
   const point = data[idx]
   const firstVal = data[0][dataKey] as number
   const currVal = point[dataKey] as number
@@ -79,7 +81,7 @@ const StatisticsTrendCard = <T extends Record<string, unknown>>({
 
   return (
     <Card className={cn(className)}>
-      <CardContent className='flex flex-col gap-1.5'>
+      <CardContent className='flex flex-col gap-1.5 pt-5'>
         <span className='text-muted-foreground text-sm'>{title}</span>
         <span className='text-3xl font-bold tracking-tight'>{fmt(currVal, format)}</span>
         <div className='flex items-center justify-between pb-2'>
