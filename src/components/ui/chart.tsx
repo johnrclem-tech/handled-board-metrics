@@ -121,12 +121,13 @@ const ChartTooltipContent = React.forwardRef<
         index: number,
         payload: Record<string, unknown>[]
       ) => React.ReactNode
+      filterZero?: boolean
     }
 >(
   (
     {
       active,
-      payload,
+      payload: rawPayload,
       className,
       indicator = "dot",
       hideLabel = false,
@@ -136,10 +137,19 @@ const ChartTooltipContent = React.forwardRef<
       labelKey,
       nameKey,
       formatter,
+      filterZero = false,
     },
     ref
   ) => {
     const { config } = useChart()
+
+    const payload = React.useMemo(() => {
+      if (!filterZero || !rawPayload) return rawPayload
+      return rawPayload.filter((item) => {
+        const val = item.value
+        return val !== 0 && val !== "0" && val != null
+      })
+    }, [rawPayload, filterZero])
 
     const tooltipLabel = React.useMemo(() => {
       if (hideLabel || !payload?.length) {
