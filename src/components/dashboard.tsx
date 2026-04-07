@@ -65,6 +65,7 @@ const LEADS_PERIODS: { value: LeadsPeriod; label: string }[] = [
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
   { value: "annually", label: "Annually" },
+  { value: "ttm", label: "TTM" },
 ]
 
 export function Dashboard() {

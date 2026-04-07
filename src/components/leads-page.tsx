@@ -37,7 +37,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 
 // ── Types ──
 
-export type LeadsPeriod = "monthly" | "quarterly" | "annually"
+export type LeadsPeriod = "monthly" | "quarterly" | "annually" | "ttm"
 
 interface LeadRow {
   id: number
@@ -210,13 +210,13 @@ function getYear(d: string | null): string | null {
 }
 
 function getPeriodKey(d: string | null, period: LeadsPeriod): string | null {
-  if (period === "monthly") return getMonth(d)
+  if (period === "monthly" || period === "ttm") return getMonth(d)
   if (period === "quarterly") return getQuarter(d)
   return getYear(d)
 }
 
 function formatPeriodLabel(key: string, period: LeadsPeriod): string {
-  if (period === "monthly") {
+  if (period === "monthly" || period === "ttm") {
     const [year, m] = key.split("-")
     const date = new Date(Number(year), Number(m) - 1)
     return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" })
@@ -230,7 +230,7 @@ function formatPeriodLabel(key: string, period: LeadsPeriod): string {
 /** Get the last complete period key before "now" */
 function getLastCompletePeriod(period: LeadsPeriod): string {
   const now = new Date()
-  if (period === "monthly") {
+  if (period === "monthly" || period === "ttm") {
     const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
   }
@@ -260,6 +260,21 @@ const CHART_START: Record<LeadsPeriod, string> = {
   monthly: "2025-02",
   quarterly: "2025-Q1",
   annually: "2025",
+  ttm: "2025-02",
+}
+
+/** Generate sorted month keys from startMonth to endMonth inclusive (YYYY-MM format) */
+function getMonthRange(start: string, end: string): string[] {
+  const months: string[] = []
+  const [sy, sm] = start.split("-").map(Number)
+  const [ey, em] = end.split("-").map(Number)
+  let y = sy, m = sm
+  while (y < ey || (y === ey && m <= em)) {
+    months.push(`${y}-${String(m).padStart(2, "0")}`)
+    m++
+    if (m > 12) { m = 1; y++ }
+  }
+  return months
 }
 
 function buildStackedData(
@@ -267,6 +282,52 @@ function buildStackedData(
   period: LeadsPeriod,
 ): StackedData[] {
   const minPeriod = CHART_START[period]
+
+  if (period === "ttm") {
+    // First, bucket by month
+    const monthMap = new Map<string, Map<string, number>>()
+    for (const item of items) {
+      const key = getMonth(item.createdTime)
+      if (!key) continue
+      if (!monthMap.has(key)) monthMap.set(key, new Map())
+      const cats = monthMap.get(key)!
+      const cat = categorizeSource(item.source)
+      cats.set(cat, (cats.get(cat) || 0) + 1)
+    }
+
+    // Get all months sorted
+    const allMonths = Array.from(monthMap.keys()).sort()
+    if (allMonths.length === 0) return []
+
+    // For each month, compute rolling 12-month sum
+    const result: StackedData[] = []
+    for (const endMonth of allMonths) {
+      if (endMonth < minPeriod) continue
+      // Compute start of 12-month window
+      const [ey, em] = endMonth.split("-").map(Number)
+      const startDate = new Date(ey, em - 12, 1) // 11 months back from start of endMonth
+      const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`
+
+      const windowMonths = getMonthRange(startMonth, endMonth)
+      const entry: StackedData = {
+        period: endMonth,
+        label: formatPeriodLabel(endMonth, period),
+        total: 0,
+      }
+      for (const cat of SOURCE_CATEGORIES) {
+        let sum = 0
+        for (const m of windowMonths) {
+          sum += monthMap.get(m)?.get(cat) || 0
+        }
+        entry[cat] = sum
+        entry.total += sum
+      }
+      result.push(entry)
+    }
+    return result
+  }
+
+  // Non-TTM: direct bucket by period
   const map = new Map<string, Map<string, number>>()
   for (const item of items) {
     const key = getPeriodKey(item.createdTime, period)
@@ -486,7 +547,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   }
 
   const periodLabel =
-    period === "monthly" ? "Month" : period === "quarterly" ? "Quarter" : "Year"
+    period === "monthly" ? "Month" : period === "quarterly" ? "Quarter" : period === "ttm" ? "TTM period" : "Year"
   const lastPeriodLabel = formatPeriodLabel(lastPeriod, period)
 
   const kpis = [
