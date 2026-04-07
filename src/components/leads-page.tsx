@@ -9,7 +9,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
 import StatisticsTrendCard from "@/components/shadcn-studio/blocks/statistics-trend-card"
-import { BarList } from "@/components/ui/bar-list"
 import { cn } from "@/lib/utils"
 import {
   Search,
@@ -28,6 +27,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  LabelList,
   Legend,
 } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
@@ -594,20 +594,56 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           className="col-span-2"
         />
         <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Open Leads</CardTitle>
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2">
+              Open Leads
+              <InfoTooltip text="Active leads by status. Excludes Junk, Unknown, Junk Lead, and Closed Lost." />
+            </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-1">
             {openLeadsData.length > 0 ? (
-              <BarList
-                data={openLeadsData}
-                valueFormatter={(v) => v.toLocaleString()}
-                barClassName="bg-chart-1"
-                barGap={6}
-                barHeight={30}
-              />
+              <ChartContainer
+                config={{ count: { label: "Leads", color: "var(--primary)" } } satisfies ChartConfig}
+                className="w-full"
+                style={{ height: Math.max(openLeadsData.length * 40 + 30, 120) }}
+              >
+                <BarChart
+                  data={openLeadsData}
+                  layout="vertical"
+                  barSize={22}
+                  margin={{ left: -10, right: 40, top: 5, bottom: 5 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
+                  <XAxis
+                    type="number"
+                    dataKey="value"
+                    axisLine={false}
+                    tickLine={false}
+                    tickMargin={8}
+                    tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
+                  />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    tickLine={false}
+                    tickMargin={8}
+                    axisLine={false}
+                    width={90}
+                    tick={{ fontSize: 13 }}
+                  />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                  <Bar dataKey="value" name="Leads" fill="var(--primary)" radius={6}>
+                    <LabelList
+                      dataKey="value"
+                      offset={8}
+                      position="right"
+                      className="fill-foreground text-xs"
+                    />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
             ) : (
-              <p className="text-sm text-muted-foreground">No open leads</p>
+              <p className="text-sm text-muted-foreground py-4">No open leads</p>
             )}
           </CardContent>
         </Card>
