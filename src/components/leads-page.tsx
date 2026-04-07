@@ -486,6 +486,27 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const leadPageRows = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const oppPageRows = filteredOpps.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
+  // Build trend data for StatisticsTrendCards
+  const trendData = useMemo(() => {
+    const leadsMap = new Map(leadsChartData.map((d) => [d.period, d.total]))
+    const oppsMap = new Map(oppsChartData.map((d) => [d.period, d.total]))
+    const convMap = new Map(convChartData.map((d) => [d.period, d.total]))
+    const allPeriods = [...new Set([
+      ...leadsChartData.map((d) => d.period),
+      ...oppsChartData.map((d) => d.period),
+      ...convChartData.map((d) => d.period),
+    ])].sort()
+    return allPeriods.map((p) => ({
+      date: formatPeriodLabel(p, period),
+      leads: leadsMap.get(p) || 0,
+      opportunities: oppsMap.get(p) || 0,
+      conversions: convMap.get(p) || 0,
+    }))
+  }, [leadsChartData, oppsChartData, convChartData, period])
+
+  const periodLabel =
+    period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : period === "ttm" ? "TTM" : "Annual"
+
   // ── Loading ──
   if (loading) {
     return (
@@ -521,28 +542,6 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       </Card>
     )
   }
-
-  // Build trend data for StatisticsTrendCards
-  const trendData = useMemo(() => {
-    // Build a map of period -> { leads, opportunities, conversions }
-    const leadsMap = new Map(leadsChartData.map((d) => [d.period, d.total]))
-    const oppsMap = new Map(oppsChartData.map((d) => [d.period, d.total]))
-    const convMap = new Map(convChartData.map((d) => [d.period, d.total]))
-    const allPeriods = [...new Set([
-      ...leadsChartData.map((d) => d.period),
-      ...oppsChartData.map((d) => d.period),
-      ...convChartData.map((d) => d.period),
-    ])].sort()
-    return allPeriods.map((p) => ({
-      date: formatPeriodLabel(p, period),
-      leads: leadsMap.get(p) || 0,
-      opportunities: oppsMap.get(p) || 0,
-      conversions: convMap.get(p) || 0,
-    }))
-  }, [leadsChartData, oppsChartData, convChartData, period])
-
-  const periodLabel =
-    period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : period === "ttm" ? "TTM" : "Annual"
 
   return (
     <div className="space-y-6">
