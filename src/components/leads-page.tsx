@@ -9,8 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
 import StatisticsAreaCard from "@/components/shadcn-studio/blocks/statistics-area-card"
-import DonutBreakdownChart from "@/components/shadcn-studio/blocks/chart-budget-breakdown"
-import type { DonutSegment } from "@/components/shadcn-studio/blocks/chart-budget-breakdown"
+import { BarList } from "@/components/ui/bar-list"
 import { cn } from "@/lib/utils"
 import {
   Search,
@@ -506,9 +505,9 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     }))
   }, [leadsChartData, oppsChartData, convChartData, period])
 
-  const EXCLUDED_LEAD_STATUSES = new Set(["Junk", "Unknown"])
+  const EXCLUDED_LEAD_STATUSES = new Set(["Junk", "Unknown", "Junk Lead", "Closed Lost"])
 
-  const openLeadsSegments: DonutSegment[] = useMemo(() => {
+  const openLeadsData = useMemo(() => {
     const statusMap = new Map<string, number>()
     for (const l of leadRows) {
       const status = l.leadStatus || "Unknown"
@@ -516,8 +515,8 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       statusMap.set(status, (statusMap.get(status) || 0) + 1)
     }
     return Array.from(statusMap.entries())
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
   }, [leadRows])
 
   const periodLabel =
@@ -591,13 +590,24 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           data={leadsChartData}
           className="col-span-2"
         />
-        <DonutBreakdownChart
-          title="Open Leads"
-          segments={openLeadsSegments}
-          centerLabel="open leads"
-          colLabel="Status"
-          className="col-span-1"
-        />
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Open Leads</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {openLeadsData.length > 0 ? (
+              <BarList
+                data={openLeadsData}
+                valueFormatter={(v) => v.toLocaleString()}
+                barClassName="bg-chart-1"
+                barGap={6}
+                barHeight={30}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">No open leads</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
       <SourceStackedChart
         title="Opportunities by Source"
