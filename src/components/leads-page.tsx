@@ -730,18 +730,18 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
             )}
           </CardContent>
         </Card>
-        <Card className="col-span-1">
+        <Card className="col-span-1 flex flex-col">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2">
               Open Leads
               <InfoTooltip text="Active leads by status. Excludes Junk, Unknown, Junk Lead, and Closed Lost." />
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex flex-1 pt-4">
+          <CardContent className="flex flex-1 pt-4 pb-2">
             {openLeadsData.length > 0 ? (
               <ChartContainer
                 config={{ count: { label: "Leads", color: "var(--primary)" } } satisfies ChartConfig}
-                className="h-full w-full min-h-[200px]"
+                className="w-full flex-1"
               >
                 <BarChart
                   data={openLeadsData}
@@ -749,14 +749,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
                   margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
                 >
                   <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
-                  <XAxis
-                    type="number"
-                    dataKey="value"
-                    axisLine={false}
-                    tickLine={false}
-                    tickMargin={8}
-                    tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                  />
+                  <XAxis type="number" dataKey="value" hide />
                   <YAxis
                     dataKey="name"
                     type="category"
