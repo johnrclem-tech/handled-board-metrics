@@ -322,10 +322,14 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   // Reset page when period changes
   useEffect(() => setPage(1), [period])
 
-  // Combined items for "Leads" chart (leads + opportunities)
+  const EXCLUDED_STATUSES = new Set(["Junk", "Unknown"])
+
+  // Combined items for "Leads" chart (leads + opportunities), excluding Junk/Unknown leads
   const allItems = useMemo(
     () => [
-      ...leadRows.map((l) => ({ createdTime: l.createdTime, source: l.leadSource })),
+      ...leadRows
+        .filter((l) => !EXCLUDED_STATUSES.has(l.leadStatus || ""))
+        .map((l) => ({ createdTime: l.createdTime, source: l.leadSource })),
       ...oppRows.map((o) => ({ createdTime: o.createdTime, source: o.leadSource })),
     ],
     [leadRows, oppRows]
