@@ -335,6 +335,70 @@ function buildStackedData(
     .sort((a, b) => a.period.localeCompare(b.period))
 }
 
+type LeadsChartMode = "source" | "status"
+
+const STATUS_COLORS: string[] = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+]
+
+function buildStackedByStatus(
+  items: { createdTime: string | null; status: string }[],
+  period: LeadsPeriod,
+  allStatuses: string[],
+): StackedData[] {
+  const minPeriod = CHART_START[period]
+
+  if (period === "ttm") {
+    const monthMap = new Map<string, Map<string, number>>()
+    for (const item of items) {
+      const key = getMonth(item.createdTime)
+      if (!key) continue
+      if (!monthMap.has(key)) monthMap.set(key, new Map())
+      const statuses = monthMap.get(key)!
+      statuses.set(item.status, (statuses.get(item.status) || 0) + 1)
+    }
+    const allMonths = Array.from(monthMap.keys()).sort()
+    if (allMonths.length === 0) return []
+    const result: StackedData[] = []
+    for (const endMonth of allMonths) {
+      if (endMonth < minPeriod) continue
+      const [ey, em] = endMonth.split("-").map(Number)
+      const startDate = new Date(ey, em - 12, 1)
+      const startMonth = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}`
+      const windowMonths = getMonthRange(startMonth, endMonth)
+      const entry: StackedData = { period: endMonth, label: formatPeriodLabel(endMonth, period), total: 0 }
+      for (const s of allStatuses) {
+        let sum = 0
+        for (const m of windowMonths) sum += monthMap.get(m)?.get(s) || 0
+        entry[s] = sum
+        entry.total += sum
+      }
+      result.push(entry)
+    }
+    return result
+  }
+
+  const map = new Map<string, Map<string, number>>()
+  for (const item of items) {
+    const key = getPeriodKey(item.createdTime, period)
+    if (!key || key < minPeriod) continue
+    if (!map.has(key)) map.set(key, new Map())
+    const statuses = map.get(key)!
+    statuses.set(item.status, (statuses.get(item.status) || 0) + 1)
+  }
+  return Array.from(map.entries())
+    .map(([key, statuses]) => {
+      const entry: StackedData = { period: key, label: formatPeriodLabel(key, period), total: Array.from(statuses.values()).reduce((a, b) => a + b, 0) }
+      for (const s of allStatuses) entry[s] = statuses.get(s) || 0
+      return entry
+    })
+    .sort((a, b) => a.period.localeCompare(b.period))
+}
+
 // ── Component ──
 
 export function LeadsPage({ period }: { period: LeadsPeriod }) {
@@ -347,6 +411,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const [oppSortField, setOppSortField] = useState<OppSortField>("createdTime")
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [page, setPage] = useState(1)
+  const [leadsChartMode, setLeadsChartMode] = useState<LeadsChartMode>("source")
   const [filterSource, setFilterSource] = useState<Set<string>>(new Set())
   const [filterCampaign, setFilterCampaign] = useState<Set<string>>(new Set())
   const [filterStatus, setFilterStatus] = useState<Set<string>>(new Set())
@@ -398,6 +463,28 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const leadsChartData = useMemo(() => buildStackedData(allItems, period), [allItems, period])
   const oppsChartData = useMemo(() => buildStackedData(oppItems, period), [oppItems, period])
   const convChartData = useMemo(() => buildStackedData(conversionItems, period), [conversionItems, period])
+
+  // Status-based items for "By Status" view (leads + opps, excluding junk/unknown)
+  const allItemsWithStatus = useMemo(
+    () => [
+      ...leadRows
+        .filter((l) => !EXCLUDED_STATUSES.has(l.leadStatus || ""))
+        .map((l) => ({ createdTime: l.createdTime, status: l.leadStatus || "Unknown" })),
+      ...oppRows.map((o) => ({ createdTime: o.createdTime, status: o.stage || "Unknown" })),
+    ],
+    [leadRows, oppRows]
+  )
+
+  const allLeadStatuses = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of allItemsWithStatus) set.add(item.status)
+    return Array.from(set).sort()
+  }, [allItemsWithStatus])
+
+  const leadsByStatusData = useMemo(
+    () => buildStackedByStatus(allItemsWithStatus, period, allLeadStatuses),
+    [allItemsWithStatus, period, allLeadStatuses]
+  )
 
   // Sort + filter table
   const handleLeadSort = (field: LeadSortField) => {
@@ -587,12 +674,62 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
 
       {/* Charts */}
       <div className="grid gap-6 grid-cols-3">
-        <SourceStackedChart
-          title="Leads by Source"
-          tooltip="Leads + Opportunities per period, stacked by source."
-          data={leadsChartData}
-          className="col-span-2"
-        />
+        <Card className="col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Leads {leadsChartMode === "source" ? "by Source" : "by Status"}
+                <InfoTooltip text="Leads + Opportunities per period. Toggle between source and status grouping." />
+              </CardTitle>
+              <Tabs value={leadsChartMode} onValueChange={(v) => setLeadsChartMode(v as LeadsChartMode)}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="source" className="px-4">By Source</TabsTrigger>
+                  <TabsTrigger value="status" className="px-4">By Status</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {leadsChartMode === "source" ? (
+              leadsChartData.length === 0 ? (
+                <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+              ) : (
+                <ChartContainer config={CHART_CONFIG} className="aspect-auto h-[300px] w-full">
+                  <BarChart data={leadsChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+                    <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" filterZero />} />
+                    <Legend />
+                    {SOURCE_CATEGORIES.map((cat, i) => (
+                      <Bar key={cat} dataKey={cat} name={cat} stackId="a" fill={SOURCE_CATEGORY_COLORS[cat]} radius={i === SOURCE_CATEGORIES.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ChartContainer>
+              )
+            ) : (
+              leadsByStatusData.length === 0 ? (
+                <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+              ) : (
+                <ChartContainer
+                  config={Object.fromEntries(allLeadStatuses.map((s, i) => [s, { label: s, color: STATUS_COLORS[i % STATUS_COLORS.length] }])) satisfies ChartConfig}
+                  className="aspect-auto h-[300px] w-full"
+                >
+                  <BarChart data={leadsByStatusData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+                    <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" filterZero />} />
+                    <Legend />
+                    {allLeadStatuses.map((s, i) => (
+                      <Bar key={s} dataKey={s} name={s} stackId="a" fill={STATUS_COLORS[i % STATUS_COLORS.length]} radius={i === allLeadStatuses.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    ))}
+                  </BarChart>
+                </ChartContainer>
+              )
+            )}
+          </CardContent>
+        </Card>
         <Card className="col-span-1">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2">
