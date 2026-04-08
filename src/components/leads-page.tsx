@@ -570,6 +570,51 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     return { won, lost, total: won + lost }
   }, [oppRows, winRateRange])
 
+  // Lead Conversion Rate by source category
+  const [convRateMode, setConvRateMode] = useState<"opportunities" | "conversions">("opportunities")
+
+  const convRateData = useMemo(() => {
+    // Count leads per source category (excluding junk/unknown)
+    const leadsBySource = new Map<string, number>()
+    for (const l of leadRows) {
+      if (EXCLUDED_STATUSES.has(l.leadStatus || "")) continue
+      const cat = categorizeSource(l.leadSource)
+      leadsBySource.set(cat, (leadsBySource.get(cat) || 0) + 1)
+    }
+    // Also add opportunities to the lead count (total leads = leads + opps)
+    for (const o of oppRows) {
+      const cat = categorizeSource(o.leadSource)
+      leadsBySource.set(cat, (leadsBySource.get(cat) || 0) + 1)
+    }
+
+    // Count opportunities per source category
+    const oppsBySource = new Map<string, number>()
+    for (const o of oppRows) {
+      const cat = categorizeSource(o.leadSource)
+      oppsBySource.set(cat, (oppsBySource.get(cat) || 0) + 1)
+    }
+
+    // Count conversions (Closed Won) per source category
+    const convBySource = new Map<string, number>()
+    for (const o of oppRows) {
+      if (o.stage !== "Closed Won") continue
+      const cat = categorizeSource(o.leadSource)
+      convBySource.set(cat, (convBySource.get(cat) || 0) + 1)
+    }
+
+    return SOURCE_CATEGORIES
+      .map((cat) => {
+        const totalLeads = leadsBySource.get(cat) || 0
+        const opps = oppsBySource.get(cat) || 0
+        const conv = convBySource.get(cat) || 0
+        const oppRate = totalLeads > 0 ? Math.round((opps / totalLeads) * 100) : 0
+        const convRate = totalLeads > 0 ? Math.round((conv / totalLeads) * 100) : 0
+        return { name: cat, value: convRateMode === "opportunities" ? oppRate : convRate }
+      })
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+  }, [leadRows, oppRows, convRateMode])
+
   // Sort + filter table
   const handleLeadSort = (field: LeadSortField) => {
     if (leadSortField === field) {
@@ -952,15 +997,73 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           />
         </div>
       </div>
-      <ToggleableStackedChart
-        titleBase="Conversions"
-        tooltip="Closed Won opportunities per period. By Status shows the lead source detail."
-        sourceData={convChartData}
-        statusData={convByStatusData}
-        statuses={convStatuses}
-        mode={convChartMode}
-        onModeChange={setConvChartMode}
-      />
+      <div className="grid gap-6 grid-cols-3">
+        <div className="col-span-2">
+          <ToggleableStackedChart
+            titleBase="Conversions"
+            tooltip="Closed Won opportunities per period. By Status shows the lead source detail."
+            sourceData={convChartData}
+            statusData={convByStatusData}
+            statuses={convStatuses}
+            mode={convChartMode}
+            onModeChange={setConvChartMode}
+          />
+        </div>
+        <Card className="col-span-1 flex flex-col">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Lead Conversion Rate
+                <InfoTooltip text="Percentage of leads per source that became opportunities or converted (Closed Won). Total leads = leads + opportunities." />
+              </CardTitle>
+              <Tabs value={convRateMode} onValueChange={(v) => setConvRateMode(v as "opportunities" | "conversions")}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="opportunities" className="px-3">Opps</TabsTrigger>
+                  <TabsTrigger value="conversions" className="px-3">Won</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-1 pt-4 pb-2">
+            {convRateData.length > 0 ? (
+              <ChartContainer
+                config={{ rate: { label: convRateMode === "opportunities" ? "Opp Rate" : "Win Rate", color: "var(--primary)" } } satisfies ChartConfig}
+                className="w-full flex-1"
+              >
+                <BarChart
+                  data={convRateData}
+                  layout="vertical"
+                  margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
+                  <XAxis type="number" dataKey="value" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    tickLine={false}
+                    tickMargin={8}
+                    axisLine={false}
+                    width={100}
+                    tick={{ fontSize: 13 }}
+                  />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel formatter={(v) => `${v}%`} />} />
+                  <Bar dataKey="value" name={convRateMode === "opportunities" ? "Opp Rate" : "Win Rate"} fill="var(--primary)" radius={6}>
+                    <LabelList
+                      dataKey="value"
+                      offset={8}
+                      position="right"
+                      className="fill-foreground text-xs"
+                      formatter={(v) => `${v}%`}
+                    />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No conversion data</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Data Table */}
       <Card>
