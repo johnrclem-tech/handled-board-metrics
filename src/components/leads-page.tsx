@@ -341,6 +341,7 @@ function buildStackedData(
 }
 
 type LeadsChartMode = "source" | "status"
+type OppsChartMode = "source" | "status" | "converted"
 
 const STATUS_COLORS: string[] = [
   "var(--chart-1)",
@@ -417,7 +418,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [page, setPage] = useState(1)
   const [leadsChartMode, setLeadsChartMode] = useState<LeadsChartMode>("source")
-  const [oppsChartMode, setOppsChartMode] = useState<LeadsChartMode>("source")
+  const [oppsChartMode, setOppsChartMode] = useState<OppsChartMode>("source")
   const [filterSource, setFilterSource] = useState<Set<string>>(new Set())
   const [filterCampaign, setFilterCampaign] = useState<Set<string>>(new Set())
   const [filterStatus, setFilterStatus] = useState<Set<string>>(new Set())
@@ -515,6 +516,31 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     [oppItemsWithStatus, period, oppStatuses]
   )
 
+  // Conversion rate per period: opps / total leads * 100
+  const oppsConvertedData = useMemo(() => {
+    const leadsPerPeriod = new Map<string, number>()
+    const oppsPerPeriod = new Map<string, number>()
+    const minPeriod = CHART_START[period]
+
+    for (const item of allItems) {
+      const key = getPeriodKey(item.createdTime, period)
+      if (!key || key < minPeriod) continue
+      leadsPerPeriod.set(key, (leadsPerPeriod.get(key) || 0) + 1)
+    }
+    for (const o of oppRows) {
+      const key = getPeriodKey(o.createdTime, period)
+      if (!key || key < minPeriod) continue
+      oppsPerPeriod.set(key, (oppsPerPeriod.get(key) || 0) + 1)
+    }
+
+    const allPeriodKeys = [...new Set([...leadsPerPeriod.keys(), ...oppsPerPeriod.keys()])].sort()
+    return allPeriodKeys.map((key) => {
+      const totalLeads = leadsPerPeriod.get(key) || 0
+      const opps = oppsPerPeriod.get(key) || 0
+      const rate = totalLeads > 0 ? Math.round((opps / totalLeads) * 100) : 0
+      return { period: key, label: formatPeriodLabel(key, period), rate }
+    })
+  }, [allItems, oppRows, period])
 
   // Win Rate data — Closed Won vs Closed Lost
   const [winRateRange, setWinRateRange] = useState<"all" | "quarter" | "ttm">("all")
@@ -880,7 +906,140 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
         </Card>
       </div>
       <div className="grid gap-6 grid-cols-3">
-        {/* Win Rate Card */}
+        {/* Lead Conversion Rate */}
+        <Card className="col-span-1 flex flex-col">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Lead Conversion Rate
+                <InfoTooltip text="Percentage of leads per source that became opportunities or converted (Closed Won). Total leads = leads + opportunities." />
+              </CardTitle>
+              <Tabs value={convRateMode} onValueChange={(v) => setConvRateMode(v as "opportunities" | "conversions")}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="opportunities" className="px-3">Opps</TabsTrigger>
+                  <TabsTrigger value="conversions" className="px-3">Won</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-1 pt-4 pb-2">
+            {convRateData.length > 0 ? (
+              <ChartContainer
+                config={{ rate: { label: convRateMode === "opportunities" ? "Opp Rate" : "Win Rate", color: "var(--primary)" } } satisfies ChartConfig}
+                className="w-full flex-1"
+              >
+                <BarChart
+                  data={convRateData}
+                  layout="vertical"
+                  margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
+                  <XAxis type="number" dataKey="value" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    tickLine={false}
+                    tickMargin={8}
+                    axisLine={false}
+                    width={100}
+                    tick={{ fontSize: 13 }}
+                  />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel formatter={(v) => `${v}%`} />} />
+                  <Bar dataKey="value" name={convRateMode === "opportunities" ? "Opp Rate" : "Win Rate"} fill="var(--primary)" radius={6}>
+                    <LabelList
+                      dataKey="value"
+                      offset={8}
+                      position="right"
+                      className="fill-foreground text-xs"
+                      formatter={(v) => `${v}%`}
+                    />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No conversion data</p>
+            )}
+          </CardContent>
+        </Card>
+        {/* Opportunities Chart with Converted toggle */}
+        <div className="col-span-2">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  {oppsChartMode === "converted" ? "Opportunity Conversion Rate" : `Opportunities Created ${oppsChartMode === "source" ? "by Source" : "by Status"}`}
+                  <InfoTooltip text="Opportunities per period. Converted shows the % of leads that became opportunities each period." />
+                </CardTitle>
+                <Tabs value={oppsChartMode} onValueChange={(v) => setOppsChartMode(v as OppsChartMode)}>
+                  <TabsList className="bg-muted h-9">
+                    <TabsTrigger value="source" className="px-4">By Source</TabsTrigger>
+                    <TabsTrigger value="status" className="px-4">By Status</TabsTrigger>
+                    <TabsTrigger value="converted" className="px-4">Converted</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {oppsChartMode === "converted" ? (
+                oppsConvertedData.length === 0 ? (
+                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+                ) : (
+                  <ChartContainer config={{ rate: { label: "Conversion %", color: "var(--primary)" } } satisfies ChartConfig} className="aspect-auto h-[300px] w-full">
+                    <BarChart data={oppsConvertedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+                      <YAxis tickLine={false} axisLine={false} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" formatter={(v) => `${v}%`} />} />
+                      <Bar dataKey="rate" name="Conversion %" fill="var(--primary)" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="rate" position="top" className="fill-foreground text-xs" formatter={(v) => `${v}%`} />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                )
+              ) : oppsChartMode === "source" ? (
+                oppsChartData.length === 0 ? (
+                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+                ) : (
+                  <ChartContainer config={CHART_CONFIG} className="aspect-auto h-[300px] w-full">
+                    <BarChart data={oppsChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+                      <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" filterZero />} />
+                      <Legend />
+                      {SOURCE_CATEGORIES.map((cat, i) => (
+                        <Bar key={cat} dataKey={cat} name={cat} stackId="a" fill={SOURCE_CATEGORY_COLORS[cat]} radius={i === SOURCE_CATEGORIES.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                      ))}
+                    </BarChart>
+                  </ChartContainer>
+                )
+              ) : (
+                oppsByStatusData.length === 0 ? (
+                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+                ) : (
+                  <ChartContainer
+                    config={Object.fromEntries(oppStatuses.map((s, i) => [s, { label: s, color: STATUS_COLORS[i % STATUS_COLORS.length] }])) satisfies ChartConfig}
+                    className="aspect-auto h-[300px] w-full"
+                  >
+                    <BarChart data={oppsByStatusData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+                      <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" filterZero />} />
+                      <Legend />
+                      {oppStatuses.map((s, i) => (
+                        <Bar key={s} dataKey={s} name={s} stackId="a" fill={STATUS_COLORS[i % STATUS_COLORS.length]} radius={i === oppStatuses.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                      ))}
+                    </BarChart>
+                  </ChartContainer>
+                )
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      <div className="grid gap-6 grid-cols-3">
+        {/* Opportunity Win Rate */}
         <Card className="col-span-1 flex flex-col">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -944,73 +1103,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
             )}
           </CardContent>
         </Card>
-        {/* Opportunities Chart */}
-        <div className="col-span-2">
-          <ToggleableStackedChart
-            titleBase="Opportunities Created"
-            tooltip="Opportunities per period. By Status excludes Closed Won, Unknown, Junk Lead, and Closed Lost."
-            sourceData={oppsChartData}
-            statusData={oppsByStatusData}
-            statuses={oppStatuses}
-            mode={oppsChartMode}
-            onModeChange={setOppsChartMode}
-          />
-        </div>
       </div>
-      <Card>
-        <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                Lead Conversion Rate
-                <InfoTooltip text="Percentage of leads per source that became opportunities or converted (Closed Won). Total leads = leads + opportunities." />
-              </CardTitle>
-              <Tabs value={convRateMode} onValueChange={(v) => setConvRateMode(v as "opportunities" | "conversions")}>
-                <TabsList className="bg-muted h-9">
-                  <TabsTrigger value="opportunities" className="px-3">Opps</TabsTrigger>
-                  <TabsTrigger value="conversions" className="px-3">Won</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-1 pt-4 pb-2">
-            {convRateData.length > 0 ? (
-              <ChartContainer
-                config={{ rate: { label: convRateMode === "opportunities" ? "Opp Rate" : "Win Rate", color: "var(--primary)" } } satisfies ChartConfig}
-                className="w-full flex-1"
-              >
-                <BarChart
-                  data={convRateData}
-                  layout="vertical"
-                  margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
-                >
-                  <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
-                  <XAxis type="number" dataKey="value" hide />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    tickLine={false}
-                    tickMargin={8}
-                    axisLine={false}
-                    width={100}
-                    tick={{ fontSize: 13 }}
-                  />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel formatter={(v) => `${v}%`} />} />
-                  <Bar dataKey="value" name={convRateMode === "opportunities" ? "Opp Rate" : "Win Rate"} fill="var(--primary)" radius={6}>
-                    <LabelList
-                      dataKey="value"
-                      offset={8}
-                      position="right"
-                      className="fill-foreground text-xs"
-                      formatter={(v) => `${v}%`}
-                    />
-                  </Bar>
-                </BarChart>
-              </ChartContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground py-4">No conversion data</p>
-            )}
-          </CardContent>
-      </Card>
 
       {/* Data Table */}
       <Card>
@@ -1237,77 +1330,3 @@ function SourceStackedChart({
   )
 }
 
-function ToggleableStackedChart({
-  titleBase,
-  tooltip,
-  sourceData,
-  statusData,
-  statuses,
-  mode,
-  onModeChange,
-}: {
-  titleBase: string
-  tooltip: string
-  sourceData: StackedData[]
-  statusData: StackedData[]
-  statuses: string[]
-  mode: LeadsChartMode
-  onModeChange: (mode: LeadsChartMode) => void
-}) {
-  const data = mode === "source" ? sourceData : statusData
-  const statusConfig = Object.fromEntries(
-    statuses.map((s, i) => [s, { label: s, color: STATUS_COLORS[i % STATUS_COLORS.length] }])
-  ) satisfies ChartConfig
-
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            {titleBase} {mode === "source" ? "by Source" : "by Status"}
-            <InfoTooltip text={tooltip} />
-          </CardTitle>
-          <Tabs value={mode} onValueChange={(v) => onModeChange(v as LeadsChartMode)}>
-            <TabsList className="bg-muted h-9">
-              <TabsTrigger value="source" className="px-4">By Source</TabsTrigger>
-              <TabsTrigger value="status" className="px-4">By Status</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {data.length === 0 ? (
-          <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
-            No data for this period
-          </div>
-        ) : mode === "source" ? (
-          <ChartContainer config={CHART_CONFIG} className="aspect-auto h-[300px] w-full">
-            <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="5 4" vertical={false} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
-              <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" filterZero />} />
-              <Legend />
-              {SOURCE_CATEGORIES.map((cat, i) => (
-                <Bar key={cat} dataKey={cat} name={cat} stackId="a" fill={SOURCE_CATEGORY_COLORS[cat]} radius={i === SOURCE_CATEGORIES.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-              ))}
-            </BarChart>
-          </ChartContainer>
-        ) : (
-          <ChartContainer config={statusConfig} className="aspect-auto h-[300px] w-full">
-            <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="5 4" vertical={false} />
-              <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
-              <YAxis tickLine={false} axisLine={false} className="text-xs" allowDecimals={false} />
-              <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" filterZero />} />
-              <Legend />
-              {statuses.map((s, i) => (
-                <Bar key={s} dataKey={s} name={s} stackId="a" fill={STATUS_COLORS[i % STATUS_COLORS.length]} radius={i === statuses.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-              ))}
-            </BarChart>
-          </ChartContainer>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
