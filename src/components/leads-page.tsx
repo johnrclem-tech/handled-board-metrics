@@ -7,13 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { InfoTooltip } from "@/components/info-tooltip"
 import StatisticsTrendCard from "@/components/shadcn-studio/blocks/statistics-trend-card"
 import { cn } from "@/lib/utils"
@@ -26,7 +19,7 @@ import {
   ChevronRight,
   Check,
   ChevronsUpDown,
-  EllipsisVertical,
+
   Package,
 } from "lucide-react"
 import {
@@ -914,27 +907,13 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
                 Opportunity Win Rate
                 <InfoTooltip text="Ratio of Closed Won to total closed opportunities (Closed Won + Closed Lost)." />
               </CardTitle>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="text-muted-foreground size-6 rounded-full">
-                    <EllipsisVertical />
-                    <span className="sr-only">Time range</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuGroup>
-                    {([["all", "All Time"], ["quarter", "Last Quarter"], ["ttm", "TTM"]] as const).map(([value, label]) => (
-                      <DropdownMenuItem
-                        key={value}
-                        onClick={() => setWinRateRange(value)}
-                        className={winRateRange === value ? "font-semibold" : ""}
-                      >
-                        {label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Tabs value={winRateRange} onValueChange={(v) => setWinRateRange(v as "all" | "quarter" | "ttm")}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="all" className="px-3">All</TabsTrigger>
+                  <TabsTrigger value="quarter" className="px-3">Last Qtr</TabsTrigger>
+                  <TabsTrigger value="ttm" className="px-3">TTM</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
           </CardHeader>
           <CardContent className="flex flex-1 items-center justify-center">
