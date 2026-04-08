@@ -418,7 +418,6 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const [page, setPage] = useState(1)
   const [leadsChartMode, setLeadsChartMode] = useState<LeadsChartMode>("source")
   const [oppsChartMode, setOppsChartMode] = useState<LeadsChartMode>("source")
-  const [convChartMode, setConvChartMode] = useState<LeadsChartMode>("source")
   const [filterSource, setFilterSource] = useState<Set<string>>(new Set())
   const [filterCampaign, setFilterCampaign] = useState<Set<string>>(new Set())
   const [filterStatus, setFilterStatus] = useState<Set<string>>(new Set())
@@ -516,24 +515,6 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     [oppItemsWithStatus, period, oppStatuses]
   )
 
-  // Conversions by status — Closed Won only, so status view uses lead source detail instead
-  const convItemsWithStatus = useMemo(
-    () => oppRows
-      .filter((o) => o.stage === "Closed Won")
-      .map((o) => ({ createdTime: o.createdTime, status: o.leadSourceDetail || o.leadSource })),
-    [oppRows]
-  )
-
-  const convStatuses = useMemo(() => {
-    const set = new Set<string>()
-    for (const item of convItemsWithStatus) set.add(item.status)
-    return Array.from(set).sort()
-  }, [convItemsWithStatus])
-
-  const convByStatusData = useMemo(
-    () => buildStackedByStatus(convItemsWithStatus, period, convStatuses),
-    [convItemsWithStatus, period, convStatuses]
-  )
 
   // Win Rate data — Closed Won vs Closed Lost
   const [winRateRange, setWinRateRange] = useState<"all" | "quarter" | "ttm">("all")
@@ -772,21 +753,21 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <StatisticsTrendCard
-          title={`${periodLabel} Leads`}
+          title={`${periodLabel} Leads Created`}
           data={trendData}
           dateKey="date"
           dataKey="leads"
           format="compact"
         />
         <StatisticsTrendCard
-          title={`${periodLabel} Opportunities`}
+          title={`${periodLabel} Opportunities Created`}
           data={trendData}
           dateKey="date"
           dataKey="opportunities"
           format="compact"
         />
         <StatisticsTrendCard
-          title={`${periodLabel} Conversions`}
+          title={`${periodLabel} Conversions Created`}
           data={trendData}
           dateKey="date"
           dataKey="conversions"
@@ -800,7 +781,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                Leads {leadsChartMode === "source" ? "by Source" : "by Status"}
+                Leads Created {leadsChartMode === "source" ? "by Source" : "by Status"}
                 <InfoTooltip text="Leads + Opportunities per period. By Source excludes Junk and Unknown leads. By Status also excludes Closed Won, Junk Lead, and Closed Lost." />
               </CardTitle>
               <Tabs value={leadsChartMode} onValueChange={(v) => setLeadsChartMode(v as LeadsChartMode)}>
@@ -966,7 +947,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
         {/* Opportunities Chart */}
         <div className="col-span-2">
           <ToggleableStackedChart
-            titleBase="Opportunities"
+            titleBase="Opportunities Created"
             tooltip="Opportunities per period. By Status excludes Closed Won, Unknown, Junk Lead, and Closed Lost."
             sourceData={oppsChartData}
             statusData={oppsByStatusData}
@@ -976,20 +957,8 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           />
         </div>
       </div>
-      <div className="grid gap-6 grid-cols-3">
-        <div className="col-span-2">
-          <ToggleableStackedChart
-            titleBase="Conversions"
-            tooltip="Closed Won opportunities per period. By Status shows the lead source detail."
-            sourceData={convChartData}
-            statusData={convByStatusData}
-            statuses={convStatuses}
-            mode={convChartMode}
-            onModeChange={setConvChartMode}
-          />
-        </div>
-        <Card className="col-span-1 flex flex-col">
-          <CardHeader>
+      <Card>
+        <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 Lead Conversion Rate
@@ -1041,8 +1010,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
               <p className="text-sm text-muted-foreground py-4">No conversion data</p>
             )}
           </CardContent>
-        </Card>
-      </div>
+      </Card>
 
       {/* Data Table */}
       <Card>
