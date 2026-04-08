@@ -35,17 +35,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ months: [], quarterly: [], ttm: [], annualNrr: [], summary: null })
     }
 
-    // Build per-customer per-period totals
+    // Build per-customer per-period totals and track categories per customer
     const customerPeriodTotals = new Map<string, Map<string, number>>()
+    const customerCategories = new Map<string, Set<string>>()
     const allPeriods = new Set<string>()
 
     for (const row of rows) {
       if (!customerPeriodTotals.has(row.accountName)) {
         customerPeriodTotals.set(row.accountName, new Map())
+        customerCategories.set(row.accountName, new Set())
       }
       const periodMap = customerPeriodTotals.get(row.accountName)!
-      periodMap.set(row.period, (periodMap.get(row.period) || 0) + parseFloat(row.amount))
+      const amount = parseFloat(row.amount)
+      periodMap.set(row.period, (periodMap.get(row.period) || 0) + amount)
+      if (amount > 0) {
+        customerCategories.get(row.accountName)!.add(row.category)
+      }
       allPeriods.add(row.period)
+    }
+
+    // Exclude customers whose only lifetime revenue is Shipping Revenue
+    const shippingOnlyCustomers = new Set<string>()
+    for (const [customer, cats] of customerCategories) {
+      if (cats.size === 1 && cats.has("Shipping Revenue")) {
+        shippingOnlyCustomers.add(customer)
+        customerPeriodTotals.delete(customer)
+      }
     }
 
     // Identify pre-existing customers (revenue > 0 in Sep 2024)
@@ -57,9 +72,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filter by segment
+    // Filter by segment (shipping-only customers already removed above)
     const filteredCustomers = new Set<string>()
     for (const customer of customerPeriodTotals.keys()) {
+      if (shippingOnlyCustomers.has(customer)) continue
       if (segment === "new" && existingCustomers.has(customer)) continue
       if (segment === "existing" && !existingCustomers.has(customer)) continue
       filteredCustomers.add(customer)
