@@ -78,6 +78,30 @@ export async function GET(request: NextRequest) {
       return active
     }
 
+    // ── Determine churned customers ──
+    // A customer is churned ONLY if:
+    //   1. They had revenue in at least one period
+    //   2. They have $0 revenue in the MOST RECENT period
+    // Each customer can only churn once.
+    // Churn month = the most recent period (not when they first disappeared).
+
+    const mostRecentPeriod = sortedPeriods[sortedPeriods.length - 1]
+    const mostRecentActive = getActiveCustomers(mostRecentPeriod)
+
+    // Build the set of customers who are truly churned (had revenue before, $0 in most recent)
+    const trueChurnedSet = new Set<string>()
+    for (const customer of filteredCustomers) {
+      const periodMap = customerPeriodTotals.get(customer)!
+      // Check if they ever had revenue
+      let everHadRevenue = false
+      for (const p of sortedPeriods) {
+        if ((periodMap.get(p) || 0) > 0) { everHadRevenue = true; break }
+      }
+      if (everHadRevenue && !mostRecentActive.has(customer)) {
+        trueChurnedSet.add(customer)
+      }
+    }
+
     // For each month, determine active and churned customers
     const months: {
       period: string
@@ -101,17 +125,21 @@ export async function GET(request: NextRequest) {
       const churnedCustomers: { name: string; lastRevenue: number; revenueSharePct: number }[] = []
       const totalPrevRevenue = [...prevActive.values()].reduce((s, v) => s + v, 0)
 
-      for (const [customer, prevRev] of prevActive) {
-        if (!currActive.has(customer)) {
-          churnedCount++
-          lostRevenue += prevRev
-          churnedCustomers.push({
-            name: customer,
-            lastRevenue: round2(prevRev),
-            revenueSharePct: totalPrevRevenue > 0 ? roundPct(prevRev / totalPrevRevenue) : 0,
-          })
+      if (period === mostRecentPeriod) {
+        // Only count churn in the most recent period, and only for truly churned customers
+        for (const [customer, prevRev] of prevActive) {
+          if (trueChurnedSet.has(customer) && !currActive.has(customer)) {
+            churnedCount++
+            lostRevenue += prevRev
+            churnedCustomers.push({
+              name: customer,
+              lastRevenue: round2(prevRev),
+              revenueSharePct: totalPrevRevenue > 0 ? roundPct(prevRev / totalPrevRevenue) : 0,
+            })
+          }
         }
       }
+      // Non-most-recent periods: churnedCount stays 0 (customers only churn once, in the most recent period)
 
       churnedCustomers.sort((a, b) => b.lastRevenue - a.lastRevenue)
 
@@ -188,7 +216,8 @@ export async function GET(request: NextRequest) {
       const qChurnedCustomers: { name: string; startRevenue: number; revenueSharePct: number }[] = []
 
       for (const [customer, startRev] of startingCohort) {
-        if (!endCohort.has(customer)) {
+        // Only count as churned if they are truly churned (no revenue in most recent period)
+        if (!endCohort.has(customer) && trueChurnedSet.has(customer)) {
           totalChurned++
           cohortLostRevenue += startRev
           qChurnedCustomers.push({
@@ -241,7 +270,8 @@ export async function GET(request: NextRequest) {
       const ttmChurnedCustomers: { name: string; startRevenue: number; revenueSharePct: number }[] = []
 
       for (const [customer, startRev] of startingCohort) {
-        if (!endCohort.has(customer)) {
+        // Only count as churned if they are truly churned (no revenue in most recent period)
+        if (!endCohort.has(customer) && trueChurnedSet.has(customer)) {
           totalChurned++
           cohortLostRevenue += startRev
           ttmChurnedCustomers.push({
