@@ -29,6 +29,10 @@ import {
   CartesianGrid,
   LabelList,
   Legend,
+  PieChart,
+  Pie,
+  Cell,
+  Label as ChartLabel,
 } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
@@ -530,6 +534,34 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
     [convItemsWithStatus, period, convStatuses]
   )
 
+  // Win Rate data — Closed Won vs Closed Lost
+  const [winRateRange, setWinRateRange] = useState<"all" | "quarter" | "ttm">("all")
+
+  const winRateSegments = useMemo(() => {
+    const now = new Date()
+    let filtered = oppRows.filter((o) => o.stage === "Closed Won" || o.stage === "Closed Lost")
+
+    if (winRateRange === "quarter") {
+      const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3 - 3, 1)
+      const qEnd = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 0)
+      filtered = filtered.filter((o) => {
+        if (!o.createdTime) return false
+        const d = new Date(o.createdTime)
+        return d >= qStart && d <= qEnd
+      })
+    } else if (winRateRange === "ttm") {
+      const ttmStart = new Date(now.getFullYear(), now.getMonth() - 12, 1)
+      filtered = filtered.filter((o) => {
+        if (!o.createdTime) return false
+        return new Date(o.createdTime) >= ttmStart
+      })
+    }
+
+    const won = filtered.filter((o) => o.stage === "Closed Won").length
+    const lost = filtered.filter((o) => o.stage === "Closed Lost").length
+    return { won, lost, total: won + lost }
+  }, [oppRows, winRateRange])
+
   // Sort + filter table
   const handleLeadSort = (field: LeadSortField) => {
     if (leadSortField === field) {
@@ -820,15 +852,110 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           </CardContent>
         </Card>
       </div>
-      <ToggleableStackedChart
-        titleBase="Opportunities"
-        tooltip="Opportunities per period. By Status excludes Closed Won, Unknown, Junk Lead, and Closed Lost."
-        sourceData={oppsChartData}
-        statusData={oppsByStatusData}
-        statuses={oppStatuses}
-        mode={oppsChartMode}
-        onModeChange={setOppsChartMode}
-      />
+      <div className="grid gap-6 grid-cols-3">
+        {/* Win Rate Card */}
+        <Card className="col-span-1 flex flex-col">
+          <CardHeader className="border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Win Rate
+                <InfoTooltip text="Ratio of Closed Won to total closed opportunities (Closed Won + Closed Lost)." />
+              </CardTitle>
+            </div>
+            <Tabs value={winRateRange} onValueChange={(v) => setWinRateRange(v as "all" | "quarter" | "ttm")}>
+              <TabsList className="bg-muted h-8 w-full">
+                <TabsTrigger value="all" className="px-3 text-xs">All</TabsTrigger>
+                <TabsTrigger value="quarter" className="px-3 text-xs">Last Quarter</TabsTrigger>
+                <TabsTrigger value="ttm" className="px-3 text-xs">TTM</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col items-center pt-4">
+            {winRateSegments.total > 0 ? (
+              <>
+                <ChartContainer
+                  config={{ won: { label: "Won" }, lost: { label: "Lost" } } satisfies ChartConfig}
+                  className="h-40 w-40"
+                >
+                  <PieChart margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                    <Pie
+                      data={[
+                        { name: "Closed Won", value: winRateSegments.won },
+                        { name: "Closed Lost", value: winRateSegments.lost },
+                      ]}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={56}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      strokeWidth={0}
+                    >
+                      <Cell fill="var(--chart-5)" />
+                      <Cell fill="var(--chart-1)" />
+                      <ChartLabel
+                        content={({ viewBox }) => {
+                          if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                            const rate = winRateSegments.total > 0 ? ((winRateSegments.won / winRateSegments.total) * 100).toFixed(1) : "0"
+                            return (
+                              <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="auto">
+                                <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-2xl font-semibold">
+                                  {rate}%
+                                </tspan>
+                                <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 20} className="fill-muted-foreground text-sm">
+                                  Win Rate
+                                </tspan>
+                              </text>
+                            )
+                          }
+                        }}
+                      />
+                    </Pie>
+                  </PieChart>
+                </ChartContainer>
+                <div className="grid gap-3 w-full mt-2">
+                  {[
+                    { name: "Closed Won", count: winRateSegments.won, color: "var(--chart-5)" },
+                    { name: "Closed Lost", count: winRateSegments.lost, color: "var(--chart-1)" },
+                  ].map((item) => {
+                    const share = winRateSegments.total > 0 ? ((item.count / winRateSegments.total) * 100).toFixed(1) : "0"
+                    return (
+                      <Card key={item.name} className="w-full py-3 shadow-none transition-all duration-300 ease-out hover:shadow-md">
+                        <CardContent className="flex items-center justify-between gap-6 px-4">
+                          <div className="flex items-center gap-2.5">
+                            <div className="size-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                            <span className="font-semibold text-sm">{item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold tabular-nums text-sm">{item.count}</span>
+                            <Badge variant="secondary" className="text-muted-foreground rounded-md font-semibold tabular-nums">
+                              {share}%
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground py-8">No closed opportunities</p>
+            )}
+          </CardContent>
+        </Card>
+        {/* Opportunities Chart */}
+        <div className="col-span-2">
+          <ToggleableStackedChart
+            titleBase="Opportunities"
+            tooltip="Opportunities per period. By Status excludes Closed Won, Unknown, Junk Lead, and Closed Lost."
+            sourceData={oppsChartData}
+            statusData={oppsByStatusData}
+            statuses={oppStatuses}
+            mode={oppsChartMode}
+            onModeChange={setOppsChartMode}
+          />
+        </div>
+      </div>
       <ToggleableStackedChart
         titleBase="Conversions"
         tooltip="Closed Won opportunities per period. By Status shows the lead source detail."
