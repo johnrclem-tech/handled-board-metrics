@@ -133,8 +133,9 @@ type TableView = "raw" | "ltv"
 
 interface LtvRow {
   customer: string
+  firstMonth: string | null // calendar month (YYYY-MM) of first revenue
   total: number
-  billingMonths: Map<number, number | null> // billing month number (1-based) -> revenue, null = not yet reached
+  billingMonths: Map<number, number | null>
   isAverage?: boolean
 }
 
@@ -432,7 +433,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         }
       }
 
-      rows.push({ customer, total, billingMonths })
+      rows.push({ customer, firstMonth: firstPeriod, total, billingMonths })
     }
 
     // Sort
@@ -458,7 +459,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       avgBillingMonths.set(bm, avg)
       avgTotal += avg
     }
-    const averageRow: LtvRow = { customer: "Average", total: avgTotal, billingMonths: avgBillingMonths, isAverage: true }
+    const averageRow: LtvRow = { customer: "Average", firstMonth: null, total: avgTotal, billingMonths: avgBillingMonths, isAverage: true }
 
     return { ltvRows: rows, ltvMaxMonth: maxMonth, ltvAverageRow: averageRow }
   }, [data, search, sortField, sortDir])
@@ -640,6 +641,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                       <TableHead className="sticky left-0 bg-background z-10 min-w-[200px] cursor-pointer select-none" onClick={() => handleSort("accountName")}>
                         <span className="flex items-center">Customer<SortIcon field="accountName" /></span>
                       </TableHead>
+                      <TableHead className="text-center min-w-[90px]">First Month</TableHead>
                       <TableHead className="text-right min-w-[100px] cursor-pointer select-none" onClick={() => handleSort("amount")}>
                         <span className="flex items-center justify-end">Total<SortIcon field="amount" /></span>
                       </TableHead>
@@ -654,6 +656,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                     {/* Average row */}
                     <TableRow className="bg-muted/30 font-semibold border-b-2">
                       <TableCell className="sticky left-0 bg-muted/30 z-10 font-semibold">Average</TableCell>
+                      <TableCell className="text-center text-muted-foreground">—</TableCell>
                       <TableCell className="text-right font-mono font-semibold">
                         {formatCurrency(String(ltvAverageRow.total))}
                       </TableCell>
@@ -670,6 +673,12 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                     {ltvPaginated.map((row) => (
                       <TableRow key={row.customer}>
                         <TableCell className="sticky left-0 bg-background z-10 font-medium">{row.customer}</TableCell>
+                        <TableCell className="text-center whitespace-nowrap text-sm">
+                          {row.firstMonth ? (() => {
+                            const [y, m] = row.firstMonth.split("-")
+                            return new Date(Number(y), Number(m) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" })
+                          })() : "—"}
+                        </TableCell>
                         <TableCell className="text-right font-mono font-semibold">
                           {formatCurrency(String(row.total))}
                         </TableCell>
@@ -685,7 +694,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                     ))}
                     {ltvPaginated.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={2 + ltvMonthNumbers.length} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={3 + ltvMonthNumbers.length} className="text-center py-8 text-muted-foreground">
                           {search ? "No matching customers found" : "No data for selected filters"}
                         </TableCell>
                       </TableRow>
