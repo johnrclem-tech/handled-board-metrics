@@ -22,7 +22,7 @@ interface FinancialRecord {
   amount: string
 }
 
-type SortField = "accountName" | "category" | "period" | "amount"
+type SortField = "accountName" | "category" | "period" | "amount" | "firstMonth"
 type SortDir = "asc" | "desc"
 
 const PAGE_SIZE = 250
@@ -440,6 +440,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     rows.sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1
       if (sortField === "amount") return dir * (a.total - b.total)
+      if (sortField === "firstMonth") return dir * (a.firstMonth || "").localeCompare(b.firstMonth || "")
       return dir * a.customer.localeCompare(b.customer)
     })
 
@@ -641,7 +642,9 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                       <TableHead className="sticky left-0 bg-background z-10 min-w-[200px] cursor-pointer select-none" onClick={() => handleSort("accountName")}>
                         <span className="flex items-center">Customer<SortIcon field="accountName" /></span>
                       </TableHead>
-                      <TableHead className="text-center min-w-[90px]">First Month</TableHead>
+                      <TableHead className="text-center min-w-[90px] cursor-pointer select-none" onClick={() => handleSort("firstMonth")}>
+                        <span className="flex items-center justify-center">First Month<SortIcon field="firstMonth" /></span>
+                      </TableHead>
                       <TableHead className="text-right min-w-[100px] cursor-pointer select-none" onClick={() => handleSort("amount")}>
                         <span className="flex items-center justify-end">Total<SortIcon field="amount" /></span>
                       </TableHead>
