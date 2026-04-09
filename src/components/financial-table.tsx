@@ -134,7 +134,8 @@ type TableView = "raw" | "ltv"
 interface LtvRow {
   customer: string
   total: number
-  periods: Map<string, number>
+  billingMonths: Map<number, number> // billing month number (1-based) -> revenue
+  isAverage?: boolean
 }
 
 export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProps) {
@@ -329,41 +330,78 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     })
   }, [data, selectedPeriods, selectedCategories, search, sortField, sortDir])
 
-  // LTV pivot: customers as rows, months as columns
-  const ltvData = useMemo(() => {
-    const customerMap = new Map<string, Map<string, number>>()
-    const source = filtered // respects search, period, and category filters
+  // LTV pivot: normalize calendar months to billing months (Month 1, Month 2, ...)
+  const { ltvRows, ltvMaxMonth, ltvAverageRow } = useMemo(() => {
+    // Build per-customer per-calendar-period revenue
+    const customerCalendarMap = new Map<string, Map<string, number>>()
+    const source = filtered
 
     for (const row of source) {
-      if (!customerMap.has(row.accountName)) {
-        customerMap.set(row.accountName, new Map())
+      if (!customerCalendarMap.has(row.accountName)) {
+        customerCalendarMap.set(row.accountName, new Map())
       }
-      const periods = customerMap.get(row.accountName)!
+      const periods = customerCalendarMap.get(row.accountName)!
       periods.set(row.period, (periods.get(row.period) || 0) + parseFloat(row.amount))
     }
 
-    const rows: LtvRow[] = Array.from(customerMap.entries()).map(([customer, periods]) => {
-      const total = Array.from(periods.values()).reduce((s, v) => s + v, 0)
-      return { customer, total, periods }
-    })
+    // Helper: compute month offset between two YYYY-MM strings
+    function monthOffset(base: string, target: string): number {
+      const [by, bm] = base.split("-").map(Number)
+      const [ty, tm] = target.split("-").map(Number)
+      return (ty - by) * 12 + (tm - bm)
+    }
 
+    // Normalize to billing months
+    let maxMonth = 0
+    const rows: LtvRow[] = []
+
+    for (const [customer, calPeriods] of customerCalendarMap) {
+      const sortedPeriods = [...calPeriods.keys()].sort()
+      const firstPeriod = sortedPeriods[0]
+      const billingMonths = new Map<number, number>()
+      let total = 0
+
+      for (const [period, amount] of calPeriods) {
+        const bm = monthOffset(firstPeriod, period) + 1 // 1-based
+        billingMonths.set(bm, (billingMonths.get(bm) || 0) + amount)
+        total += amount
+        if (bm > maxMonth) maxMonth = bm
+      }
+
+      rows.push({ customer, total, billingMonths })
+    }
+
+    // Sort
     rows.sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1
       if (sortField === "amount") return dir * (a.total - b.total)
       return dir * a.customer.localeCompare(b.customer)
     })
 
-    return rows
+    // Compute average row
+    const avgMonths = new Map<number, { sum: number; count: number }>()
+    for (const row of rows) {
+      for (const [bm, amount] of row.billingMonths) {
+        const prev = avgMonths.get(bm) || { sum: 0, count: 0 }
+        avgMonths.set(bm, { sum: prev.sum + amount, count: prev.count + 1 })
+      }
+    }
+    const avgBillingMonths = new Map<number, number>()
+    let avgTotal = 0
+    for (const [bm, { sum, count }] of avgMonths) {
+      const avg = count > 0 ? sum / count : 0
+      avgBillingMonths.set(bm, avg)
+      avgTotal += avg
+    }
+    const averageRow: LtvRow = { customer: "Average", total: avgTotal, billingMonths: avgBillingMonths, isAverage: true }
+
+    return { ltvRows: rows, ltvMaxMonth: maxMonth, ltvAverageRow: averageRow }
   }, [filtered, sortField, sortDir])
 
-  const ltvPeriods = useMemo(() => {
-    const periodsSet = new Set<string>()
-    for (const row of filtered) periodsSet.add(row.period)
-    return [...periodsSet].sort()
-  }, [filtered])
+  const ltvMonthNumbers = useMemo(() => Array.from({ length: ltvMaxMonth }, (_, i) => i + 1), [ltvMaxMonth])
 
-  const ltvTotalPages = Math.max(1, Math.ceil(ltvData.length / PAGE_SIZE))
-  const ltvPaginated = ltvData.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const ltvTotalPages = Math.max(1, Math.ceil(ltvRows.length / PAGE_SIZE))
+  const ltvPaginated = ltvRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // Reset page when filters change
   useEffect(() => {
@@ -415,7 +453,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                 {drillLabel
                   ? `Showing records for: ${drillLabel}`
                   : tableView === "ltv"
-                    ? `${ltvData.length.toLocaleString()} customers across ${ltvPeriods.length} periods`
+                    ? `${ltvRows.length.toLocaleString()} customers across ${ltvMaxMonth} billing months`
                     : `${filtered.length.toLocaleString()} records from imported data`}
               </CardDescription>
             </div>
@@ -540,28 +578,40 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                       <TableHead className="text-right min-w-[100px] cursor-pointer select-none" onClick={() => handleSort("amount")}>
                         <span className="flex items-center justify-end">Total<SortIcon field="amount" /></span>
                       </TableHead>
-                      {ltvPeriods.map((p) => {
-                        const [year, month] = p.split("-")
-                        const label = new Date(Number(year), Number(month) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" })
-                        return (
-                          <TableHead key={p} className="text-right min-w-[90px]">
-                            {label}
-                          </TableHead>
-                        )
-                      })}
+                      {ltvMonthNumbers.map((m) => (
+                        <TableHead key={m} className="text-right min-w-[90px]">
+                          Mo {m}
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {/* Average row */}
+                    <TableRow className="bg-muted/30 font-semibold border-b-2">
+                      <TableCell className="sticky left-0 bg-muted/30 z-10 font-semibold">Average</TableCell>
+                      <TableCell className="text-right font-mono font-semibold">
+                        {formatCurrency(String(ltvAverageRow.total))}
+                      </TableCell>
+                      {ltvMonthNumbers.map((m) => {
+                        const val = ltvAverageRow.billingMonths.get(m) || 0
+                        return (
+                          <TableCell key={m} className={`text-right font-mono font-semibold ${val === 0 ? "text-muted-foreground" : ""}`}>
+                            {val === 0 ? "—" : formatCurrency(String(val))}
+                          </TableCell>
+                        )
+                      })}
+                    </TableRow>
+                    {/* Customer rows */}
                     {ltvPaginated.map((row) => (
                       <TableRow key={row.customer}>
                         <TableCell className="sticky left-0 bg-background z-10 font-medium">{row.customer}</TableCell>
                         <TableCell className="text-right font-mono font-semibold">
                           {formatCurrency(String(row.total))}
                         </TableCell>
-                        {ltvPeriods.map((p) => {
-                          const val = row.periods.get(p) || 0
+                        {ltvMonthNumbers.map((m) => {
+                          const val = row.billingMonths.get(m) || 0
                           return (
-                            <TableCell key={p} className={`text-right font-mono ${val === 0 ? "text-muted-foreground" : val < 0 ? "text-red-600" : ""}`}>
+                            <TableCell key={m} className={`text-right font-mono ${val === 0 ? "text-muted-foreground" : val < 0 ? "text-red-600" : ""}`}>
                               {val === 0 ? "—" : formatCurrency(String(val))}
                             </TableCell>
                           )
@@ -570,7 +620,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                     ))}
                     {ltvPaginated.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={2 + ltvPeriods.length} className="text-center py-8 text-muted-foreground">
+                        <TableCell colSpan={2 + ltvMonthNumbers.length} className="text-center py-8 text-muted-foreground">
                           {search ? "No matching customers found" : "No data for selected filters"}
                         </TableCell>
                       </TableRow>
@@ -581,10 +631,10 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
 
-            {ltvData.length > PAGE_SIZE && (
+            {ltvRows.length > PAGE_SIZE && (
               <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
                 <span>
-                  Showing {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, ltvData.length).toLocaleString()} of {ltvData.length.toLocaleString()}
+                  Showing {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, ltvRows.length).toLocaleString()} of {ltvRows.length.toLocaleString()}
                 </span>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
