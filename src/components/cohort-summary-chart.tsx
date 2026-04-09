@@ -267,10 +267,10 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
               Lifetime Revenue (Average Revenue by {period === "quarterly" ? "Billing Quarter" : "Billing Month"})
               <InfoTooltip text={
                 viewMode === "chart"
-                  ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Click a bar to view records.`
+                  ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Excludes pre-existing customers and those with first month before Jan 2025. Click a bar to view records.`
                   : viewMode === "table"
-                    ? `Avg revenue per billing month for ${metadata.totalCustomers} new customers (excl. ${metadata.excludedCustomers} pre-existing). Click any cell to drill down.`
-                    : `Revenue decay curves showing customer lifecycle trends for ${metadata.totalCustomers} new customers.`
+                    ? `Avg revenue per billing month for ${metadata.totalCustomers} new customers (excl. ${metadata.excludedCustomers} pre-existing and those with first month before Jan 2025). Click any cell to drill down.`
+                    : `Revenue decay curves showing customer lifecycle trends for ${metadata.totalCustomers} new customers. Excludes pre-existing customers and those with first month before Jan 2025.`
               } />
             </CardTitle>
             {viewMode === "chart" && (

@@ -125,6 +125,14 @@ export async function GET() {
       }
     }
 
+    // Exclude customers whose first month is before Jan 2025
+    for (const [customer, firstMonth] of customerFirstMonth) {
+      if (firstMonth < "2025-01") {
+        customerFirstMonth.delete(customer)
+        customerMap.delete(customer)
+      }
+    }
+
     // Accumulate averages per billing month offset
     const storageSums = new Map<number, { sum: number; count: number }>()
     const shippingSums = new Map<number, { sum: number; count: number }>()

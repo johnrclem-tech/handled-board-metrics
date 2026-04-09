@@ -354,6 +354,16 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       if (sep > 0) customerCalendarMap.delete(customer)
     }
 
+    // Exclude customers whose first month is before Jan 2025
+    for (const [customer, calPeriods] of customerCalendarMap) {
+      const sortedP = [...calPeriods.keys()].sort()
+      let firstP: string | null = null
+      for (const p of sortedP) {
+        if ((calPeriods.get(p) || 0) > 0) { firstP = p; break }
+      }
+      if (firstP && firstP < "2025-01") customerCalendarMap.delete(customer)
+    }
+
     // Apply search filter
     let customerKeys = [...customerCalendarMap.keys()]
     if (search) {
@@ -520,7 +530,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                 {drillLabel
                   ? `Showing records for: ${drillLabel}`
                   : tableView === "ltv"
-                    ? `${ltvRows.length.toLocaleString()} customers across ${ltvMaxMonth} billing months`
+                    ? `${ltvRows.length.toLocaleString()} new customers (first month Jan 2025+) across ${ltvMaxMonth} billing months`
                     : `${filtered.length.toLocaleString()} records from imported data`}
               </CardDescription>
             </div>
