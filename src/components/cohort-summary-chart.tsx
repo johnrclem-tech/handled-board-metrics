@@ -70,12 +70,15 @@ function formatCurrency(value: number): string {
   }).format(value)
 }
 
+type PeriodMode = "monthly" | "quarterly" | "ttm"
+
 interface CohortSummaryChartProps {
   onViewDetails: () => void
   onDrill?: (filter: CohortDrillFilter) => void
+  period?: PeriodMode
 }
 
-export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
+export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummaryChartProps) {
   const [data, setData] = useState<CohortResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -142,7 +145,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
   const shippingLookup = new Map(cohortData.shipping.map((e) => [e.month, e]))
   const handlingLookup = new Map(cohortData.handling.map((e) => [e.month, e]))
 
-  const barChartData = chartMonths.map((month) => ({
+  const monthlyBarData = chartMonths.map((month) => ({
     month: `Mo ${month}`,
     monthNum: month,
     storage: storageLookup.get(month)?.average || 0,
@@ -150,8 +153,43 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
     handling: handlingLookup.get(month)?.average || 0,
   }))
 
-  // Full table/decay data (all months)
+  // Quarterly aggregation: group billing months into quarters
+  function aggregateToQuarters(entries: CohortEntry[]): { quarter: number; average: number; customerCount: number }[] {
+    const qMap = new Map<number, { sum: number; maxCount: number }>()
+    for (const e of entries) {
+      const q = Math.ceil(e.month / 3)
+      const prev = qMap.get(q) || { sum: 0, maxCount: 0 }
+      qMap.set(q, { sum: prev.sum + e.average, maxCount: Math.max(prev.maxCount, e.customerCount) })
+    }
+    return Array.from(qMap.entries())
+      .map(([q, { sum, maxCount }]) => ({ quarter: q, average: sum, customerCount: maxCount }))
+      .sort((a, b) => a.quarter - b.quarter)
+  }
+
+  const quarterlyStorage = aggregateToQuarters(cohortData.storage)
+  const quarterlyShipping = aggregateToQuarters(cohortData.shipping)
+  const quarterlyHandling = aggregateToQuarters(cohortData.handling)
+
+  const maxQuartersToShow = Math.min(4, Math.ceil(metadata.maxBillingMonths / 3))
+  const chartQuarters = Array.from({ length: maxQuartersToShow }, (_, i) => i + 1)
+
+  const qStorageLookup = new Map(quarterlyStorage.map((e) => [e.quarter, e]))
+  const qShippingLookup = new Map(quarterlyShipping.map((e) => [e.quarter, e]))
+  const qHandlingLookup = new Map(quarterlyHandling.map((e) => [e.quarter, e]))
+
+  const quarterlyBarData = chartQuarters.map((q) => ({
+    month: `Q${q}`,
+    monthNum: q,
+    storage: qStorageLookup.get(q)?.average || 0,
+    shipping: qShippingLookup.get(q)?.average || 0,
+    handling: qHandlingLookup.get(q)?.average || 0,
+  }))
+
+  const barChartData = period === "quarterly" ? quarterlyBarData : monthlyBarData
+
+  // Full table/decay data
   const allMonths = Array.from({ length: metadata.maxBillingMonths }, (_, i) => i + 1)
+  const allQuarters = Array.from({ length: Math.ceil(metadata.maxBillingMonths / 3) }, (_, i) => i + 1)
   const categories = [
     { key: "storage" as const, label: "Storage Revenue", color: "var(--chart-3)" },
     { key: "shipping" as const, label: "Shipping Revenue", color: "var(--chart-2)" },
@@ -173,14 +211,29 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
     ])
   ) as Record<string, Map<number, CohortEntry>>
 
-  const decayChartData = allMonths.map((month) => {
-    const entry: Record<string, unknown> = { month: `Month ${month}`, monthNum: month }
-    for (const { key } of categories) {
-      const d = lookups[key].get(month)
-      entry[key] = d ? d.average : 0
-    }
-    return entry
-  })
+  // Quarterly lookups for table/decay
+  const quarterlyLookups: Record<string, Map<number, { average: number; customerCount: number }>> = {}
+  for (const { key } of categories) {
+    quarterlyLookups[key] = new Map(aggregateToQuarters(cohortData[key]).map((e) => [e.quarter, e]))
+  }
+
+  const decayChartData = period === "quarterly"
+    ? allQuarters.map((q) => {
+        const entry: Record<string, unknown> = { month: `Q${q}`, monthNum: q }
+        for (const { key } of categories) {
+          const d = quarterlyLookups[key].get(q)
+          entry[key] = d ? d.average : 0
+        }
+        return entry
+      })
+    : allMonths.map((month) => {
+        const entry: Record<string, unknown> = { month: `Month ${month}`, monthNum: month }
+        for (const { key } of categories) {
+          const d = lookups[key].get(month)
+          entry[key] = d ? d.average : 0
+        }
+        return entry
+      })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleChartClick = (state: any) => {
@@ -211,7 +264,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Lifetime Revenue (Average Revenue by Billing Month)
+              Lifetime Revenue (Average Revenue by {period === "quarterly" ? "Billing Quarter" : "Billing Month"})
               <InfoTooltip text={
                 viewMode === "chart"
                   ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Click a bar to view records.`
@@ -266,7 +319,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
               <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => `Month ${label}`} formatter={(value) => [formatCurrency(Number(value))]} />}
+                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => String(label)} formatter={(value) => [formatCurrency(Number(value))]} />}
               />
               <Legend />
               <Bar dataKey="handling" name="Handling" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
@@ -283,11 +336,14 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="sticky left-0 bg-background z-10 min-w-[160px]">Category</TableHead>
-                    {allMonths.map((month) => (
-                      <TableHead key={month} className="text-center min-w-[100px]">
-                        Month {month}
-                      </TableHead>
-                    ))}
+                    {period === "quarterly"
+                      ? allQuarters.map((q) => (
+                          <TableHead key={q} className="text-center min-w-[100px]">Q{q}</TableHead>
+                        ))
+                      : allMonths.map((month) => (
+                          <TableHead key={month} className="text-center min-w-[100px]">Month {month}</TableHead>
+                        ))
+                    }
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -296,29 +352,50 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
                       <TableCell className="sticky left-0 bg-background z-10">
                         <Badge variant={key === "total" ? "default" : "outline"}>{label}</Badge>
                       </TableCell>
-                      {allMonths.map((month) => {
-                        const entry = lookups[key].get(month)
-                        return (
-                          <TableCell
-                            key={month}
-                            className={`text-center ${entry ? "cursor-pointer hover:bg-muted/50 rounded transition-colors" : ""}`}
-                            onClick={() => entry && handleCellClick(key, month)}
-                          >
-                            {entry ? (
-                              <div>
-                                <div className={`${key === "total" ? "font-semibold" : ""} text-primary underline-offset-2 hover:underline`}>
-                                  {formatCurrency(entry.average)}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  n={entry.customerCount}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                          </TableCell>
-                        )
-                      })}
+                      {period === "quarterly"
+                        ? allQuarters.map((q) => {
+                            const entry = quarterlyLookups[key].get(q)
+                            return (
+                              <TableCell key={q} className="text-center">
+                                {entry ? (
+                                  <div>
+                                    <div className={key === "total" ? "font-semibold" : ""}>
+                                      {formatCurrency(entry.average)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      n={entry.customerCount}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )
+                          })
+                        : allMonths.map((month) => {
+                            const entry = lookups[key].get(month)
+                            return (
+                              <TableCell
+                                key={month}
+                                className={`text-center ${entry ? "cursor-pointer hover:bg-muted/50 rounded transition-colors" : ""}`}
+                                onClick={() => entry && handleCellClick(key, month)}
+                              >
+                                {entry ? (
+                                  <div>
+                                    <div className={`${key === "total" ? "font-semibold" : ""} text-primary underline-offset-2 hover:underline`}>
+                                      {formatCurrency(entry.average)}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      n={entry.customerCount}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )
+                          })
+                      }
                     </TableRow>
                   ))}
                 </TableBody>
@@ -336,7 +413,7 @@ export function CohortSummaryChart({ onDrill }: CohortSummaryChartProps) {
               <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
               <ChartTooltip
                 cursor={false}
-                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => `Month ${label}`} formatter={(value) => [formatCurrency(Number(value))]} />}
+                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => String(label)} formatter={(value) => [formatCurrency(Number(value))]} />}
               />
               <Legend />
               {categories.map(({ key, label, color }) => (

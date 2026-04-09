@@ -205,6 +205,7 @@ export function Dashboard() {
                   key={`cohort-summary-${refreshKey}`}
                   onViewDetails={() => {}}
                   onDrill={handleCohortDrill}
+                  period={customerPeriod}
                 />
               </ConcentrationChart>
               <FinancialTable
