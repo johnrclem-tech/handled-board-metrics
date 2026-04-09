@@ -134,7 +134,7 @@ type TableView = "raw" | "ltv"
 interface LtvRow {
   customer: string
   total: number
-  billingMonths: Map<number, number> // billing month number (1-based) -> revenue
+  billingMonths: Map<number, number | null> // billing month number (1-based) -> revenue, null = not yet reached
   isAverage?: boolean
 }
 
@@ -330,42 +330,106 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     })
   }, [data, selectedPeriods, selectedCategories, search, sortField, sortDir])
 
-  // LTV pivot: normalize calendar months to billing months (Month 1, Month 2, ...)
+  // LTV pivot: new customers only, normalized billing months, $0 for churned, null for not-yet-reached
   const { ltvRows, ltvMaxMonth, ltvAverageRow } = useMemo(() => {
-    // Build per-customer per-calendar-period revenue
+    // Build per-customer per-calendar-period revenue from ALL data (not filtered)
     const customerCalendarMap = new Map<string, Map<string, number>>()
-    const source = filtered
+    const customerCategorySet = new Map<string, Set<string>>()
 
-    for (const row of source) {
+    for (const row of data) {
       if (!customerCalendarMap.has(row.accountName)) {
         customerCalendarMap.set(row.accountName, new Map())
+        customerCategorySet.set(row.accountName, new Set())
       }
       const periods = customerCalendarMap.get(row.accountName)!
-      periods.set(row.period, (periods.get(row.period) || 0) + parseFloat(row.amount))
+      const amt = parseFloat(row.amount)
+      periods.set(row.period, (periods.get(row.period) || 0) + amt)
+      if (amt > 0) customerCategorySet.get(row.accountName)!.add(row.category)
     }
 
-    // Helper: compute month offset between two YYYY-MM strings
+    // Exclude pre-existing customers (revenue > 0 in Sep 2024) — new customers only
+    for (const [customer, calPeriods] of customerCalendarMap) {
+      const sep = calPeriods.get("2024-09") || 0
+      if (sep > 0) customerCalendarMap.delete(customer)
+    }
+
+    // Apply search filter
+    let customerKeys = [...customerCalendarMap.keys()]
+    if (search) {
+      const q = search.toLowerCase()
+      customerKeys = customerKeys.filter((c) => c.toLowerCase().includes(q))
+    }
+
+    // Helper
     function monthOffset(base: string, target: string): number {
       const [by, bm] = base.split("-").map(Number)
       const [ty, tm] = target.split("-").map(Number)
       return (ty - by) * 12 + (tm - bm)
     }
 
+    // Find global latest period
+    let globalLatest = ""
+    for (const calPeriods of customerCalendarMap.values()) {
+      for (const p of calPeriods.keys()) {
+        if (p > globalLatest) globalLatest = p
+      }
+    }
+
     // Normalize to billing months
     let maxMonth = 0
     const rows: LtvRow[] = []
 
-    for (const [customer, calPeriods] of customerCalendarMap) {
+    for (const customer of customerKeys) {
+      const calPeriods = customerCalendarMap.get(customer)!
+
+      // Find first period with revenue > 0
       const sortedPeriods = [...calPeriods.keys()].sort()
-      const firstPeriod = sortedPeriods[0]
-      const billingMonths = new Map<number, number>()
+      let firstPeriod: string | null = null
+      for (const p of sortedPeriods) {
+        if ((calPeriods.get(p) || 0) > 0) { firstPeriod = p; break }
+      }
+      if (!firstPeriod) continue
+
+      // Total billing months from first period to global latest
+      const totalBillingMonths = monthOffset(firstPeriod, globalLatest) + 1
+      if (totalBillingMonths > maxMonth) maxMonth = totalBillingMonths
+
+      // Check if customer is churned (no revenue in latest period)
+      const latestRev = calPeriods.get(globalLatest) || 0
+      const isChurned = latestRev <= 0
+
+      // Find last period with revenue > 0
+      let lastRevBillingMonth = 0
+      for (const [period, amount] of calPeriods) {
+        if (amount > 0) {
+          const bm = monthOffset(firstPeriod, period) + 1
+          if (bm > lastRevBillingMonth) lastRevBillingMonth = bm
+        }
+      }
+
+      const billingMonths = new Map<number, number | null>()
       let total = 0
 
-      for (const [period, amount] of calPeriods) {
-        const bm = monthOffset(firstPeriod, period) + 1 // 1-based
-        billingMonths.set(bm, (billingMonths.get(bm) || 0) + amount)
-        total += amount
-        if (bm > maxMonth) maxMonth = bm
+      for (let bm = 1; bm <= totalBillingMonths; bm++) {
+        // Generate the calendar period for this billing month
+        const [fy, fm] = firstPeriod.split("-").map(Number)
+        const d = new Date(fy, fm - 1 + (bm - 1), 1)
+        const calPeriod = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+        const rev = calPeriods.get(calPeriod) || 0
+
+        if (rev > 0) {
+          billingMonths.set(bm, rev)
+          total += rev
+        } else if (isChurned && bm > lastRevBillingMonth) {
+          // Customer has churned and this is after their last revenue — show $0
+          billingMonths.set(bm, 0)
+        } else if (bm <= lastRevBillingMonth) {
+          // Gap month before last revenue — show $0
+          billingMonths.set(bm, 0)
+        } else {
+          // Not yet reached (still active, just hasn't hit this month yet)
+          billingMonths.set(bm, null)
+        }
       }
 
       rows.push({ customer, total, billingMonths })
@@ -378,15 +442,16 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
       return dir * a.customer.localeCompare(b.customer)
     })
 
-    // Compute average row
+    // Compute average row (matching cohort-revenue: include all customers for each billing month)
     const avgMonths = new Map<number, { sum: number; count: number }>()
     for (const row of rows) {
       for (const [bm, amount] of row.billingMonths) {
+        if (amount === null) continue // don't count not-yet-reached
         const prev = avgMonths.get(bm) || { sum: 0, count: 0 }
         avgMonths.set(bm, { sum: prev.sum + amount, count: prev.count + 1 })
       }
     }
-    const avgBillingMonths = new Map<number, number>()
+    const avgBillingMonths = new Map<number, number | null>()
     let avgTotal = 0
     for (const [bm, { sum, count }] of avgMonths) {
       const avg = count > 0 ? sum / count : 0
@@ -396,7 +461,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     const averageRow: LtvRow = { customer: "Average", total: avgTotal, billingMonths: avgBillingMonths, isAverage: true }
 
     return { ltvRows: rows, ltvMaxMonth: maxMonth, ltvAverageRow: averageRow }
-  }, [filtered, sortField, sortDir])
+  }, [data, search, sortField, sortDir])
 
   const ltvMonthNumbers = useMemo(() => Array.from({ length: ltvMaxMonth }, (_, i) => i + 1), [ltvMaxMonth])
 
@@ -593,10 +658,10 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                         {formatCurrency(String(ltvAverageRow.total))}
                       </TableCell>
                       {ltvMonthNumbers.map((m) => {
-                        const val = ltvAverageRow.billingMonths.get(m) || 0
+                        const val = ltvAverageRow.billingMonths.get(m)
                         return (
-                          <TableCell key={m} className={`text-right font-mono font-semibold ${val === 0 ? "text-muted-foreground" : ""}`}>
-                            {val === 0 ? "—" : formatCurrency(String(val))}
+                          <TableCell key={m} className={`text-right font-mono font-semibold ${val == null || val === 0 ? "text-muted-foreground" : ""}`}>
+                            {val == null ? "—" : formatCurrency(String(val))}
                           </TableCell>
                         )
                       })}
@@ -609,10 +674,10 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                           {formatCurrency(String(row.total))}
                         </TableCell>
                         {ltvMonthNumbers.map((m) => {
-                          const val = row.billingMonths.get(m) || 0
+                          const val = row.billingMonths.get(m)
                           return (
-                            <TableCell key={m} className={`text-right font-mono ${val === 0 ? "text-muted-foreground" : val < 0 ? "text-red-600" : ""}`}>
-                              {val === 0 ? "—" : formatCurrency(String(val))}
+                            <TableCell key={m} className={`text-right font-mono ${val == null ? "text-muted-foreground" : val === 0 ? "text-muted-foreground" : val < 0 ? "text-red-600" : ""}`}>
+                              {val === null ? "—" : formatCurrency(String(val))}
                             </TableCell>
                           )
                         })}
