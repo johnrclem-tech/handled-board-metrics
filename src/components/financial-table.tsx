@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, Package, X, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Check, ChevronsUpDown } from "lucide-react"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import type { CohortDrillFilter } from "@/components/dashboard"
 import { cn } from "@/lib/utils"
 
@@ -127,6 +129,14 @@ function MultiSelect({
   )
 }
 
+type TableView = "raw" | "ltv"
+
+interface LtvRow {
+  customer: string
+  total: number
+  periods: Map<string, number>
+}
+
 export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProps) {
   const [data, setData] = useState<FinancialRecord[]>([])
   const [allPeriods, setAllPeriods] = useState<string[]>([])
@@ -139,6 +149,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
   const [sortField, setSortField] = useState<SortField>("accountName")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(1)
+  const [tableView, setTableView] = useState<TableView>("raw")
 
   useEffect(() => {
     if (drillFilter) {
@@ -318,10 +329,46 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     })
   }, [data, selectedPeriods, selectedCategories, search, sortField, sortDir])
 
+  // LTV pivot: customers as rows, months as columns
+  const ltvData = useMemo(() => {
+    const customerMap = new Map<string, Map<string, number>>()
+    const source = filtered // respects search, period, and category filters
+
+    for (const row of source) {
+      if (!customerMap.has(row.accountName)) {
+        customerMap.set(row.accountName, new Map())
+      }
+      const periods = customerMap.get(row.accountName)!
+      periods.set(row.period, (periods.get(row.period) || 0) + parseFloat(row.amount))
+    }
+
+    const rows: LtvRow[] = Array.from(customerMap.entries()).map(([customer, periods]) => {
+      const total = Array.from(periods.values()).reduce((s, v) => s + v, 0)
+      return { customer, total, periods }
+    })
+
+    rows.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1
+      if (sortField === "amount") return dir * (a.total - b.total)
+      return dir * a.customer.localeCompare(b.customer)
+    })
+
+    return rows
+  }, [filtered, sortField, sortDir])
+
+  const ltvPeriods = useMemo(() => {
+    const periodsSet = new Set<string>()
+    for (const row of filtered) periodsSet.add(row.period)
+    return [...periodsSet].sort()
+  }, [filtered])
+
+  const ltvTotalPages = Math.max(1, Math.ceil(ltvData.length / PAGE_SIZE))
+  const ltvPaginated = ltvData.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedPeriods, selectedCategories, search])
+  }, [selectedPeriods, selectedCategories, search, tableView])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginatedData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
@@ -361,15 +408,25 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
     <Card>
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <CardTitle>Revenue Data</CardTitle>
-            <CardDescription>
-              {drillLabel
-                ? `Showing records for: ${drillLabel}`
-                : `${filtered.length.toLocaleString()} records from imported data`}
-            </CardDescription>
+          <div className="flex items-center gap-4">
+            <div>
+              <CardTitle>Revenue Data</CardTitle>
+              <CardDescription>
+                {drillLabel
+                  ? `Showing records for: ${drillLabel}`
+                  : tableView === "ltv"
+                    ? `${ltvData.length.toLocaleString()} customers across ${ltvPeriods.length} periods`
+                    : `${filtered.length.toLocaleString()} records from imported data`}
+              </CardDescription>
+            </div>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
+            <Tabs value={tableView} onValueChange={(v) => { setTableView(v as TableView); setPage(1) }}>
+              <TabsList className="bg-muted h-9">
+                <TabsTrigger value="raw" className="px-4">Raw</TabsTrigger>
+                <TabsTrigger value="ltv" className="px-4">LTV</TabsTrigger>
+              </TabsList>
+            </Tabs>
             {drillLabel ? (
               <Button variant="outline" size="sm" onClick={handleClearDrill} className="gap-1">
                 <X className="h-4 w-4" />
@@ -406,76 +463,143 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         </div>
       </CardHeader>
       <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("accountName")}>
-                <span className="flex items-center">Customer<SortIcon field="accountName" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
-                <span className="flex items-center">Category<SortIcon field="category" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none" onClick={() => handleSort("period")}>
-                <span className="flex items-center">Period<SortIcon field="period" /></span>
-              </TableHead>
-              <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("amount")}>
-                <span className="flex items-center justify-end">Amount<SortIcon field="amount" /></span>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {paginatedData.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="font-medium">{row.accountName}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">{row.category}</Badge>
-                  {row.subcategory && (
-                    <span className="ml-2 text-xs text-muted-foreground">{row.subcategory}</span>
-                  )}
-                </TableCell>
-                <TableCell>{row.period}</TableCell>
-                <TableCell className={`text-right font-mono ${parseFloat(row.amount) < 0 ? "text-red-600" : ""}`}>
-                  {formatCurrency(row.amount)}
-                </TableCell>
-              </TableRow>
-            ))}
-            {paginatedData.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                  {search ? "No matching records found" : drillLabel ? "No records for this cohort filter" : "No data for selected filters"}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+        {tableView === "raw" ? (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("accountName")}>
+                    <span className="flex items-center">Customer<SortIcon field="accountName" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("category")}>
+                    <span className="flex items-center">Category<SortIcon field="category" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none" onClick={() => handleSort("period")}>
+                    <span className="flex items-center">Period<SortIcon field="period" /></span>
+                  </TableHead>
+                  <TableHead className="cursor-pointer select-none text-right" onClick={() => handleSort("amount")}>
+                    <span className="flex items-center justify-end">Amount<SortIcon field="amount" /></span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedData.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell className="font-medium">{row.accountName}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{row.category}</Badge>
+                      {row.subcategory && (
+                        <span className="ml-2 text-xs text-muted-foreground">{row.subcategory}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{row.period}</TableCell>
+                    <TableCell className={`text-right font-mono ${parseFloat(row.amount) < 0 ? "text-red-600" : ""}`}>
+                      {formatCurrency(row.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginatedData.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      {search ? "No matching records found" : drillLabel ? "No records for this cohort filter" : "No data for selected filters"}
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
 
-        {filtered.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
-            <span>
-              Showing {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-              <span>Page {page} of {totalPages}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+            {filtered.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+                <span>
+                  Showing {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, filtered.length).toLocaleString()} of {filtered.length.toLocaleString()}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <span>Page {page} of {totalPages}</span>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <ScrollArea className="w-full">
+              <div className="min-w-max">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="sticky left-0 bg-background z-10 min-w-[200px] cursor-pointer select-none" onClick={() => handleSort("accountName")}>
+                        <span className="flex items-center">Customer<SortIcon field="accountName" /></span>
+                      </TableHead>
+                      <TableHead className="text-right min-w-[100px] cursor-pointer select-none" onClick={() => handleSort("amount")}>
+                        <span className="flex items-center justify-end">Total<SortIcon field="amount" /></span>
+                      </TableHead>
+                      {ltvPeriods.map((p) => {
+                        const [year, month] = p.split("-")
+                        const label = new Date(Number(year), Number(month) - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" })
+                        return (
+                          <TableHead key={p} className="text-right min-w-[90px]">
+                            {label}
+                          </TableHead>
+                        )
+                      })}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ltvPaginated.map((row) => (
+                      <TableRow key={row.customer}>
+                        <TableCell className="sticky left-0 bg-background z-10 font-medium">{row.customer}</TableCell>
+                        <TableCell className="text-right font-mono font-semibold">
+                          {formatCurrency(String(row.total))}
+                        </TableCell>
+                        {ltvPeriods.map((p) => {
+                          const val = row.periods.get(p) || 0
+                          return (
+                            <TableCell key={p} className={`text-right font-mono ${val === 0 ? "text-muted-foreground" : val < 0 ? "text-red-600" : ""}`}>
+                              {val === 0 ? "—" : formatCurrency(String(val))}
+                            </TableCell>
+                          )
+                        })}
+                      </TableRow>
+                    ))}
+                    {ltvPaginated.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={2 + ltvPeriods.length} className="text-center py-8 text-muted-foreground">
+                          {search ? "No matching customers found" : "No data for selected filters"}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+
+            {ltvData.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
+                <span>
+                  Showing {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, ltvData.length).toLocaleString()} of {ltvData.length.toLocaleString()}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <span>Page {page} of {ltvTotalPages}</span>
+                  <Button variant="outline" size="sm" disabled={page >= ltvTotalPages} onClick={() => setPage((p) => p + 1)}>
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
