@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { DollarSign, TrendingUp, TrendingDown, BarChart3, Package, Truck, Warehouse } from "lucide-react"
 import {
@@ -23,7 +22,7 @@ import {
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import type { ChurnSegment } from "@/components/dashboard"
 
-type ServicePeriod = "monthly" | "quarterly" | "ttm"
+export type ServicePeriod = "monthly" | "quarterly" | "ttm"
 
 interface PeriodEntry {
   period: string
@@ -62,13 +61,9 @@ function formatPct(value: number | null): string {
 
 interface RevenueMetricsPageProps {
   segment: ChurnSegment
+  period: ServicePeriod
 }
 
-const PERIOD_OPTIONS: { value: ServicePeriod; label: string }[] = [
-  { value: "monthly", label: "Month" },
-  { value: "quarterly", label: "Quarter" },
-  { value: "ttm", label: "TTM" },
-]
 
 const COLORS = {
   storage: "var(--chart-3)",
@@ -86,10 +81,9 @@ const revenueByServiceConfig = {
   storagePct: { label: "Storage", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
-export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
+export function RevenueMetricsPage({ segment, period }: RevenueMetricsPageProps) {
   const [data, setData] = useState<RevenueMetricsResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [period, setPeriod] = useState<ServicePeriod>("monthly")
   const [revenueMode, setRevenueMode] = useState<"dollars" | "percent">("dollars")
 
   useEffect(() => {
@@ -176,19 +170,6 @@ export function RevenueMetricsPage({ segment }: RevenueMetricsPageProps) {
 
   return (
     <div className="space-y-6">
-      {/* Period toggle */}
-      <div className="flex items-center">
-        <Tabs value={period} onValueChange={(v) => setPeriod(v as ServicePeriod)}>
-          <TabsList className="bg-muted h-9">
-            {PERIOD_OPTIONS.map((p) => (
-              <TabsTrigger key={p.value} value={p.value} className="px-5">
-                {p.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-      </div>
-
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         {kpiCards.map((kpi) => {

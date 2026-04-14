@@ -18,6 +18,7 @@ import { ConcentrationChart } from "@/components/concentration-chart"
 import { ChurnPage } from "@/components/churn-page"
 import { LifetimeGrossMarginCard } from "@/components/lifetime-gross-margin-card"
 import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
+import type { ServicePeriod } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
 import type { LeadsPeriod } from "@/components/leads-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
@@ -57,6 +58,12 @@ const CUSTOMER_PERIODS: { value: ConcentrationPeriod; label: string }[] = [
   { value: "ttm", label: "TTM" },
 ]
 
+const SERVICE_PERIODS: { value: ServicePeriod; label: string }[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "ttm", label: "TTM" },
+]
+
 const LEADS_PERIODS: { value: LeadsPeriod; label: string }[] = [
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
@@ -72,6 +79,7 @@ export function Dashboard() {
   const [churnPeriod, setChurnPeriod] = useState<ChurnPeriod>("monthly")
   const [customerPeriod, setCustomerPeriod] = useState<ConcentrationPeriod>("monthly")
   const [leadsPeriod, setLeadsPeriod] = useState<LeadsPeriod>("monthly")
+  const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("monthly")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -114,6 +122,9 @@ export function Dashboard() {
 
           {(activePage === "churn" || activePage === "revenue-metrics") && (
             <div className="ml-auto flex items-center gap-3">
+              {activePage === "revenue-metrics" && (
+                <span className="text-sm font-medium text-muted-foreground">Customers:</span>
+              )}
               <Tabs value={churnSegment} onValueChange={(v) => setChurnSegment(v as ChurnSegment)}>
                 <TabsList className="bg-muted h-9">
                   {SEGMENTS.map((s) => (
@@ -129,6 +140,21 @@ export function Dashboard() {
                   <Tabs value={churnPeriod} onValueChange={(v) => setChurnPeriod(v as ChurnPeriod)}>
                     <TabsList className="bg-muted h-9">
                       {PERIODS.map((p) => (
+                        <TabsTrigger key={p.value} value={p.value} className="px-4">
+                          {p.label}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  </Tabs>
+                </>
+              )}
+              {activePage === "revenue-metrics" && (
+                <>
+                  <Separator orientation="vertical" className="h-4" />
+                  <span className="text-sm font-medium text-muted-foreground">View:</span>
+                  <Tabs value={servicePeriod} onValueChange={(v) => setServicePeriod(v as ServicePeriod)}>
+                    <TabsList className="bg-muted h-9">
+                      {SERVICE_PERIODS.map((p) => (
                         <TabsTrigger key={p.value} value={p.value} className="px-4">
                           {p.label}
                         </TabsTrigger>
@@ -193,6 +219,7 @@ export function Dashboard() {
             <RevenueMetricsPage
               key={`revenue-metrics-${refreshKey}`}
               segment={churnSegment}
+              period={servicePeriod}
             />
           )}
 

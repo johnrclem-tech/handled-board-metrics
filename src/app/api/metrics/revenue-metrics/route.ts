@@ -71,6 +71,11 @@ export async function GET(request: NextRequest) {
 
     const sortedPeriods = [...allPeriods].sort()
 
+    // Determine current month/quarter to exclude incomplete periods
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    const currentQuarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`
+
     // Aggregate monthly
     interface RevBucket { storage: number; shipping: number; handling: number; total: number; customerCount: number }
     const monthlyMap = new Map<string, RevBucket>()
@@ -93,8 +98,8 @@ export async function GET(request: NextRequest) {
       monthlyMap.set(period, bucket)
     }
 
-    // Build monthly response with YoY
-    const monthly = sortedPeriods.map((period) => {
+    // Build monthly response with YoY — exclude current calendar month
+    const monthly = sortedPeriods.filter((p) => p < currentMonth).map((period) => {
       const bucket = monthlyMap.get(period)!
       const [y, m] = period.split("-").map(Number)
       const priorPeriod = `${y - 1}-${String(m).padStart(2, "0")}`
@@ -147,7 +152,7 @@ export async function GET(request: NextRequest) {
 
     const sortedQuarters = [...quarterMap.keys()].sort()
     const quarterly = sortedQuarters
-      .filter((qKey) => quarterMap.get(qKey)!.monthCount === 3)
+      .filter((qKey) => quarterMap.get(qKey)!.monthCount === 3 && qKey < currentQuarter)
       .map((qKey) => {
         const bucket = quarterMap.get(qKey)!
         // Prior year quarter
@@ -215,12 +220,13 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // TTM (trailing twelve months) aggregation
+    // TTM (trailing twelve months) aggregation — exclude the most recent month
+    const ttmPeriods = sortedPeriods.slice(0, -1)
     const ttm: typeof monthly = []
-    for (let i = 0; i < sortedPeriods.length; i++) {
+    for (let i = 0; i < ttmPeriods.length; i++) {
       // Need at least 12 months of data up to this point
       if (i < 11) continue
-      const windowPeriods = sortedPeriods.slice(i - 11, i + 1)
+      const windowPeriods = ttmPeriods.slice(i - 11, i + 1)
       const bucket = { storage: 0, shipping: 0, handling: 0, total: 0, customerCount: 0 }
       const customers = new Set<string>()
 
@@ -240,7 +246,7 @@ export async function GET(request: NextRequest) {
       bucket.customerCount = customers.size
 
       // Prior TTM: same 12-month window shifted back 1 year
-      const endPeriod = sortedPeriods[i]
+      const endPeriod = ttmPeriods[i]
       const [ey, em] = endPeriod.split("-").map(Number)
       const priorEndPeriod = `${ey - 1}-${String(em).padStart(2, "0")}`
       const priorEndIdx = sortedPeriods.indexOf(priorEndPeriod)
