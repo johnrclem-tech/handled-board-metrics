@@ -341,8 +341,8 @@ function buildStackedData(
     .sort((a, b) => a.period.localeCompare(b.period))
 }
 
-type LeadsChartMode = "source" | "status"
-type OppsChartMode = "source" | "status" | "converted"
+type LeadsChartMode = "source" | "status" | "converted"
+type OppsChartMode = "source" | "status"
 
 const STATUS_COLORS: string[] = [
   "var(--chart-1)",
@@ -834,8 +834,75 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         )
       })()}
 
-      {/* New Customers Billed */}
-      <NewCustomersChart period={period === "annually" ? "ttm" : period} />
+      {/* New Customers Billed + Opportunity Win Rate */}
+      <div className="grid gap-6 grid-cols-3">
+        <div className="col-span-2">
+          <NewCustomersChart period={period === "annually" ? "ttm" : period} />
+        </div>
+        <Card className="col-span-1 flex flex-col">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Opportunity Win Rate
+                <InfoTooltip text="Ratio of Closed Won to total closed opportunities (Closed Won + Closed Lost)." />
+              </CardTitle>
+              <Tabs value={winRateRange} onValueChange={(v) => setWinRateRange(v as "all" | "quarter" | "ttm")}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="all" className="px-3">All</TabsTrigger>
+                  <TabsTrigger value="quarter" className="px-3">Last Qtr</TabsTrigger>
+                  <TabsTrigger value="ttm" className="px-3">TTM</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-1 items-center justify-center">
+            {winRateSegments.total > 0 ? (
+              <ChartContainer
+                config={{ won: { label: "Won" }, lost: { label: "Lost" } } satisfies ChartConfig}
+                className="aspect-square w-full max-w-[280px]"
+              >
+                <PieChart margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                  <Pie
+                    data={[
+                      { name: "Closed Won", value: winRateSegments.won },
+                      { name: "Closed Lost", value: winRateSegments.lost },
+                    ]}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius="55%"
+                    outerRadius="85%"
+                    paddingAngle={3}
+                    strokeWidth={0}
+                  >
+                    <Cell fill="var(--chart-5)" />
+                    <Cell fill="var(--chart-1)" />
+                    <ChartLabel
+                      content={({ viewBox }) => {
+                        if (viewBox && "cx" in viewBox && "cy" in viewBox) {
+                          const rate = winRateSegments.total > 0 ? ((winRateSegments.won / winRateSegments.total) * 100).toFixed(1) : "0"
+                          return (
+                            <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="auto">
+                              <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-3xl font-semibold">
+                                {rate}%
+                              </tspan>
+                              <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 24} className="fill-muted-foreground text-sm">
+                                win rate
+                              </tspan>
+                            </text>
+                          )
+                        }
+                      }}
+                    />
+                  </Pie>
+                </PieChart>
+              </ChartContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground py-8">No closed opportunities</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Charts */}
       <div className="grid gap-6 grid-cols-3">
@@ -843,19 +910,38 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                Leads Created {leadsChartMode === "source" ? "by Source" : "by Status"}
-                <InfoTooltip text="Leads + Opportunities per period. By Source excludes Junk and Unknown leads. By Status also excludes Closed Won, Junk Lead, and Closed Lost." />
+                {leadsChartMode === "converted"
+                  ? "Lead Conversion Rate"
+                  : `Leads Created ${leadsChartMode === "source" ? "by Source" : "by Status"}`}
+                <InfoTooltip text="Leads + Opportunities per period. By Source excludes Junk and Unknown leads. By Status also excludes Closed Won, Junk Lead, and Closed Lost. Converted shows the percent of leads that became opportunities each period." />
               </CardTitle>
               <Tabs value={leadsChartMode} onValueChange={(v) => setLeadsChartMode(v as LeadsChartMode)}>
                 <TabsList className="bg-muted h-9">
                   <TabsTrigger value="source" className="px-4">By Source</TabsTrigger>
                   <TabsTrigger value="status" className="px-4">By Status</TabsTrigger>
+                  <TabsTrigger value="converted" className="px-4">Converted</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
           </CardHeader>
           <CardContent>
-            {leadsChartMode === "source" ? (
+            {leadsChartMode === "converted" ? (
+              oppsConvertedData.length === 0 ? (
+                <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+              ) : (
+                <ChartContainer config={{ rate: { label: "Conversion %", color: "var(--primary)" } } satisfies ChartConfig} className="aspect-auto h-[300px] w-full">
+                  <BarChart data={oppsConvertedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+                    <YAxis tickLine={false} axisLine={false} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                    <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" formatter={(v) => `${v}%`} />} />
+                    <Bar dataKey="rate" name="Conversion %" fill="var(--primary)" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="rate" position="top" className="fill-foreground text-xs" formatter={(v) => `${v}%`} />
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              )
+            ) : leadsChartMode === "source" ? (
               leadsChartData.length === 0 ? (
                 <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
               ) : (
@@ -997,42 +1083,25 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
             )}
           </CardContent>
         </Card>
-        {/* Opportunities Chart with Converted toggle */}
+        {/* Opportunities Chart */}
         <div className="col-span-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
-                  {oppsChartMode === "converted" ? "Opportunity Conversion Rate" : `Opportunities Created ${oppsChartMode === "source" ? "by Source" : "by Status"}`}
-                  <InfoTooltip text="Opportunities per period. Converted shows the % of leads that became opportunities each period." />
+                  Opportunities Created {oppsChartMode === "source" ? "by Source" : "by Status"}
+                  <InfoTooltip text="Opportunities per period. By Status excludes Closed Won, Unknown, Junk Lead, and Closed Lost." />
                 </CardTitle>
                 <Tabs value={oppsChartMode} onValueChange={(v) => setOppsChartMode(v as OppsChartMode)}>
                   <TabsList className="bg-muted h-9">
                     <TabsTrigger value="source" className="px-4">By Source</TabsTrigger>
                     <TabsTrigger value="status" className="px-4">By Status</TabsTrigger>
-                    <TabsTrigger value="converted" className="px-4">Converted</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
             </CardHeader>
             <CardContent>
-              {oppsChartMode === "converted" ? (
-                oppsConvertedData.length === 0 ? (
-                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
-                ) : (
-                  <ChartContainer config={{ rate: { label: "Conversion %", color: "var(--primary)" } } satisfies ChartConfig} className="aspect-auto h-[300px] w-full">
-                    <BarChart data={oppsConvertedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="5 4" vertical={false} />
-                      <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
-                      <YAxis tickLine={false} axisLine={false} className="text-xs" tickFormatter={(v) => `${v}%`} />
-                      <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" formatter={(v) => `${v}%`} />} />
-                      <Bar dataKey="rate" name="Conversion %" fill="var(--primary)" radius={[4, 4, 0, 0]}>
-                        <LabelList dataKey="rate" position="top" className="fill-foreground text-xs" formatter={(v) => `${v}%`} />
-                      </Bar>
-                    </BarChart>
-                  </ChartContainer>
-                )
-              ) : oppsChartMode === "source" ? (
+              {oppsChartMode === "source" ? (
                 oppsChartData.length === 0 ? (
                   <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
                 ) : (
@@ -1074,73 +1143,6 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
           </Card>
         </div>
       </div>
-      <div className="grid gap-6 grid-cols-3">
-        {/* Opportunity Win Rate */}
-        <Card className="col-span-1 flex flex-col">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                Opportunity Win Rate
-                <InfoTooltip text="Ratio of Closed Won to total closed opportunities (Closed Won + Closed Lost)." />
-              </CardTitle>
-              <Tabs value={winRateRange} onValueChange={(v) => setWinRateRange(v as "all" | "quarter" | "ttm")}>
-                <TabsList className="bg-muted h-9">
-                  <TabsTrigger value="all" className="px-3">All</TabsTrigger>
-                  <TabsTrigger value="quarter" className="px-3">Last Qtr</TabsTrigger>
-                  <TabsTrigger value="ttm" className="px-3">TTM</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-1 items-center justify-center">
-            {winRateSegments.total > 0 ? (
-              <ChartContainer
-                config={{ won: { label: "Won" }, lost: { label: "Lost" } } satisfies ChartConfig}
-                className="aspect-square w-full max-w-[280px]"
-              >
-                <PieChart margin={{ top: 0, bottom: 0, left: 0, right: 0 }}>
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                  <Pie
-                    data={[
-                      { name: "Closed Won", value: winRateSegments.won },
-                      { name: "Closed Lost", value: winRateSegments.lost },
-                    ]}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius="55%"
-                    outerRadius="85%"
-                    paddingAngle={3}
-                    strokeWidth={0}
-                  >
-                    <Cell fill="var(--chart-5)" />
-                    <Cell fill="var(--chart-1)" />
-                    <ChartLabel
-                      content={({ viewBox }) => {
-                        if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                          const rate = winRateSegments.total > 0 ? ((winRateSegments.won / winRateSegments.total) * 100).toFixed(1) : "0"
-                          return (
-                            <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="auto">
-                              <tspan x={viewBox.cx} y={viewBox.cy} className="fill-foreground text-3xl font-semibold">
-                                {rate}%
-                              </tspan>
-                              <tspan x={viewBox.cx} y={(viewBox.cy || 0) + 24} className="fill-muted-foreground text-sm">
-                                win rate
-                              </tspan>
-                            </text>
-                          )
-                        }
-                      }}
-                    />
-                  </Pie>
-                </PieChart>
-              </ChartContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground py-8">No closed opportunities</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Data Table */}
       <Card>
         <CardHeader>
