@@ -58,6 +58,11 @@ export async function GET() {
 
     const sortedPeriods = [...allPeriods].sort()
 
+    // Determine current month/quarter to filter out incomplete periods
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    const currentQuarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`
+
     // Monthly: aggregate new vs existing revenue
     interface SegBucket { newRevenue: number; existingRevenue: number; newCount: number; existingCount: number }
     const monthlyMap = new Map<string, SegBucket>()
@@ -78,20 +83,22 @@ export async function GET() {
       monthlyMap.set(period, bucket)
     }
 
-    const monthly = sortedPeriods.map((period) => {
-      const b = monthlyMap.get(period)!
-      const [y, m] = period.split("-").map(Number)
-      const monthName = new Date(y, m - 1).toLocaleString("en-US", { month: "short" })
-      return {
-        period,
-        label: `${monthName} ${String(y).slice(2)}`,
-        newRevenue: round2(b.newRevenue),
-        existingRevenue: round2(b.existingRevenue),
-        total: round2(b.newRevenue + b.existingRevenue),
-        newCount: b.newCount,
-        existingCount: b.existingCount,
-      }
-    })
+    const monthly = sortedPeriods
+      .filter((period) => period < currentMonth)
+      .map((period) => {
+        const b = monthlyMap.get(period)!
+        const [y, m] = period.split("-").map(Number)
+        const monthName = new Date(y, m - 1).toLocaleString("en-US", { month: "short" })
+        return {
+          period,
+          label: `${monthName} ${String(y).slice(2)}`,
+          newRevenue: round2(b.newRevenue),
+          existingRevenue: round2(b.existingRevenue),
+          total: round2(b.newRevenue + b.existingRevenue),
+          newCount: b.newCount,
+          existingCount: b.existingCount,
+        }
+      })
 
     // Quarterly
     const quarterBuckets = new Map<string, SegBucket>()
@@ -132,7 +139,7 @@ export async function GET() {
 
     const sortedQuarters = [...quarterBuckets.keys()].sort()
     const quarterly = sortedQuarters
-      .filter((qKey) => quarterMonthCounts.get(qKey) === 3)
+      .filter((qKey) => quarterMonthCounts.get(qKey) === 3 && qKey < currentQuarter)
       .map((qKey) => {
         const qb = quarterBuckets.get(qKey)!
         const qc = quarterCustomers.get(qKey)!
@@ -147,10 +154,12 @@ export async function GET() {
         }
       })
 
-    // TTM
+    // TTM — exclude the most recent month from all TTM windows
+    // (i.e. TTM ends at the second-most-recent month)
+    const ttmPeriods = sortedPeriods.slice(0, -1)
     const ttm: typeof monthly = []
-    for (let i = 11; i < sortedPeriods.length; i++) {
-      const windowPeriods = sortedPeriods.slice(i - 11, i + 1)
+    for (let i = 11; i < ttmPeriods.length; i++) {
+      const windowPeriods = ttmPeriods.slice(i - 11, i + 1)
       let newRev = 0, existingRev = 0
       const newCusts = new Set<string>(), existingCusts = new Set<string>()
 
@@ -168,7 +177,7 @@ export async function GET() {
         }
       }
 
-      const endPeriod = sortedPeriods[i]
+      const endPeriod = ttmPeriods[i]
       const [ey, em] = endPeriod.split("-").map(Number)
       const monthName = new Date(ey, em - 1).toLocaleString("en-US", { month: "short" })
 
