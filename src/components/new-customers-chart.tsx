@@ -130,7 +130,7 @@ export function NewCustomersChart({ period = "monthly" }: NewCustomersChartProps
   } satisfies ChartConfig
 
   return (
-    <Card>
+    <Card className="flex flex-col h-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <UserPlus className="h-5 w-5" />
@@ -138,8 +138,8 @@ export function NewCustomersChart({ period = "monthly" }: NewCustomersChartProps
           <InfoTooltip text={`Count of customers starting their first billing month (excluding pre-existing). Total: ${totalNew} new customers, avg ${avgPerPeriod.toFixed(1)}/${periodLabel}.`} />
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <ChartContainer config={chartConfig} className="aspect-auto h-[225px] w-full">
+      <CardContent className="flex flex-1 min-h-0">
+        <ChartContainer config={chartConfig} className="aspect-auto w-full h-full min-h-[225px]">
           <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="5 4" vertical={false} />
             <XAxis

@@ -741,6 +741,9 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
 
   const EXCLUDED_LEAD_STATUSES = new Set(["Junk", "Unknown", "Junk Lead", "Closed Lost"])
 
+  const [openLeadsView, setOpenLeadsView] = useState<"status" | "age">("status")
+  const [openOppsView, setOpenOppsView] = useState<"status" | "age">("status")
+
   const openLeadsData = useMemo(() => {
     const statusMap = new Map<string, number>()
     for (const l of leadRows) {
@@ -751,6 +754,25 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
     return Array.from(statusMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
+  }, [leadRows])
+
+  const openLeadsByAge = useMemo(() => {
+    const monthMap = new Map<string, number>()
+    for (const l of leadRows) {
+      const status = l.leadStatus || "Unknown"
+      if (EXCLUDED_LEAD_STATUSES.has(status)) continue
+      if (!l.createdTime) continue
+      const d = new Date(l.createdTime)
+      if (isNaN(d.getTime())) continue
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      monthMap.set(key, (monthMap.get(key) || 0) + 1)
+    }
+    return Array.from(monthMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, value]) => {
+        const [y, m] = key.split("-").map(Number)
+        return { name: new Date(y, m - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" }), value }
+      })
   }, [leadRows])
 
   // Open Opportunities — same exclusions as the Opportunities by Status chart
@@ -764,6 +786,25 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
     return Array.from(stageMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
+  }, [oppRows])
+
+  const openOppsByAge = useMemo(() => {
+    const monthMap = new Map<string, number>()
+    for (const o of oppRows) {
+      const stage = o.stage || "Unknown"
+      if (EXCLUDED_STATUS_VIEW.has(stage)) continue
+      if (!o.createdTime) continue
+      const d = new Date(o.createdTime)
+      if (isNaN(d.getTime())) continue
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      monthMap.set(key, (monthMap.get(key) || 0) + 1)
+    }
+    return Array.from(monthMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, value]) => {
+        const [y, m] = key.split("-").map(Number)
+        return { name: new Date(y, m - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" }), value }
+      })
   }, [oppRows])
 
   // ── Loading ──
@@ -919,19 +960,27 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         </Card>
         <Card className="col-span-1 flex flex-col">
           <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2">
-              Open Leads
-              <InfoTooltip text="Active leads by status. Excludes Junk, Unknown, Junk Lead, and Closed Lost." />
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Open Leads
+                <InfoTooltip text="Active leads. Excludes Junk, Unknown, Junk Lead, and Closed Lost. By Age groups leads by the calendar month they were created." />
+              </CardTitle>
+              <Tabs value={openLeadsView} onValueChange={(v) => setOpenLeadsView(v as "status" | "age")}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="status" className="px-3">By Status</TabsTrigger>
+                  <TabsTrigger value="age" className="px-3">By Age</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </CardHeader>
           <CardContent className="flex flex-1 pt-4 pb-2">
-            {openLeadsData.length > 0 ? (
+            {(openLeadsView === "status" ? openLeadsData : openLeadsByAge).length > 0 ? (
               <ChartContainer
                 config={{ count: { label: "Leads", color: "var(--primary)" } } satisfies ChartConfig}
                 className="w-full flex-1"
               >
                 <BarChart
-                  data={openLeadsData}
+                  data={openLeadsView === "status" ? openLeadsData : openLeadsByAge}
                   layout="vertical"
                   margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
                 >
@@ -1099,25 +1148,35 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         </div>
       </div>
       {/* New Customers Billed + Open Opportunities */}
-      <div className="grid gap-6 grid-cols-3">
-        <div className="col-span-2">
-          <NewCustomersChart period={period === "annually" ? "ttm" : period} />
+      <div className="grid gap-6 grid-cols-3 items-stretch">
+        <div className="col-span-2 flex">
+          <div className="w-full">
+            <NewCustomersChart period={period === "annually" ? "ttm" : period} />
+          </div>
         </div>
         <Card className="col-span-1 flex flex-col">
           <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2">
-              Open Opportunities
-              <InfoTooltip text="Active opportunities by stage. Excludes Closed Won, Closed Lost, Junk Lead, and Unknown." />
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                Open Opportunities
+                <InfoTooltip text="Active opportunities. Excludes Closed Won, Closed Lost, Junk Lead, and Unknown. By Age groups opportunities by the calendar month they were created." />
+              </CardTitle>
+              <Tabs value={openOppsView} onValueChange={(v) => setOpenOppsView(v as "status" | "age")}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="status" className="px-3">By Status</TabsTrigger>
+                  <TabsTrigger value="age" className="px-3">By Age</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </CardHeader>
           <CardContent className="flex flex-1 pt-4 pb-2">
-            {openOppsData.length > 0 ? (
+            {(openOppsView === "status" ? openOppsData : openOppsByAge).length > 0 ? (
               <ChartContainer
                 config={{ count: { label: "Opportunities", color: "var(--primary)" } } satisfies ChartConfig}
                 className="w-full flex-1"
               >
                 <BarChart
-                  data={openOppsData}
+                  data={openOppsView === "status" ? openOppsData : openOppsByAge}
                   layout="vertical"
                   margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
                 >
