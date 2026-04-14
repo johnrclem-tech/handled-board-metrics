@@ -488,12 +488,15 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paginatedData = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const formatCurrency = (value: string) =>
-    new Intl.NumberFormat("en-US", {
+  const formatCurrency = (value: string) => {
+    const n = parseFloat(value)
+    if (!isFinite(n)) return "—"
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
       minimumFractionDigits: 2,
-    }).format(parseFloat(value))
+    }).format(n)
+  }
 
   if (loading) {
     return (
@@ -699,7 +702,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
                           const val = row.billingMonths.get(m)
                           return (
                             <TableCell key={m} className={`text-right font-mono ${val == null ? "text-muted-foreground" : val === 0 ? "text-muted-foreground" : val < 0 ? "text-red-600" : ""}`}>
-                              {val === null ? "—" : formatCurrency(String(val))}
+                              {val == null ? "—" : formatCurrency(String(val))}
                             </TableCell>
                           )
                         })}

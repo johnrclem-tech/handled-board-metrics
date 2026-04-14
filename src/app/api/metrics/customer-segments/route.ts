@@ -45,11 +45,15 @@ export async function GET() {
       allPeriods.add(row.period)
     }
 
-    // Identify existing customers (revenue > 0 in Sep 2024)
+    // Identify existing customers: any customer with revenue > 0 in any period before 2025-01
     const existingCustomers = new Set<string>()
     for (const [customer, pm] of customerPeriods) {
-      const sep = pm.get("2024-09") || 0
-      if (sep > 0) existingCustomers.add(customer)
+      for (const [period, amount] of pm) {
+        if (period < "2025-01" && amount > 0) {
+          existingCustomers.add(customer)
+          break
+        }
+      }
     }
 
     const sortedPeriods = [...allPeriods].sort()

@@ -407,7 +407,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 Revenue by Customer Type
-                <InfoTooltip text="Revenue split between existing customers (active in Sep 2024) and new customers acquired after Sep 2024." />
+                <InfoTooltip text="Revenue split between existing customers (any revenue before 2025) and new customers (all others)." />
               </CardTitle>
             </CardHeader>
             <CardContent>
