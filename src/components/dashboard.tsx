@@ -49,7 +49,7 @@ const SEGMENTS: { value: ChurnSegment; label: string }[] = [
 const PERIODS: { value: ChurnPeriod; label: string }[] = [
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
-  { value: "annually", label: "Annually" },
+  { value: "annually", label: "TTM" },
 ]
 
 const CUSTOMER_PERIODS: { value: ConcentrationPeriod; label: string }[] = [
@@ -122,7 +122,7 @@ export function Dashboard() {
 
           {(activePage === "churn" || activePage === "revenue-metrics") && (
             <div className="ml-auto flex items-center gap-3">
-              {activePage === "revenue-metrics" && (
+              {(activePage === "revenue-metrics" || activePage === "churn") && (
                 <span className="text-sm font-medium text-muted-foreground">Customers:</span>
               )}
               <Tabs value={churnSegment} onValueChange={(v) => setChurnSegment(v as ChurnSegment)}>
@@ -137,6 +137,7 @@ export function Dashboard() {
               {activePage === "churn" && (
                 <>
                   <Separator orientation="vertical" className="h-4" />
+                  <span className="text-sm font-medium text-muted-foreground">View:</span>
                   <Tabs value={churnPeriod} onValueChange={(v) => setChurnPeriod(v as ChurnPeriod)}>
                     <TabsList className="bg-muted h-9">
                       {PERIODS.map((p) => (

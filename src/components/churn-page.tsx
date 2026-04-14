@@ -158,20 +158,24 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
     label: formatPeriodLabel(m.period),
   }))
 
-  // NRR chart: show only complete periods
+  // Filter all churn charts to show only complete periods
   const _now = new Date()
   const _currentMonth = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}`
   const _currentQuarter = `${_now.getFullYear()}-Q${Math.ceil((_now.getMonth() + 1) / 3)}`
-  const nrrMonthlyData = chartData.filter((m) => m.period < _currentMonth)
+  // Monthly: drop current calendar month (used by Logo Churn, Revenue Churn, NRR)
+  const filteredChartData = chartData.filter((m) => m.period < _currentMonth)
+  const nrrMonthlyData = filteredChartData
 
   // Use API-computed quarterly and TTM data (true cohort churn)
-  const quarterlyLogoData = (data.quarterly || []).map((q) => ({ label: q.label, quarterlyLogoChurnRate: q.logoChurnRate }))
-  const quarterlyRevData = (data.quarterly || []).map((q) => ({ label: q.label, quarterlyRevenueChurnRate: q.revenueChurnRate }))
-  const quarterlyNrrData = (data.quarterly || []).map((q) => ({ period: q.period, label: q.label, quarterlyNrr: q.nrr }))
-  const nrrQuarterlyData = quarterlyNrrData.filter((q) => q.period < _currentQuarter)
+  // Quarterly: drop current calendar quarter
+  const quarterlyLogoData = (data.quarterly || []).filter((q) => q.period < _currentQuarter).map((q) => ({ label: q.label, quarterlyLogoChurnRate: q.logoChurnRate }))
+  const quarterlyRevData = (data.quarterly || []).filter((q) => q.period < _currentQuarter).map((q) => ({ label: q.label, quarterlyRevenueChurnRate: q.revenueChurnRate }))
+  const quarterlyNrrData = (data.quarterly || []).filter((q) => q.period < _currentQuarter).map((q) => ({ period: q.period, label: q.label, quarterlyNrr: q.nrr }))
+  const nrrQuarterlyData = quarterlyNrrData
 
-  const rollingTtmLogoData = (data.ttm || []).map((t) => ({ label: t.label, ttmLogoChurnRate: t.logoChurnRate }))
-  const rollingTtmRevData = (data.ttm || []).map((t) => ({ label: t.label, ttmRevenueChurnRate: t.revenueChurnRate }))
+  // TTM: exclude the most recent month of data
+  const rollingTtmLogoData = (data.ttm || []).slice(0, -1).map((t) => ({ label: t.label, ttmLogoChurnRate: t.logoChurnRate }))
+  const rollingTtmRevData = (data.ttm || []).slice(0, -1).map((t) => ({ label: t.label, ttmRevenueChurnRate: t.revenueChurnRate }))
 
   // Annual NRR data (year-over-year same-customer comparison)
   const annualNrrData = (data?.annualNrr || []).map((d) => ({
@@ -297,7 +301,7 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
               {period === "monthly" ? (
-                <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={filteredChartData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
@@ -347,7 +351,7 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
               {period === "monthly" ? (
-                <BarChart data={chartData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={filteredChartData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
