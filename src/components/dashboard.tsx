@@ -67,7 +67,6 @@ const SERVICE_PERIODS: { value: ServicePeriod; label: string }[] = [
 const LEADS_PERIODS: { value: LeadsPeriod; label: string }[] = [
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
-  { value: "annually", label: "Annually" },
   { value: "ttm", label: "TTM" },
 ]
 
@@ -184,6 +183,7 @@ export function Dashboard() {
 
           {activePage === "leads" && (
             <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">View:</span>
               <Tabs value={leadsPeriod} onValueChange={(v) => setLeadsPeriod(v as LeadsPeriod)}>
                 <TabsList className="bg-muted h-9">
                   {LEADS_PERIODS.map((p) => (

@@ -803,7 +803,7 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       </div>
 
       {/* New Customers Billed */}
-      <NewCustomersChart />
+      <NewCustomersChart period={period === "annually" ? "ttm" : period} />
 
       {/* Charts */}
       <div className="grid gap-6 grid-cols-3">
