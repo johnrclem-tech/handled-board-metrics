@@ -439,17 +439,26 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
   // Reset page when period changes
   useEffect(() => setPage(1), [period])
 
+  // Exclude leads created before 2025 from all calculations
+  const filteredLeadRows = useMemo(
+    () => leadRows.filter((l) => {
+      if (!l.createdTime) return false
+      return new Date(l.createdTime) >= new Date("2025-01-01T00:00:00")
+    }),
+    [leadRows]
+  )
+
   const EXCLUDED_STATUSES = new Set(["Junk", "Unknown"])
 
   // Combined items for "Leads" chart (leads + opportunities), excluding Junk/Unknown leads
   const allItems = useMemo(
     () => [
-      ...leadRows
+      ...filteredLeadRows
         .filter((l) => !EXCLUDED_STATUSES.has(l.leadStatus || ""))
         .map((l) => ({ createdTime: l.createdTime, source: l.leadSource })),
       ...oppRows.map((o) => ({ createdTime: o.createdTime, source: o.leadSource })),
     ],
-    [leadRows, oppRows]
+    [filteredLeadRows, oppRows]
   )
 
   // Opportunity items
@@ -477,14 +486,14 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
 
   const allItemsWithStatus = useMemo(
     () => [
-      ...leadRows
+      ...filteredLeadRows
         .filter((l) => !EXCLUDED_STATUS_VIEW.has(l.leadStatus || "Unknown"))
         .map((l) => ({ createdTime: l.createdTime, status: l.leadStatus || "Unknown" })),
       ...oppRows
         .filter((o) => !EXCLUDED_STATUS_VIEW.has(o.stage || "Unknown"))
         .map((o) => ({ createdTime: o.createdTime, status: o.stage || "Unknown" })),
     ],
-    [leadRows, oppRows]
+    [filteredLeadRows, oppRows]
   )
 
   const allLeadStatuses = useMemo(() => {
@@ -574,7 +583,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
   const convRateData = useMemo(() => {
     // Count leads per source category (excluding junk/unknown leads + all opps)
     const leadsBySource = new Map<string, number>()
-    for (const l of leadRows) {
+    for (const l of filteredLeadRows) {
       if (EXCLUDED_STATUSES.has(l.leadStatus || "")) continue
       const cat = categorizeSource(l.leadSource)
       leadsBySource.set(cat, (leadsBySource.get(cat) || 0) + 1)
@@ -611,7 +620,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
       })
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value)
-  }, [leadRows, oppRows, convRateMode])
+  }, [filteredLeadRows, oppRows, convRateMode])
 
   // Sort + filter table
   const handleLeadSort = (field: LeadSortField) => {
@@ -645,14 +654,14 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
   }
 
   // Filter options derived from data
-  const leadSourceOptions = useMemo(() => [...new Set(leadRows.map((r) => r.leadSource))].sort(), [leadRows])
-  const leadCampaignOptions = useMemo(() => [...new Set(leadRows.map((r) => r.adCampaignName || "—").filter(Boolean))].sort(), [leadRows])
-  const leadStatusOptions = useMemo(() => [...new Set(leadRows.map((r) => r.leadStatus || "Unknown"))].sort(), [leadRows])
+  const leadSourceOptions = useMemo(() => [...new Set(filteredLeadRows.map((r) => r.leadSource))].sort(), [filteredLeadRows])
+  const leadCampaignOptions = useMemo(() => [...new Set(filteredLeadRows.map((r) => r.adCampaignName || "—").filter(Boolean))].sort(), [filteredLeadRows])
+  const leadStatusOptions = useMemo(() => [...new Set(filteredLeadRows.map((r) => r.leadStatus || "Unknown"))].sort(), [filteredLeadRows])
   const oppSourceOptions = useMemo(() => [...new Set(oppRows.map((r) => r.leadSource))].sort(), [oppRows])
   const oppStageOptions = useMemo(() => [...new Set(oppRows.map((r) => r.stage || "Unknown"))].sort(), [oppRows])
 
   const filteredLeads = useMemo(() => {
-    let rows = leadRows
+    let rows = filteredLeadRows
     if (search) {
       const q = search.toLowerCase()
       rows = rows.filter(
@@ -672,7 +681,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
       const cmp = String(av).localeCompare(String(bv))
       return sortDir === "asc" ? cmp : -cmp
     })
-  }, [leadRows, search, leadSortField, sortDir, filterSource, filterCampaign, filterStatus])
+  }, [filteredLeadRows, search, leadSortField, sortDir, filterSource, filterCampaign, filterStatus])
 
   const filteredOpps = useMemo(() => {
     let rows = oppRows
@@ -717,7 +726,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
       return date >= ttmStart && date < new Date(now.getFullYear(), now.getMonth(), 1)
     }
 
-    const totalLeads = leadRows.filter((l) => inRange(l.createdTime)).length
+    const totalLeads = filteredLeadRows.filter((l) => inRange(l.createdTime)).length
       + oppRows.filter((o) => inRange(o.createdTime)).length
     const totalOpps = oppRows.filter((o) => inRange(o.createdTime)).length
     const totalConversions = oppRows.filter((o) => o.stage === "Closed Won" && inRange(o.closingDate || o.createdTime)).length
@@ -737,7 +746,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
     }
 
     return { totalLeads, totalOpps, totalConversions, totalBilled }
-  }, [leadRows, oppRows, billedByMonth, timeRange])
+  }, [filteredLeadRows, oppRows, billedByMonth, timeRange])
 
   const EXCLUDED_LEAD_STATUSES = new Set(["Junk", "Unknown", "Junk Lead", "Closed Lost"])
 
@@ -746,7 +755,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
 
   const openLeadsData = useMemo(() => {
     const statusMap = new Map<string, number>()
-    for (const l of leadRows) {
+    for (const l of filteredLeadRows) {
       const status = l.leadStatus || "Unknown"
       if (EXCLUDED_LEAD_STATUSES.has(status)) continue
       statusMap.set(status, (statusMap.get(status) || 0) + 1)
@@ -754,11 +763,11 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
     return Array.from(statusMap.entries())
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-  }, [leadRows])
+  }, [filteredLeadRows])
 
   const openLeadsByAge = useMemo(() => {
     const monthMap = new Map<string, number>()
-    for (const l of leadRows) {
+    for (const l of filteredLeadRows) {
       const status = l.leadStatus || "Unknown"
       if (EXCLUDED_LEAD_STATUSES.has(status)) continue
       if (!l.createdTime) continue
@@ -773,7 +782,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         const [y, m] = key.split("-").map(Number)
         return { name: new Date(y, m - 1).toLocaleDateString("en-US", { month: "short", year: "2-digit" }), value }
       })
-  }, [leadRows])
+  }, [filteredLeadRows])
 
   // Open Opportunities — same exclusions as the Opportunities by Status chart
   const openOppsData = useMemo(() => {
