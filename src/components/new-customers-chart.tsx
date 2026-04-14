@@ -35,7 +35,7 @@ export function NewCustomersChart() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>New Customer Acquisitions</CardTitle>
+          <CardTitle>New Customers Billed</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[225px] flex items-center justify-center">
@@ -65,7 +65,7 @@ export function NewCustomersChart() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <UserPlus className="h-5 w-5" />
-          New Customer Acquisitions
+          New Customers Billed
           <InfoTooltip text={`Count of customers starting their first billing month (excluding pre-existing). Total: ${totalNew} new customers, avg ${avgPerMonth.toFixed(1)}/mo.`} />
         </CardTitle>
       </CardHeader>

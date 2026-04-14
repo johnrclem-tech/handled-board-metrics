@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
 import StatisticsTrendCard from "@/components/shadcn-studio/blocks/statistics-trend-card"
+import { NewCustomersChart } from "@/components/new-customers-chart"
 import { cn } from "@/lib/utils"
 import {
   Search,
@@ -800,6 +801,9 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
           format="compact"
         />
       </div>
+
+      {/* New Customers Billed */}
+      <NewCustomersChart />
 
       {/* Charts */}
       <div className="grid gap-6 grid-cols-3">

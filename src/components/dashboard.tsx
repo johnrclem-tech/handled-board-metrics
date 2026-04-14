@@ -11,14 +11,10 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb"
 import { AppSidebar } from "@/components/app-sidebar"
-import { KpiOverview } from "@/components/kpi-overview"
 import { FileUpload } from "@/components/file-upload"
 import { FinancialTable } from "@/components/financial-table"
-import { RevenueChart } from "@/components/revenue-chart"
 import { CohortSummaryChart } from "@/components/cohort-summary-chart"
 import { ConcentrationChart } from "@/components/concentration-chart"
-import { NewCustomersChart } from "@/components/new-customers-chart"
-import { ExistingCustomersChart } from "@/components/existing-customers-chart"
 import { ChurnPage } from "@/components/churn-page"
 import { LifetimeGrossMarginCard } from "@/components/lifetime-gross-margin-card"
 import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
@@ -36,7 +32,6 @@ export type ChurnSegment = "all" | "new" | "existing"
 export type ChurnPeriod = "monthly" | "quarterly" | "annually"
 
 const PAGE_TITLES: Record<string, string> = {
-  overview: "Dashboard",
   "revenue-metrics": "Service Revenue",
   financials: "Customer Revenue",
   churn: "LTV-Churn",
@@ -71,7 +66,7 @@ const LEADS_PERIODS: { value: LeadsPeriod; label: string }[] = [
 
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
-  const [activePage, setActivePage] = useState("overview")
+  const [activePage, setActivePage] = useState("revenue-metrics")
   const [drillFilter, setDrillFilter] = useState<CohortDrillFilter | null>(null)
   const [churnSegment, setChurnSegment] = useState<ChurnSegment>("all")
   const [churnPeriod, setChurnPeriod] = useState<ChurnPeriod>("monthly")
@@ -175,15 +170,6 @@ export function Dashboard() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {activePage === "overview" && (
-            <div className="space-y-6">
-              <KpiOverview key={`kpi-${refreshKey}`} />
-              <ExistingCustomersChart key={`existing-${refreshKey}`} />
-              <NewCustomersChart key={`new-customers-${refreshKey}`} />
-              <RevenueChart key={`chart-${refreshKey}`} />
-            </div>
-          )}
-
           {activePage === "churn" && (
             <ChurnPage
               key={`churn-${refreshKey}`}

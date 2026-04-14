@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Package, BarChart3, Table2, Settings, UserX, TrendingUp, Upload, Users } from "lucide-react"
+import { Package, Table2, Settings, UserX, TrendingUp, Upload, Users } from "lucide-react"
 
 interface AppSidebarProps {
   activePage: string
@@ -25,7 +25,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" onClick={() => onNavigate("overview")}>
+            <SidebarMenuButton size="lg" onClick={() => onNavigate("revenue-metrics")}>
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Package className="size-4" />
               </div>
@@ -42,15 +42,6 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
           <SidebarGroupLabel>Dashboard</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={activePage === "overview"}
-                  onClick={() => onNavigate("overview")}
-                >
-                  <BarChart3 className="size-4" />
-                  <span>Dashboard</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   isActive={activePage === "revenue-metrics"}
