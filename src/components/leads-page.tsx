@@ -338,7 +338,7 @@ function buildStackedData(
 }
 
 type LeadsChartMode = "source" | "status" | "converted"
-type OppsChartMode = "source" | "status"
+type OppsChartMode = "source" | "status" | "won"
 
 const STATUS_COLORS: string[] = [
   "var(--chart-1)",
@@ -542,6 +542,31 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
       return { period: key, label: formatPeriodLabel(key, period), rate }
     })
   }, [allItems, oppRows, period])
+
+  // Opportunities Won — % of opportunities that became conversions (Closed Won) per period
+  const oppsWonData = useMemo(() => {
+    const oppsPerPeriod = new Map<string, number>()
+    const wonPerPeriod = new Map<string, number>()
+    const minPeriod = CHART_START[period]
+
+    for (const o of oppRows) {
+      const key = getPeriodKey(o.createdTime, period)
+      if (!key || key < minPeriod) continue
+      oppsPerPeriod.set(key, (oppsPerPeriod.get(key) || 0) + 1)
+      if (o.stage === "Closed Won") {
+        wonPerPeriod.set(key, (wonPerPeriod.get(key) || 0) + 1)
+      }
+    }
+
+    return Array.from(oppsPerPeriod.keys())
+      .sort()
+      .map((key) => {
+        const opps = oppsPerPeriod.get(key) || 0
+        const won = wonPerPeriod.get(key) || 0
+        const rate = opps > 0 ? Math.round((won / opps) * 100) : 0
+        return { period: key, label: formatPeriodLabel(key, period), rate }
+      })
+  }, [oppRows, period])
 
   // Win Rates by source category — % of conversions vs leads or vs opportunities
   const [convRateMode, setConvRateMode] = useState<"leads" | "opps">("leads")
@@ -815,58 +840,6 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         )
       })()}
 
-      {/* New Customers Billed + Open Opportunities */}
-      <div className="grid gap-6 grid-cols-3">
-        <div className="col-span-2">
-          <NewCustomersChart period={period === "annually" ? "ttm" : period} />
-        </div>
-        <Card className="col-span-1 flex flex-col">
-          <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2">
-              Open Opportunities
-              <InfoTooltip text="Active opportunities by stage. Excludes Closed Won, Closed Lost, Junk Lead, and Unknown." />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-1 pt-4 pb-2">
-            {openOppsData.length > 0 ? (
-              <ChartContainer
-                config={{ count: { label: "Opportunities", color: "var(--primary)" } } satisfies ChartConfig}
-                className="w-full flex-1"
-              >
-                <BarChart
-                  data={openOppsData}
-                  layout="vertical"
-                  margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
-                >
-                  <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
-                  <XAxis type="number" dataKey="value" hide />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    tickLine={false}
-                    tickMargin={8}
-                    axisLine={false}
-                    width={100}
-                    tick={{ fontSize: 13 }}
-                  />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                  <Bar dataKey="value" name="Opportunities" fill="var(--primary)" radius={6}>
-                    <LabelList
-                      dataKey="value"
-                      offset={8}
-                      position="right"
-                      className="fill-foreground text-xs"
-                    />
-                  </Bar>
-                </BarChart>
-              </ChartContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground py-4">No open opportunities</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Charts */}
       <div className="grid gap-6 grid-cols-3">
         <Card className="col-span-2">
@@ -874,7 +847,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 {leadsChartMode === "converted"
-                  ? "Lead Conversion Rate"
+                  ? "Leads Converted to Opportunities"
                   : `Leads Created ${leadsChartMode === "source" ? "by Source" : "by Status"}`}
                 <InfoTooltip text="Leads + Opportunities per period. By Source excludes Junk and Unknown leads. By Status also excludes Closed Won, Junk Lead, and Closed Lost. Converted shows the percent of leads that became opportunities each period." />
               </CardTitle>
@@ -1052,19 +1025,38 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
-                  Opportunities Created {oppsChartMode === "source" ? "by Source" : "by Status"}
-                  <InfoTooltip text="Opportunities per period. By Status excludes Closed Won, Unknown, Junk Lead, and Closed Lost." />
+                  {oppsChartMode === "won"
+                    ? "Opportunities Won"
+                    : `Opportunities Created ${oppsChartMode === "source" ? "by Source" : "by Status"}`}
+                  <InfoTooltip text="Opportunities per period. By Status excludes Closed Won, Unknown, Junk Lead, and Closed Lost. Converted shows the percent of opportunities that became Closed Won each period." />
                 </CardTitle>
                 <Tabs value={oppsChartMode} onValueChange={(v) => setOppsChartMode(v as OppsChartMode)}>
                   <TabsList className="bg-muted h-9">
                     <TabsTrigger value="source" className="px-4">By Source</TabsTrigger>
                     <TabsTrigger value="status" className="px-4">By Status</TabsTrigger>
+                    <TabsTrigger value="won" className="px-4">Converted</TabsTrigger>
                   </TabsList>
                 </Tabs>
               </div>
             </CardHeader>
             <CardContent>
-              {oppsChartMode === "source" ? (
+              {oppsChartMode === "won" ? (
+                oppsWonData.length === 0 ? (
+                  <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
+                ) : (
+                  <ChartContainer config={{ rate: { label: "Conversion %", color: "var(--primary)" } } satisfies ChartConfig} className="aspect-auto h-[300px] w-full">
+                    <BarChart data={oppsWonData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="5 4" vertical={false} />
+                      <XAxis dataKey="label" tickLine={false} axisLine={false} className="text-xs" />
+                      <YAxis tickLine={false} axisLine={false} className="text-xs" tickFormatter={(v) => `${v}%`} />
+                      <ChartTooltip cursor={false} content={<ChartTooltipContent className="min-w-[200px]" formatter={(v) => `${v}%`} />} />
+                      <Bar dataKey="rate" name="Conversion %" fill="var(--primary)" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="rate" position="top" className="fill-foreground text-xs" formatter={(v) => `${v}%`} />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                )
+              ) : oppsChartMode === "source" ? (
                 oppsChartData.length === 0 ? (
                   <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">No data for this period</div>
                 ) : (
@@ -1106,6 +1098,58 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
           </Card>
         </div>
       </div>
+      {/* New Customers Billed + Open Opportunities */}
+      <div className="grid gap-6 grid-cols-3">
+        <div className="col-span-2">
+          <NewCustomersChart period={period === "annually" ? "ttm" : period} />
+        </div>
+        <Card className="col-span-1 flex flex-col">
+          <CardHeader className="border-b">
+            <CardTitle className="flex items-center gap-2">
+              Open Opportunities
+              <InfoTooltip text="Active opportunities by stage. Excludes Closed Won, Closed Lost, Junk Lead, and Unknown." />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-1 pt-4 pb-2">
+            {openOppsData.length > 0 ? (
+              <ChartContainer
+                config={{ count: { label: "Opportunities", color: "var(--primary)" } } satisfies ChartConfig}
+                className="w-full flex-1"
+              >
+                <BarChart
+                  data={openOppsData}
+                  layout="vertical"
+                  margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="4" stroke="var(--border)" />
+                  <XAxis type="number" dataKey="value" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    tickLine={false}
+                    tickMargin={8}
+                    axisLine={false}
+                    width={100}
+                    tick={{ fontSize: 13 }}
+                  />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                  <Bar dataKey="value" name="Opportunities" fill="var(--primary)" radius={6}>
+                    <LabelList
+                      dataKey="value"
+                      offset={8}
+                      position="right"
+                      className="fill-foreground text-xs"
+                    />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            ) : (
+              <p className="text-sm text-muted-foreground py-4">No open opportunities</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Data Table */}
       <Card>
         <CardHeader>
