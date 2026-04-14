@@ -48,35 +48,47 @@ export async function GET(request: NextRequest) {
 
     const sortedPeriods = [...allPeriods].sort()
 
+    // Exclude the current calendar month and anything newer from the usable dataset
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    const currentQuarter = Math.ceil((now.getMonth() + 1) / 3)
+    const currentYearQ = `${now.getFullYear()}-Q${currentQuarter}`
+    const eligiblePeriods = sortedPeriods.filter((p) => p < currentMonth)
+
     // Determine current and prior periods based on period type
     let currentPeriods: string[] = []
     let priorPeriods: string[] = []
 
     if (period === "monthly") {
-      // Latest month
-      const latestMonth = sortedPeriods[sortedPeriods.length - 1]
-      currentPeriods = [latestMonth]
-      const [y, m] = latestMonth.split("-").map(Number)
-      const priorMonth = `${y - 1}-${String(m).padStart(2, "0")}`
-      if (allPeriods.has(priorMonth)) priorPeriods = [priorMonth]
+      // Latest complete month
+      const latestMonth = eligiblePeriods[eligiblePeriods.length - 1]
+      if (latestMonth) {
+        currentPeriods = [latestMonth]
+        const [y, m] = latestMonth.split("-").map(Number)
+        const priorMonth = `${y - 1}-${String(m).padStart(2, "0")}`
+        if (allPeriods.has(priorMonth)) priorPeriods = [priorMonth]
+      }
     } else if (period === "quarterly") {
-      // Latest complete quarter
-      const latestMonth = sortedPeriods[sortedPeriods.length - 1]
-      const [ly, lm] = latestMonth.split("-").map(Number)
-      const latestQ = Math.ceil(lm / 3)
-      // Check if this quarter is complete
-      const qStartMonth = (latestQ - 1) * 3 + 1
-      const qMonths = [1, 2, 3].map((i) => `${ly}-${String(qStartMonth + i - 1).padStart(2, "0")}`)
-      const isComplete = qMonths.every((m) => allPeriods.has(m))
-
-      if (isComplete) {
-        currentPeriods = qMonths
-      } else {
-        // Fall back to previous quarter
-        const prevQ = latestQ === 1 ? 4 : latestQ - 1
-        const prevY = latestQ === 1 ? ly - 1 : ly
-        const prevQStart = (prevQ - 1) * 3 + 1
-        currentPeriods = [1, 2, 3].map((i) => `${prevY}-${String(prevQStart + i - 1).padStart(2, "0")}`)
+      // Find the latest COMPLETE quarter that is NOT the current calendar quarter
+      const tryQuarter = (year: number, q: number): string[] | null => {
+        const qStart = (q - 1) * 3 + 1
+        const qMonths = [0, 1, 2].map((i) => `${year}-${String(qStart + i).padStart(2, "0")}`)
+        const complete = qMonths.every((m) => allPeriods.has(m))
+        const qKey = `${year}-Q${q}`
+        if (complete && qKey < currentYearQ) return qMonths
+        return null
+      }
+      const latestMonth = eligiblePeriods[eligiblePeriods.length - 1]
+      if (latestMonth) {
+        let [yr, mo] = latestMonth.split("-").map(Number)
+        let q = Math.ceil(mo / 3)
+        // Try successively older quarters until we find one that is complete and not the current calendar quarter
+        for (let step = 0; step < 8; step++) {
+          const months = tryQuarter(yr, q)
+          if (months) { currentPeriods = months; break }
+          q -= 1
+          if (q === 0) { q = 4; yr -= 1 }
+        }
       }
       // Prior year same quarter
       priorPeriods = currentPeriods.map((p) => {
@@ -85,17 +97,18 @@ export async function GET(request: NextRequest) {
       }).filter((p) => allPeriods.has(p))
       if (priorPeriods.length !== currentPeriods.length) priorPeriods = []
     } else {
-      // TTM: trailing 12 months
-      if (sortedPeriods.length >= 12) {
-        currentPeriods = sortedPeriods.slice(-12)
-        // Prior TTM
+      // TTM: exclude the most recent month of data from all windows
+      const ttmPool = sortedPeriods.slice(0, -1)
+      if (ttmPool.length >= 12) {
+        currentPeriods = ttmPool.slice(-12)
+        // Prior TTM (12 months before the current window)
         priorPeriods = currentPeriods.map((p) => {
           const [y, m] = p.split("-").map(Number)
           return `${y - 1}-${String(m).padStart(2, "0")}`
         }).filter((p) => allPeriods.has(p))
         if (priorPeriods.length !== 12) priorPeriods = []
       } else {
-        currentPeriods = sortedPeriods
+        currentPeriods = ttmPool
       }
     }
 
