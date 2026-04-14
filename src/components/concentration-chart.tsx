@@ -425,7 +425,17 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
                     content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value) => [formatCurrency(Number(value))]} />}
                   />
                   <Legend />
-                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]}>
+                    <LabelList
+                      dataKey="total"
+                      position="insideBottom"
+                      offset={8}
+                      fill="#fff"
+                      fontSize={10}
+                      fontWeight={600}
+                      formatter={(v) => `$${(Number(v) / 1000).toFixed(1)}k`}
+                    />
+                  </Bar>
                   <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ChartContainer>
