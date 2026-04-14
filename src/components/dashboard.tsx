@@ -189,23 +189,16 @@ export function Dashboard() {
               key={`churn-${refreshKey}`}
               segment={churnSegment}
               period={churnPeriod}
-              ltvSection={
-                <div className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <LifetimeGrossMarginCard key={`ltv-card-${refreshKey}`} />
-                  </div>
-                  <CohortSummaryChart
-                    key={`cohort-summary-${refreshKey}`}
-                    onViewDetails={() => {}}
-                    onDrill={handleCohortDrill}
-                    period="monthly"
-                  />
-                  <FinancialTable
-                    key={`ltv-table-${refreshKey}`}
-                    view="ltv"
-                  />
-                </div>
+              ltvCard={<LifetimeGrossMarginCard key={`ltv-card-${refreshKey}`} />}
+              ltvChart={
+                <CohortSummaryChart
+                  key={`cohort-summary-${refreshKey}`}
+                  onViewDetails={() => {}}
+                  onDrill={handleCohortDrill}
+                  period="monthly"
+                />
               }
+              ltvTable={<FinancialTable key={`ltv-table-${refreshKey}`} view="ltv" />}
             />
           )}
 

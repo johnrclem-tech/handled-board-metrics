@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { InfoTooltip } from "@/components/info-tooltip"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { UserX, DollarSign, Users, TrendingUp, ChevronDown } from "lucide-react"
 import {
   BarChart,
@@ -98,10 +99,12 @@ function formatPeriodLabel(period: string): string {
 interface ChurnPageProps {
   segment: ChurnSegment
   period: ChurnPeriod
-  ltvSection?: React.ReactNode
+  ltvCard?: React.ReactNode
+  ltvChart?: React.ReactNode
+  ltvTable?: React.ReactNode
 }
 
-export function ChurnPage({ segment, period, ltvSection }: ChurnPageProps) {
+export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: ChurnPageProps) {
   const [data, setData] = useState<ChurnResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedNrrDetail, setSelectedNrrDetail] = useState<AnnualNrrEntry | null>(null)
@@ -245,8 +248,8 @@ export function ChurnPage({ segment, period, ltvSection }: ChurnPageProps) {
 
   return (
     <div className="space-y-6">
-      {ltvSection}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
+        {ltvCard}
         {kpiCards.map((kpi) => (
           <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -266,6 +269,7 @@ export function ChurnPage({ segment, period, ltvSection }: ChurnPageProps) {
           </Card>
         ))}
       </div>
+      {ltvChart}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -493,13 +497,33 @@ export function ChurnPage({ segment, period, ltvSection }: ChurnPageProps) {
         </Card>
       )}
 
-      <ChurnDetailsTable months={months} period={period} quarterly={data.quarterly || []} ttm={data.ttm || []} />
+      <ChurnDetailsTable months={months} period={period} quarterly={data.quarterly || []} ttm={data.ttm || []} ltvTable={ltvTable} />
     </div>
   )
 }
 
-function ChurnDetailsTable({ months, period, quarterly, ttm }: { months: ChurnMonth[]; period: ChurnPeriod; quarterly: PeriodChurn[]; ttm: PeriodChurn[] }) {
+function ChurnDetailsTable({ months, period, quarterly, ttm, ltvTable }: { months: ChurnMonth[]; period: ChurnPeriod; quarterly: PeriodChurn[]; ttm: PeriodChurn[]; ltvTable?: React.ReactNode }) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
+  const [rawView, setRawView] = useState<"churn" | "ltv">("churn")
+
+  if (rawView === "ltv" && ltvTable) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Raw Data</CardTitle>
+            <Tabs value={rawView} onValueChange={(v) => setRawView(v as "churn" | "ltv")}>
+              <TabsList className="bg-muted h-9">
+                <TabsTrigger value="churn" className="px-4">Churn</TabsTrigger>
+                <TabsTrigger value="ltv" className="px-4">LTV</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </CardHeader>
+        <CardContent>{ltvTable}</CardContent>
+      </Card>
+    )
+  }
 
   const dataMonths = months.slice(1)
 
@@ -574,10 +598,20 @@ function ChurnDetailsTable({ months, period, quarterly, ttm }: { months: ChurnMo
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {periodLabel} Churn Details
-          <InfoTooltip text={`Active customers, churned count, and lost revenue by ${periodLabel.toLowerCase()} period. Click a row to see churned customers.`} />
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            Raw Data
+            <InfoTooltip text={`${periodLabel} churn details. Active customers, churned count, and lost revenue by ${periodLabel.toLowerCase()} period. Click a row to see churned customers.`} />
+          </CardTitle>
+          {ltvTable && (
+            <Tabs value={rawView} onValueChange={(v) => setRawView(v as "churn" | "ltv")}>
+              <TabsList className="bg-muted h-9">
+                <TabsTrigger value="churn" className="px-4">Churn</TabsTrigger>
+                <TabsTrigger value="ltv" className="px-4">LTV</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
