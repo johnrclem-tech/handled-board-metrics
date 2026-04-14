@@ -30,6 +30,8 @@ const PAGE_SIZE = 250
 interface FinancialTableProps {
   drillFilter?: CohortDrillFilter | null
   onClearDrill?: () => void
+  /** "raw" shows only the raw records, "ltv" shows only the LTV pivot, "both" shows the toggle (default). */
+  view?: "raw" | "ltv" | "both"
 }
 
 function MultiSelect({
@@ -139,7 +141,7 @@ interface LtvRow {
   isAverage?: boolean
 }
 
-export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProps) {
+export function FinancialTable({ drillFilter, onClearDrill, view = "both" }: FinancialTableProps) {
   const [data, setData] = useState<FinancialRecord[]>([])
   const [allPeriods, setAllPeriods] = useState<string[]>([])
   const [allCategories, setAllCategories] = useState<string[]>([])
@@ -151,7 +153,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
   const [sortField, setSortField] = useState<SortField>("accountName")
   const [sortDir, setSortDir] = useState<SortDir>("asc")
   const [page, setPage] = useState(1)
-  const [tableView, setTableView] = useState<TableView>("raw")
+  const [tableView, setTableView] = useState<TableView>(view === "ltv" ? "ltv" : "raw")
 
   useEffect(() => {
     if (drillFilter) {
@@ -528,7 +530,7 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-center gap-4">
             <div>
-              <CardTitle>Revenue Data</CardTitle>
+              <CardTitle>{view === "ltv" ? "LTV Revenue Data" : "Revenue Data"}</CardTitle>
               <CardDescription>
                 {drillLabel
                   ? `Showing records for: ${drillLabel}`
@@ -539,12 +541,14 @@ export function FinancialTable({ drillFilter, onClearDrill }: FinancialTableProp
             </div>
           </div>
           <div className="flex gap-2 flex-wrap items-center">
-            <Tabs value={tableView} onValueChange={(v) => { setTableView(v as TableView); setPage(1) }}>
-              <TabsList className="bg-muted h-9">
-                <TabsTrigger value="raw" className="px-4">Raw</TabsTrigger>
-                <TabsTrigger value="ltv" className="px-4">LTV</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            {view === "both" && (
+              <Tabs value={tableView} onValueChange={(v) => { setTableView(v as TableView); setPage(1) }}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="raw" className="px-4">Raw</TabsTrigger>
+                  <TabsTrigger value="ltv" className="px-4">LTV</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
             {drillLabel ? (
               <Button variant="outline" size="sm" onClick={handleClearDrill} className="gap-1">
                 <X className="h-4 w-4" />

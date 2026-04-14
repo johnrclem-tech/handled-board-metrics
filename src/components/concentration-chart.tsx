@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Button } from "@/components/ui/button"
-import { DollarSign, Users, PieChart as PieChartIcon, TrendingUp } from "lucide-react"
+import { Users, PieChart as PieChartIcon, TrendingUp } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, LabelList, Legend, YAxis } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
@@ -24,15 +24,6 @@ interface ConcentrationResponse {
   monthly: ConcentrationEntry[]
   quarterly: ConcentrationEntry[]
   ttm: ConcentrationEntry[]
-}
-
-interface CohortResponse {
-  cohortData: {
-    storage: { month: number; average: number; customerCount: number }[]
-    shipping: { month: number; average: number; customerCount: number }[]
-    handling: { month: number; average: number; customerCount: number }[]
-    total: { month: number; average: number; customerCount: number }[]
-  }
 }
 
 interface SegmentEntry {
@@ -78,27 +69,16 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
   const [data, setData] = useState<ConcentrationResponse | null>(null)
   const [segmentData, setSegmentData] = useState<SegmentResponse | null>(null)
   const [customerRevData, setCustomerRevData] = useState<CustomerRevenueResponse | null>(null)
-  const [ltv, setLtv] = useState<number | null>(null)
-  const [ltvGrossMargin, setLtvGrossMargin] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.all([
       fetch("/api/metrics/concentration").then((r) => r.json()),
-      fetch("/api/metrics/cohort-revenue").then((r) => r.json()),
       fetch("/api/metrics/customer-segments").then((r) => r.json()),
     ])
-      .then(([concResult, cohortResult, segResult]: [ConcentrationResponse, CohortResponse, SegmentResponse]) => {
+      .then(([concResult, segResult]: [ConcentrationResponse, SegmentResponse]) => {
         setData(concResult)
         setSegmentData(segResult)
-        if (cohortResult.cohortData?.total) {
-          const total = cohortResult.cohortData.total.reduce((sum: number, e: { average: number }) => sum + e.average, 0)
-          setLtv(total)
-          const storageRev = (cohortResult.cohortData.storage || []).reduce((sum: number, e: { average: number }) => sum + e.average, 0)
-          const shippingRev = (cohortResult.cohortData.shipping || []).reduce((sum: number, e: { average: number }) => sum + e.average, 0)
-          const handlingRev = (cohortResult.cohortData.handling || []).reduce((sum: number, e: { average: number }) => sum + e.average, 0)
-          setLtvGrossMargin(storageRev * 0.10 + shippingRev * 0.15 + handlingRev * 0.30)
-        }
       })
       .catch((err) => console.error("Failed to fetch data:", err))
       .finally(() => setLoading(false))
@@ -235,12 +215,6 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
 
   const kpiCards = [
     {
-      title: "Lifetime Gross Margin",
-      value: ltvGrossMargin != null ? formatCurrency(ltvGrossMargin) : "N/A",
-      sub: ltv != null ? `Based on ${formatCurrency(ltv)} lifetime revenue` : "",
-      icon: DollarSign,
-    },
-    {
       title: "Top 5 Customer Concentration",
       value: latest ? `${latest.top5.pct.toFixed(1)}%` : "N/A",
       sub: priorTop5 != null && latest
@@ -270,7 +244,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {kpiCards.map((kpi) => (
           <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

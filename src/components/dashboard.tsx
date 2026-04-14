@@ -20,6 +20,7 @@ import { ConcentrationChart } from "@/components/concentration-chart"
 import { NewCustomersChart } from "@/components/new-customers-chart"
 import { ExistingCustomersChart } from "@/components/existing-customers-chart"
 import { ChurnPage } from "@/components/churn-page"
+import { LifetimeGrossMarginCard } from "@/components/lifetime-gross-margin-card"
 import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
 import type { LeadsPeriod } from "@/components/leads-page"
@@ -38,7 +39,7 @@ const PAGE_TITLES: Record<string, string> = {
   overview: "Dashboard",
   "revenue-metrics": "Service Revenue",
   financials: "Customer Revenue",
-  churn: "Churn",
+  churn: "LTV-Churn",
   leads: "Leads",
   import: "Import",
 }
@@ -188,6 +189,23 @@ export function Dashboard() {
               key={`churn-${refreshKey}`}
               segment={churnSegment}
               period={churnPeriod}
+              ltvSection={
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <LifetimeGrossMarginCard key={`ltv-card-${refreshKey}`} />
+                  </div>
+                  <CohortSummaryChart
+                    key={`cohort-summary-${refreshKey}`}
+                    onViewDetails={() => {}}
+                    onDrill={handleCohortDrill}
+                    period="monthly"
+                  />
+                  <FinancialTable
+                    key={`ltv-table-${refreshKey}`}
+                    view="ltv"
+                  />
+                </div>
+              }
             />
           )}
 
@@ -200,18 +218,12 @@ export function Dashboard() {
 
           {activePage === "financials" && (
             <div className="space-y-6">
-              <ConcentrationChart key={`concentration-${refreshKey}`} period={customerPeriod}>
-                <CohortSummaryChart
-                  key={`cohort-summary-${refreshKey}`}
-                  onViewDetails={() => {}}
-                  onDrill={handleCohortDrill}
-                  period={customerPeriod}
-                />
-              </ConcentrationChart>
+              <ConcentrationChart key={`concentration-${refreshKey}`} period={customerPeriod} />
               <FinancialTable
                 key={`table-${refreshKey}`}
                 drillFilter={drillFilter}
                 onClearDrill={handleClearDrill}
+                view="raw"
               />
             </div>
           )}

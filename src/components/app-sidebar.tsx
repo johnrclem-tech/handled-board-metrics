@@ -75,7 +75,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                   onClick={() => onNavigate("churn")}
                 >
                   <UserX className="size-4" />
-                  <span>Churn</span>
+                  <span>LTV-Churn</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

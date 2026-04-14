@@ -98,9 +98,10 @@ function formatPeriodLabel(period: string): string {
 interface ChurnPageProps {
   segment: ChurnSegment
   period: ChurnPeriod
+  ltvSection?: React.ReactNode
 }
 
-export function ChurnPage({ segment, period }: ChurnPageProps) {
+export function ChurnPage({ segment, period, ltvSection }: ChurnPageProps) {
   const [data, setData] = useState<ChurnResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedNrrDetail, setSelectedNrrDetail] = useState<AnnualNrrEntry | null>(null)
@@ -244,6 +245,7 @@ export function ChurnPage({ segment, period }: ChurnPageProps) {
 
   return (
     <div className="space-y-6">
+      {ltvSection}
       <div className="grid gap-4 md:grid-cols-3">
         {kpiCards.map((kpi) => (
           <Card key={kpi.title}>
