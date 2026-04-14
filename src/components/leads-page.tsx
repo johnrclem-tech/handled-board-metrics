@@ -575,18 +575,18 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
     return { won, lost, total: won + lost }
   }, [oppRows, winRateRange])
 
-  // Lead Conversion Rate by source category
-  const [convRateMode, setConvRateMode] = useState<"opportunities" | "conversions">("opportunities")
+  // Win Rates by source category — % of conversions vs leads or vs opportunities
+  const [convRateMode, setConvRateMode] = useState<"leads" | "opps">("leads")
 
   const convRateData = useMemo(() => {
-    // Count leads per source category (excluding junk/unknown)
+    // Count leads per source category (excluding junk/unknown leads + all opps)
     const leadsBySource = new Map<string, number>()
     for (const l of leadRows) {
       if (EXCLUDED_STATUSES.has(l.leadStatus || "")) continue
       const cat = categorizeSource(l.leadSource)
       leadsBySource.set(cat, (leadsBySource.get(cat) || 0) + 1)
     }
-    // Also add opportunities to the lead count (total leads = leads + opps)
+    // Total leads = leads + opportunities
     for (const o of oppRows) {
       const cat = categorizeSource(o.leadSource)
       leadsBySource.set(cat, (leadsBySource.get(cat) || 0) + 1)
@@ -612,9 +612,9 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         const totalLeads = leadsBySource.get(cat) || 0
         const opps = oppsBySource.get(cat) || 0
         const conv = convBySource.get(cat) || 0
-        const oppRate = totalLeads > 0 ? Math.round((opps / totalLeads) * 100) : 0
-        const convRate = totalLeads > 0 ? Math.round((conv / totalLeads) * 100) : 0
-        return { name: cat, value: convRateMode === "opportunities" ? oppRate : convRate }
+        const denom = convRateMode === "leads" ? totalLeads : opps
+        const value = denom > 0 ? Math.round((conv / denom) * 100) : 0
+        return { name: cat, value }
       })
       .filter((d) => d.value > 0)
       .sort((a, b) => b.value - a.value)
@@ -1028,18 +1028,18 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         </Card>
       </div>
       <div className="grid gap-6 grid-cols-3">
-        {/* Lead Conversion Rate */}
+        {/* Win Rates */}
         <Card className="col-span-1 flex flex-col">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                Lead Conversion Rate
-                <InfoTooltip text="Percentage of leads per source that became opportunities or converted (Closed Won). Total leads = leads + opportunities." />
+                Win Rates
+                <InfoTooltip text="Percentage of conversions (Closed Won) per source. Leads uses total leads (leads + opportunities) as the denominator. Opps uses opportunities as the denominator." />
               </CardTitle>
-              <Tabs value={convRateMode} onValueChange={(v) => setConvRateMode(v as "opportunities" | "conversions")}>
+              <Tabs value={convRateMode} onValueChange={(v) => setConvRateMode(v as "leads" | "opps")}>
                 <TabsList className="bg-muted h-9">
-                  <TabsTrigger value="opportunities" className="px-3">Opps</TabsTrigger>
-                  <TabsTrigger value="conversions" className="px-3">Won</TabsTrigger>
+                  <TabsTrigger value="leads" className="px-3">Leads</TabsTrigger>
+                  <TabsTrigger value="opps" className="px-3">Opps</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -1047,7 +1047,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
           <CardContent className="flex flex-1 pt-4 pb-2">
             {convRateData.length > 0 ? (
               <ChartContainer
-                config={{ rate: { label: convRateMode === "opportunities" ? "Opp Rate" : "Win Rate", color: "var(--primary)" } } satisfies ChartConfig}
+                config={{ rate: { label: "Win Rate", color: "var(--primary)" } } satisfies ChartConfig}
                 className="w-full flex-1"
               >
                 <BarChart
@@ -1067,7 +1067,7 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
                     tick={{ fontSize: 13 }}
                   />
                   <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel formatter={(v) => `${v}%`} />} />
-                  <Bar dataKey="value" name={convRateMode === "opportunities" ? "Opp Rate" : "Win Rate"} fill="var(--primary)" radius={6}>
+                  <Bar dataKey="value" name="Win Rate" fill="var(--primary)" radius={6}>
                     <LabelList
                       dataKey="value"
                       offset={8}
