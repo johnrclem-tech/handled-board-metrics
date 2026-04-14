@@ -20,7 +20,7 @@ import { LifetimeGrossMarginCard } from "@/components/lifetime-gross-margin-card
 import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
 import type { ServicePeriod } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
-import type { LeadsPeriod } from "@/components/leads-page"
+import type { LeadsPeriod, LeadsTimeRange } from "@/components/leads-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -70,6 +70,12 @@ const LEADS_PERIODS: { value: LeadsPeriod; label: string }[] = [
   { value: "ttm", label: "TTM" },
 ]
 
+const LEADS_TIME_RANGES: { value: LeadsTimeRange; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "ttm", label: "TTM" },
+  { value: "ytd", label: "YTD" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("revenue-metrics")
@@ -78,6 +84,7 @@ export function Dashboard() {
   const [churnPeriod, setChurnPeriod] = useState<ChurnPeriod>("monthly")
   const [customerPeriod, setCustomerPeriod] = useState<ConcentrationPeriod>("monthly")
   const [leadsPeriod, setLeadsPeriod] = useState<LeadsPeriod>("monthly")
+  const [leadsTimeRange, setLeadsTimeRange] = useState<LeadsTimeRange>("all")
   const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("monthly")
 
   useEffect(() => {
@@ -183,6 +190,17 @@ export function Dashboard() {
 
           {activePage === "leads" && (
             <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Range:</span>
+              <Tabs value={leadsTimeRange} onValueChange={(v) => setLeadsTimeRange(v as LeadsTimeRange)}>
+                <TabsList className="bg-muted h-9">
+                  {LEADS_TIME_RANGES.map((r) => (
+                    <TabsTrigger key={r.value} value={r.value} className="px-4">
+                      {r.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+              <Separator orientation="vertical" className="h-4" />
               <span className="text-sm font-medium text-muted-foreground">View:</span>
               <Tabs value={leadsPeriod} onValueChange={(v) => setLeadsPeriod(v as LeadsPeriod)}>
                 <TabsList className="bg-muted h-9">
@@ -236,7 +254,7 @@ export function Dashboard() {
             </div>
           )}
           {activePage === "leads" && (
-            <LeadsPage key={`leads-${refreshKey}`} period={leadsPeriod} />
+            <LeadsPage key={`leads-${refreshKey}`} period={leadsPeriod} timeRange={leadsTimeRange} />
           )}
 
           {activePage === "import" && (

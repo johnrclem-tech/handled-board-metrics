@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { InfoTooltip } from "@/components/info-tooltip"
-import StatisticsTrendCard from "@/components/shadcn-studio/blocks/statistics-trend-card"
 import { NewCustomersChart } from "@/components/new-customers-chart"
 import { cn } from "@/lib/utils"
 import {
@@ -41,6 +40,7 @@ import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } f
 // ── Types ──
 
 export type LeadsPeriod = "monthly" | "quarterly" | "annually" | "ttm"
+export type LeadsTimeRange = "all" | "ttm" | "ytd"
 
 interface LeadRow {
   id: number
@@ -408,9 +408,10 @@ function buildStackedByStatus(
 
 // ── Component ──
 
-export function LeadsPage({ period }: { period: LeadsPeriod }) {
+export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; timeRange?: LeadsTimeRange }) {
   const [leadRows, setLeadRows] = useState<LeadRow[]>([])
   const [oppRows, setOppRows] = useState<OppRow[]>([])
+  const [billedByMonth, setBilledByMonth] = useState<{ period: string; count: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [tableView, setTableView] = useState<TableView>("leads")
   const [search, setSearch] = useState("")
@@ -426,11 +427,14 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const [filterStage, setFilterStage] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch("/api/leads")
-      .then((r) => r.json())
-      .then((data) => {
-        setLeadRows(data.leads || [])
-        setOppRows(data.opportunities || [])
+    Promise.all([
+      fetch("/api/leads").then((r) => r.json()),
+      fetch("/api/metrics/cohort-revenue").then((r) => r.json()),
+    ])
+      .then(([leadsData, cohortData]) => {
+        setLeadRows(leadsData.leads || [])
+        setOppRows(leadsData.opportunities || [])
+        setBilledByMonth(cohortData.newCustomers || [])
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -704,23 +708,43 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   const leadPageRows = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const oppPageRows = filteredOpps.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  // Build trend data for StatisticsTrendCards
-  const trendData = useMemo(() => {
-    const leadsMap = new Map(leadsChartData.map((d) => [d.period, d.total]))
-    const oppsMap = new Map(oppsChartData.map((d) => [d.period, d.total]))
-    const convMap = new Map(convChartData.map((d) => [d.period, d.total]))
-    const allPeriods = [...new Set([
-      ...leadsChartData.map((d) => d.period),
-      ...oppsChartData.map((d) => d.period),
-      ...convChartData.map((d) => d.period),
-    ])].sort()
-    return allPeriods.map((p) => ({
-      date: formatPeriodLabel(p, period),
-      leads: leadsMap.get(p) || 0,
-      opportunities: oppsMap.get(p) || 0,
-      conversions: convMap.get(p) || 0,
-    }))
-  }, [leadsChartData, oppsChartData, convChartData, period])
+  // Time-range filter for KPI totals
+  const kpiTotals = useMemo(() => {
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    const ttmStart = new Date(now.getFullYear(), now.getMonth() - 12, 1)
+    const ytdStart = new Date(now.getFullYear(), 0, 1)
+
+    const inRange = (d: string | null): boolean => {
+      if (!d) return false
+      const date = new Date(d)
+      if (isNaN(date.getTime())) return false
+      if (timeRange === "all") return true
+      if (timeRange === "ytd") return date >= ytdStart
+      return date >= ttmStart && date < new Date(now.getFullYear(), now.getMonth(), 1)
+    }
+
+    const totalLeads = leadRows.filter((l) => inRange(l.createdTime)).length
+      + oppRows.filter((o) => inRange(o.createdTime)).length
+    const totalOpps = oppRows.filter((o) => inRange(o.createdTime)).length
+    const totalConversions = oppRows.filter((o) => o.stage === "Closed Won" && inRange(o.closingDate || o.createdTime)).length
+
+    // Billed: count customers whose first billing month falls in the range
+    let totalBilled = 0
+    for (const b of billedByMonth) {
+      const [y, m] = b.period.split("-").map(Number)
+      const firstOfMonth = new Date(y, m - 1, 1)
+      if (timeRange === "all") {
+        totalBilled += b.count
+      } else if (timeRange === "ytd" && firstOfMonth >= ytdStart && b.period < currentMonth) {
+        totalBilled += b.count
+      } else if (timeRange === "ttm" && firstOfMonth >= ttmStart && b.period < currentMonth) {
+        totalBilled += b.count
+      }
+    }
+
+    return { totalLeads, totalOpps, totalConversions, totalBilled }
+  }, [leadRows, oppRows, billedByMonth, timeRange])
 
   const EXCLUDED_LEAD_STATUSES = new Set(["Junk", "Unknown", "Junk Lead", "Closed Lost"])
 
@@ -735,9 +759,6 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
   }, [leadRows])
-
-  const periodLabel =
-    period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : period === "ttm" ? "TTM" : "Annual"
 
   // ── Loading ──
   if (loading) {
@@ -778,29 +799,40 @@ export function LeadsPage({ period }: { period: LeadsPeriod }) {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatisticsTrendCard
-          title={`${periodLabel} Leads Created`}
-          data={trendData}
-          dateKey="date"
-          dataKey="leads"
-          format="compact"
-        />
-        <StatisticsTrendCard
-          title={`${periodLabel} Opportunities Created`}
-          data={trendData}
-          dateKey="date"
-          dataKey="opportunities"
-          format="compact"
-        />
-        <StatisticsTrendCard
-          title={`${periodLabel} Conversions Created`}
-          data={trendData}
-          dateKey="date"
-          dataKey="conversions"
-          format="compact"
-        />
-      </div>
+      {(() => {
+        const { totalLeads, totalOpps, totalConversions, totalBilled } = kpiTotals
+        const oppRate = totalLeads > 0 ? (totalOpps / totalLeads) * 100 : 0
+        const convRate = totalOpps > 0 ? (totalConversions / totalOpps) * 100 : 0
+        const billedRate = totalConversions > 0 ? (totalBilled / totalConversions) * 100 : 0
+        const rangeLabel = timeRange === "all" ? "All time" : timeRange === "ttm" ? "TTM" : "YTD"
+        const kpis: { title: string; value: number; rateLabel?: string; rate?: number }[] = [
+          { title: "Leads", value: totalLeads },
+          { title: "Opportunities", value: totalOpps, rateLabel: "of total leads", rate: oppRate },
+          { title: "Conversions", value: totalConversions, rateLabel: "of total opportunities", rate: convRate },
+          { title: "Billed", value: totalBilled, rateLabel: "of total conversions", rate: billedRate },
+        ]
+        return (
+          <div className="grid gap-4 md:grid-cols-4">
+            {kpis.map((kpi) => (
+              <Card key={kpi.title}>
+                <CardHeader className="pb-2">
+                  <CardDescription className="text-sm font-medium">{kpi.title}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{kpi.value.toLocaleString()}</div>
+                  {kpi.rate != null ? (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      <span className="font-semibold text-foreground">{kpi.rate.toFixed(1)}%</span> {kpi.rateLabel} ({rangeLabel})
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">{rangeLabel}</p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* New Customers Billed */}
       <NewCustomersChart period={period === "annually" ? "ttm" : period} />
