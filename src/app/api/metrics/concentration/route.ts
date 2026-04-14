@@ -74,18 +74,25 @@ export async function GET() {
 
     const sortedPeriods = [...periodMap.keys()].sort()
 
-    // Monthly
-    const monthly = sortedPeriods.map((period) => {
-      const cm = periodMap.get(period)!
-      const customers = [...cm.entries()].map(([customer, total]) => ({ customer, total }))
-      const [y, m] = period.split("-").map(Number)
-      const monthName = new Date(y, m - 1).toLocaleString("en-US", { month: "short" })
-      return {
-        period,
-        label: `${monthName} ${String(y).slice(2)}`,
-        ...computeConcentration(customers),
-      }
-    })
+    // Determine current month/quarter to exclude incomplete periods
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+    const currentQuarter = `${now.getFullYear()}-Q${Math.ceil((now.getMonth() + 1) / 3)}`
+
+    // Monthly (exclude current month)
+    const monthly = sortedPeriods
+      .filter((period) => period < currentMonth)
+      .map((period) => {
+        const cm = periodMap.get(period)!
+        const customers = [...cm.entries()].map(([customer, total]) => ({ customer, total }))
+        const [y, m] = period.split("-").map(Number)
+        const monthName = new Date(y, m - 1).toLocaleString("en-US", { month: "short" })
+        return {
+          period,
+          label: `${monthName} ${String(y).slice(2)}`,
+          ...computeConcentration(customers),
+        }
+      })
 
     // Quarterly
     const quarterBuckets = new Map<string, Map<string, number>>()
@@ -111,7 +118,7 @@ export async function GET() {
 
     const sortedQuarters = [...quarterBuckets.keys()].sort()
     const quarterly = sortedQuarters
-      .filter((qKey) => quarterMonthCounts.get(qKey) === 3)
+      .filter((qKey) => quarterMonthCounts.get(qKey) === 3 && qKey < currentQuarter)
       .map((qKey) => {
         const qm = quarterBuckets.get(qKey)!
         const customers = [...qm.entries()].map(([customer, total]) => ({ customer, total }))
@@ -122,10 +129,11 @@ export async function GET() {
         }
       })
 
-    // TTM (trailing 12 months)
+    // TTM (trailing 12 months) — exclude the most recent month from all windows
+    const ttmPeriods = sortedPeriods.slice(0, -1)
     const ttm: typeof monthly = []
-    for (let i = 11; i < sortedPeriods.length; i++) {
-      const windowPeriods = sortedPeriods.slice(i - 11, i + 1)
+    for (let i = 11; i < ttmPeriods.length; i++) {
+      const windowPeriods = ttmPeriods.slice(i - 11, i + 1)
       const ttmCustomers = new Map<string, number>()
       for (const p of windowPeriods) {
         const cm = periodMap.get(p)!
@@ -134,7 +142,7 @@ export async function GET() {
         }
       }
       const customers = [...ttmCustomers.entries()].map(([customer, total]) => ({ customer, total }))
-      const endPeriod = sortedPeriods[i]
+      const endPeriod = ttmPeriods[i]
       const [ey, em] = endPeriod.split("-").map(Number)
       const monthName = new Date(ey, em - 1).toLocaleString("en-US", { month: "short" })
       ttm.push({
