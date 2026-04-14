@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Package, Table2, Settings, UserX, TrendingUp, Upload, Users } from "lucide-react"
+import { Package, Settings, TrendingDown, Upload, Users, Funnel } from "lucide-react"
 
 interface AppSidebarProps {
   activePage: string
@@ -47,7 +47,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                   isActive={activePage === "revenue-metrics"}
                   onClick={() => onNavigate("revenue-metrics")}
                 >
-                  <TrendingUp className="size-4" />
+                  <Package className="size-4" />
                   <span>Service Revenue</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -56,7 +56,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                   isActive={activePage === "financials"}
                   onClick={() => onNavigate("financials")}
                 >
-                  <Table2 className="size-4" />
+                  <Users className="size-4" />
                   <span>Customer Revenue</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -65,7 +65,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                   isActive={activePage === "churn"}
                   onClick={() => onNavigate("churn")}
                 >
-                  <UserX className="size-4" />
+                  <TrendingDown className="size-4" />
                   <span>LTV-Churn</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -74,7 +74,7 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                   isActive={activePage === "leads"}
                   onClick={() => onNavigate("leads")}
                 >
-                  <Users className="size-4" />
+                  <Funnel className="size-4" />
                   <span>Leads</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
