@@ -372,7 +372,10 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
       {/* Revenue by Customer Type */}
       {segmentData && (() => {
         const segFullDataset = period === "monthly" ? segmentData.monthly : period === "quarterly" ? segmentData.quarterly : segmentData.ttm
-        const segDataset = segFullDataset.slice(-18)
+        const segDataset = segFullDataset.slice(-18).map((d) => ({
+          ...d,
+          newPct: d.total > 0 ? Math.round((d.newRevenue / d.total) * 100) : 0,
+        }))
 
         if (segDataset.length === 0) return null
 
@@ -399,7 +402,17 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
                     content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => label} formatter={(value) => [formatCurrency(Number(value))]} />}
                   />
                   <Legend />
-                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="newRevenue" name="New Customers" stackId="a" fill="var(--chart-1)" radius={[0, 0, 0, 0]}>
+                    <LabelList
+                      dataKey="newPct"
+                      position="top"
+                      offset={4}
+                      fill="var(--chart-1)"
+                      fontSize={10}
+                      fontWeight={600}
+                      formatter={(v) => `${Number(v)}%`}
+                    />
+                  </Bar>
                   <Bar dataKey="existingRevenue" name="Existing Customers" stackId="a" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ChartContainer>
