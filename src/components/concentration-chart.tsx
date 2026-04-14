@@ -410,7 +410,23 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
 
       {/* Revenue by Customer */}
       {customerRevData && customerRevData.customers.length > 0 && (() => {
-        const customers = customerRevData.customers.slice(0, 20)
+        const top = customerRevData.customers.slice(0, 20)
+        const othersRevenue = customerRevData.customers.slice(20).reduce((s, c) => s + c.revenue, 0)
+        const othersPrior = customerRevData.customers.slice(20).reduce((s, c) => s + (c.priorRevenue || 0), 0)
+        const othersGrowth = othersPrior > 0 ? ((othersRevenue - othersPrior) / othersPrior) * 100 : null
+        const customers: CustomerRevenueEntry[] =
+          othersRevenue > 0
+            ? [
+                ...top,
+                {
+                  name: "All Others",
+                  revenue: othersRevenue,
+                  priorRevenue: othersPrior > 0 ? othersPrior : null,
+                  growth: othersGrowth,
+                  isNew: othersPrior === 0,
+                },
+              ]
+            : top
         const maxRevenue = Math.max(...customers.map((c) => c.revenue))
 
         const customerChartConfig = {

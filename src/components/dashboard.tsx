@@ -52,8 +52,8 @@ const PERIODS: { value: ChurnPeriod; label: string }[] = [
 ]
 
 const CUSTOMER_PERIODS: { value: ConcentrationPeriod; label: string }[] = [
-  { value: "monthly", label: "Month" },
-  { value: "quarterly", label: "Quarter" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
   { value: "ttm", label: "TTM" },
 ]
 
@@ -142,6 +142,7 @@ export function Dashboard() {
 
           {activePage === "financials" && (
             <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">View:</span>
               <Tabs value={customerPeriod} onValueChange={(v) => setCustomerPeriod(v as ConcentrationPeriod)}>
                 <TabsList className="bg-muted h-9">
                   {CUSTOMER_PERIODS.map((p) => (
