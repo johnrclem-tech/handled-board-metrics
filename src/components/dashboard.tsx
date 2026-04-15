@@ -22,6 +22,7 @@ import type { ServicePeriod } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
 import type { LeadsPeriod, LeadsTimeRange } from "@/components/leads-page"
 import { AdSpendPage } from "@/components/ad-spend-page"
+import type { AdSpendRange } from "@/components/ad-spend-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -78,6 +79,14 @@ const LEADS_TIME_RANGES: { value: LeadsTimeRange; label: string }[] = [
   { value: "ytd", label: "YTD" },
 ]
 
+const AD_SPEND_RANGES: { value: AdSpendRange; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "ytd", label: "YTD" },
+  { value: "ttm", label: "TTM" },
+  { value: "last-mo", label: "Last Mo" },
+  { value: "last-qtr", label: "Last Qtr" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("revenue-metrics")
@@ -88,6 +97,7 @@ export function Dashboard() {
   const [leadsPeriod, setLeadsPeriod] = useState<LeadsPeriod>("monthly")
   const [leadsTimeRange, setLeadsTimeRange] = useState<LeadsTimeRange>("all")
   const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("monthly")
+  const [adSpendRange, setAdSpendRange] = useState<AdSpendRange>("all")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -190,6 +200,21 @@ export function Dashboard() {
             </div>
           )}
 
+          {activePage === "ad-spend" && (
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">Range:</span>
+              <Tabs value={adSpendRange} onValueChange={(v) => setAdSpendRange(v as AdSpendRange)}>
+                <TabsList className="bg-muted h-9">
+                  {AD_SPEND_RANGES.map((r) => (
+                    <TabsTrigger key={r.value} value={r.value} className="px-4">
+                      {r.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
+
           {activePage === "leads" && (
             <div className="ml-auto flex items-center gap-3">
               <span className="text-sm font-medium text-muted-foreground">Range:</span>
@@ -260,7 +285,7 @@ export function Dashboard() {
           )}
 
           {activePage === "ad-spend" && (
-            <AdSpendPage key={`ad-spend-${refreshKey}`} />
+            <AdSpendPage key={`ad-spend-${refreshKey}`} range={adSpendRange} />
           )}
 
           {activePage === "import" && (

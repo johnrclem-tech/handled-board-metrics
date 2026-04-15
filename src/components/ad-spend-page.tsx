@@ -241,9 +241,36 @@ function MultiSelectFilter({
 }
 
 type AdSpendView = "campaigns" | "ad-groups"
+export type AdSpendRange = "all" | "ytd" | "ttm" | "last-mo" | "last-qtr"
 
-export function AdSpendPage() {
-  const [view, setView] = useState<AdSpendView>("campaigns")
+function rangeBounds(range: AdSpendRange): { start: Date | null; end: Date | null } {
+  if (range === "all") return { start: null, end: null }
+  const now = new Date()
+  if (range === "ytd") {
+    return { start: new Date(now.getFullYear(), 0, 1), end: now }
+  }
+  if (range === "ttm") {
+    const start = new Date(now)
+    start.setMonth(start.getMonth() - 12)
+    return { start, end: now }
+  }
+  if (range === "last-mo") {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const end = new Date(now.getFullYear(), now.getMonth(), 0) // last day of previous month
+    return { start, end }
+  }
+  if (range === "last-qtr") {
+    const currentQtr = Math.floor(now.getMonth() / 3) // 0..3
+    const lastQtrStartMonth = currentQtr * 3 - 3 // can be negative for Q1
+    const start = new Date(now.getFullYear(), lastQtrStartMonth, 1)
+    const end = new Date(now.getFullYear(), lastQtrStartMonth + 3, 0)
+    return { start, end }
+  }
+  return { start: null, end: null }
+}
+
+export function AdSpendPage({ range = "all" }: { range?: AdSpendRange }) {
+  const [view, setView] = useState<AdSpendView>("ad-groups")
   const isAdGroupView = view === "ad-groups"
   const [rows, setRows] = useState<AdRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -267,17 +294,32 @@ export function AdSpendPage() {
       .finally(() => setLoading(false))
   }, [view])
 
+  // Apply the page-level Range filter first so every other derived value
+  // (KPIs, filter options, table) reflects the same window
+  const rangeFilteredRows = useMemo(() => {
+    const { start, end } = rangeBounds(range)
+    if (!start && !end) return rows
+    return rows.filter((r) => {
+      if (!r.date) return false
+      const d = new Date(r.date)
+      if (isNaN(d.getTime())) return false
+      if (start && d < start) return false
+      if (end && d > end) return false
+      return true
+    })
+  }, [rows, range])
+
   const campaignOptions = useMemo(() => {
     const set = new Set<string>()
-    for (const r of rows) if (r.campaign) set.add(r.campaign)
+    for (const r of rangeFilteredRows) if (r.campaign) set.add(r.campaign)
     return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [rows])
+  }, [rangeFilteredRows])
 
   const adGroupOptions = useMemo(() => {
     const set = new Set<string>()
-    for (const r of rows) if (r.adGroup) set.add(r.adGroup)
+    for (const r of rangeFilteredRows) if (r.adGroup) set.add(r.adGroup)
     return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [rows])
+  }, [rangeFilteredRows])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -292,7 +334,7 @@ export function AdSpendPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return rows.filter((r) => {
+    return rangeFilteredRows.filter((r) => {
       if (selectedCampaigns.size > 0 && !selectedCampaigns.has(r.campaign || "")) {
         return false
       }
@@ -305,7 +347,7 @@ export function AdSpendPage() {
       }
       return true
     })
-  }, [rows, search, selectedCampaigns, selectedAdGroups])
+  }, [rangeFilteredRows, search, selectedCampaigns, selectedAdGroups])
 
   const sorted = useMemo(() => {
     const copy = [...filtered]
@@ -337,7 +379,7 @@ export function AdSpendPage() {
     let conversions = 0
     let impressionShareSum = 0
     let impressionShareCount = 0
-    for (const r of rows) {
+    for (const r of rangeFilteredRows) {
       if (r.cost) cost += parseFloat(r.cost)
       if (r.clicks) clicks += r.clicks
       if (r.conversions) conversions += parseFloat(r.conversions)
@@ -351,7 +393,7 @@ export function AdSpendPage() {
     const avgImprShare =
       impressionShareCount > 0 ? impressionShareSum / impressionShareCount : 0
     return { cost, clicks, conversions, cpc, costPerConv, avgImprShare }
-  }, [rows])
+  }, [rangeFilteredRows])
 
   const hasData = !loading && rows.length > 0
 
@@ -407,7 +449,10 @@ export function AdSpendPage() {
                 <CardTitle>{isAdGroupView ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
                 {hasData && (
                   <CardDescription>
-                    {sorted.length.toLocaleString()} of {rows.length.toLocaleString()} rows
+                    {sorted.length.toLocaleString()} of {rangeFilteredRows.length.toLocaleString()} rows
+                    {range !== "all" && rangeFilteredRows.length !== rows.length && (
+                      <> (filtered from {rows.length.toLocaleString()} total)</>
+                    )}
                   </CardDescription>
                 )}
               </div>
