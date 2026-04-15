@@ -6,6 +6,17 @@ import { eq } from "drizzle-orm"
 
 const CRM_TYPES = ["leads", "opportunities"]
 
+const CHUNK_SIZE = 500
+
+async function insertInChunks<T>(
+  rows: T[],
+  runInsert: (chunk: T[]) => Promise<unknown>
+) {
+  for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+    await runInsert(rows.slice(i, i + CHUNK_SIZE))
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
@@ -40,22 +51,23 @@ export async function POST(request: NextRequest) {
         .returning()
 
       if (parsed.rows.length > 0) {
-        await db.insert(adCampaignPerformance).values(
-          parsed.rows.map((row) => ({
-            date: row.date,
-            campaign: row.campaign,
-            campaignType: row.campaignType,
-            currency: row.currency,
-            cost: row.cost != null ? String(row.cost) : null,
-            clicks: row.clicks != null ? Math.round(row.clicks) : null,
-            impressions: row.impressions != null ? Math.round(row.impressions) : null,
-            conversions: row.conversions != null ? String(row.conversions) : null,
-            ctr: row.ctr != null ? String(row.ctr) : null,
-            avgCpc: row.avgCpc != null ? String(row.avgCpc) : null,
-            conversionRate: row.conversionRate != null ? String(row.conversionRate) : null,
-            costPerConversion: row.costPerConversion != null ? String(row.costPerConversion) : null,
-            uploadId: upload.id,
-          }))
+        const values = parsed.rows.map((row) => ({
+          date: row.date,
+          campaign: row.campaign,
+          campaignType: row.campaignType,
+          currency: row.currency,
+          cost: row.cost != null ? String(row.cost) : null,
+          clicks: row.clicks != null ? Math.round(row.clicks) : null,
+          impressions: row.impressions != null ? Math.round(row.impressions) : null,
+          conversions: row.conversions != null ? String(row.conversions) : null,
+          ctr: row.ctr != null ? String(row.ctr) : null,
+          avgCpc: row.avgCpc != null ? String(row.avgCpc) : null,
+          conversionRate: row.conversionRate != null ? String(row.conversionRate) : null,
+          costPerConversion: row.costPerConversion != null ? String(row.costPerConversion) : null,
+          uploadId: upload.id,
+        }))
+        await insertInChunks(values, (chunk) =>
+          db.insert(adCampaignPerformance).values(chunk)
         )
       }
 
@@ -89,32 +101,32 @@ export async function POST(request: NextRequest) {
 
       // Insert rows
       if (reportType === "leads" && parsed.leads && parsed.leads.length > 0) {
-        await db.insert(leads).values(
-          parsed.leads.map((row) => ({
-            company: row.company,
-            leadSource: row.leadSource,
-            adCampaignName: row.adCampaignName,
-            ad: row.ad,
-            fullName: row.fullName,
-            leadStatus: row.leadStatus,
-            createdTime: row.createdTime,
-            uploadId: upload.id,
-          }))
-        )
+        const values = parsed.leads.map((row) => ({
+          company: row.company,
+          leadSource: row.leadSource,
+          adCampaignName: row.adCampaignName,
+          ad: row.ad,
+          fullName: row.fullName,
+          leadStatus: row.leadStatus,
+          createdTime: row.createdTime,
+          uploadId: upload.id,
+        }))
+        await insertInChunks(values, (chunk) => db.insert(leads).values(chunk))
       }
 
       if (reportType === "opportunities" && parsed.opportunities && parsed.opportunities.length > 0) {
-        await db.insert(opportunities).values(
-          parsed.opportunities.map((row) => ({
-            closingDate: row.closingDate,
-            opportunityName: row.opportunityName,
-            leadSource: row.leadSource,
-            leadSourceDetail: row.leadSourceDetail,
-            createdTime: row.createdTime,
-            stage: row.stage,
-            ad: row.ad,
-            uploadId: upload.id,
-          }))
+        const values = parsed.opportunities.map((row) => ({
+          closingDate: row.closingDate,
+          opportunityName: row.opportunityName,
+          leadSource: row.leadSource,
+          leadSourceDetail: row.leadSourceDetail,
+          createdTime: row.createdTime,
+          stage: row.stage,
+          ad: row.ad,
+          uploadId: upload.id,
+        }))
+        await insertInChunks(values, (chunk) =>
+          db.insert(opportunities).values(chunk)
         )
       }
 
@@ -147,17 +159,18 @@ export async function POST(request: NextRequest) {
       .returning()
 
     if (parsed.rows.length > 0) {
-      await db.insert(financialData).values(
-        parsed.rows.map((row) => ({
-          reportType: parsed.reportType,
-          period: row.period,
-          periodStart: row.periodStart,
-          periodEnd: row.periodEnd,
-          category: row.category,
-          subcategory: row.subcategory,
-          accountName: row.accountName,
-          amount: String(row.amount),
-        }))
+      const values = parsed.rows.map((row) => ({
+        reportType: parsed.reportType,
+        period: row.period,
+        periodStart: row.periodStart,
+        periodEnd: row.periodEnd,
+        category: row.category,
+        subcategory: row.subcategory,
+        accountName: row.accountName,
+        amount: String(row.amount),
+      }))
+      await insertInChunks(values, (chunk) =>
+        db.insert(financialData).values(chunk)
       )
     }
 
