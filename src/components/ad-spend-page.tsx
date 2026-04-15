@@ -311,8 +311,10 @@ function rangeBounds(range: AdSpendRange): { start: Date | null; end: Date | nul
 }
 
 interface AcquisitionRow {
+  closingDate: string | null
   createdTime: string | null
   leadSource: string | null
+  stage: string | null
 }
 
 export function AdSpendPage({
@@ -347,17 +349,26 @@ export function AdSpendPage({
       .finally(() => setLoading(false))
   }, [view])
 
-  // Leads feed the CPA denominator ("acquisitions"). Fetch them once and
+  // Acquisitions = opportunities in stage "Closed Won". Fetch them once and
   // filter client-side by range + channel.
   useEffect(() => {
     fetch("/api/leads")
       .then((r) => r.json())
       .then((data) => {
-        const leadsRows: AcquisitionRow[] = (data.leads || []).map((l: { createdTime: string | null; leadSource: string | null }) => ({
-          createdTime: l.createdTime,
-          leadSource: l.leadSource,
-        }))
-        setAcquisitions(leadsRows)
+        const oppRows: AcquisitionRow[] = (data.opportunities || []).map(
+          (o: {
+            closingDate: string | null
+            createdTime: string | null
+            leadSource: string | null
+            stage: string | null
+          }) => ({
+            closingDate: o.closingDate,
+            createdTime: o.createdTime,
+            leadSource: o.leadSource,
+            stage: o.stage,
+          }),
+        )
+        setAcquisitions(oppRows)
       })
       .catch(console.error)
   }, [])
@@ -463,14 +474,18 @@ export function AdSpendPage({
     return { cost, clicks, conversions, cpc, costPerConv, avgImprShare }
   }, [rangeFilteredRows])
 
-  // Total acquisitions = leads whose createdTime is within the selected range
-  // AND whose source matches the selected Channel.
+  // Total acquisitions = Opportunities with stage "Closed Won" whose closing
+  // date (falling back to createdTime when missing) is within the selected
+  // range and whose lead_source matches the selected Channel.
   const acquisitionsInRange = useMemo(() => {
     const { start, end } = rangeBounds(range)
     let count = 0
     for (const a of acquisitions) {
-      if (!a.createdTime) continue
-      const d = new Date(a.createdTime)
+      const stage = (a.stage || "").toLowerCase().replace(/[-_]/g, " ").trim()
+      if (stage !== "closed won") continue
+      const dateStr = a.closingDate || a.createdTime
+      if (!dateStr) continue
+      const d = new Date(dateStr)
       if (isNaN(d.getTime())) continue
       if (start && d < start) continue
       if (end && d > end) continue
