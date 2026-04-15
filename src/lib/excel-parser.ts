@@ -434,24 +434,39 @@ function parseDateCell(val: unknown): string | null {
 
 /**
  * Locate the header row in a Google Ads export. The export starts with a few
- * summary rows; the header row is the first row containing both a "Campaign"
- * cell and a recognizable spend column.
+ * summary rows; the header row is the first row that contains a "Campaign"
+ * cell and at least one other recognizable Google Ads column.
  */
 function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: string[] } | null {
-  for (let i = 0; i < Math.min(rawData.length, 20); i++) {
+  // Google Ads sometimes prepends 10+ summary/segment rows before the header,
+  // so scan deeper than just the first 20 rows
+  const limit = Math.min(rawData.length, 50)
+  for (let i = 0; i < limit; i++) {
     const row = rawData[i] as unknown[]
     if (!row) continue
     const textCells = row.map((c) => (typeof c === "string" ? c.trim().toLowerCase() : ""))
-    const hasCampaign = textCells.some((c) => c === "campaign")
-    const hasMoneyCol = textCells.some(
+    const hasCampaign = textCells.some((c) => c === "campaign" || c === "campaign name")
+    if (!hasCampaign) continue
+    // Anything that looks like another Google Ads column counts — Day, Cost,
+    // Clicks, Impressions, Conversions, Currency, Search lost IS (...), etc.
+    const hasOtherColumn = textCells.some(
       (c) =>
+        c === "day" ||
+        c === "date" ||
+        c === "currency" ||
+        c === "currency code" ||
         c === "cost" ||
         c === "spend" ||
         c === "amount spent" ||
+        c === "clicks" ||
+        c === "impressions" ||
+        c === "impr." ||
+        c === "conversions" ||
+        c === "ad group" ||
         c.startsWith("search lost is") ||
         c.startsWith("search impr"),
     )
-    if (hasCampaign && hasMoneyCol) {
+    if (hasOtherColumn) {
       const headers = row.map((c) => (typeof c === "string" ? c.trim() : ""))
       return { headerIndex: i, headers }
     }
@@ -461,8 +476,20 @@ function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: 
 
 function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
   const hdr = findAdHeaderRow(rawData)
-  if (!hdr) return { reportType: "ad_group_performance", rows: [] }
+  if (!hdr) {
+    console.warn(
+      `[parser] ad_group_performance: no header row detected (scanned ${Math.min(
+        rawData.length,
+        50,
+      )} rows)`,
+    )
+    return { reportType: "ad_group_performance", rows: [] }
+  }
   const { headerIndex, headers } = hdr
+  console.log(
+    `[parser] ad_group_performance: header at row ${headerIndex}, columns:`,
+    headers,
+  )
 
   const col = (...names: string[]): number => {
     const lowered = names.map((n) => n.toLowerCase())
@@ -531,8 +558,21 @@ function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
 
 function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignReport {
   const hdr = findAdHeaderRow(rawData)
-  if (!hdr) return { reportType: "ad_campaign_performance", rows: [] }
+  if (!hdr) {
+    console.warn(
+      `[parser] ad_campaign_performance: no header row detected (scanned ${Math.min(
+        rawData.length,
+        50,
+      )} rows). First few rows:`,
+      rawData.slice(0, 6),
+    )
+    return { reportType: "ad_campaign_performance", rows: [] }
+  }
   const { headerIndex, headers } = hdr
+  console.log(
+    `[parser] ad_campaign_performance: header at row ${headerIndex}, columns:`,
+    headers,
+  )
 
   const col = (...names: string[]): number => {
     const lowered = names.map((n) => n.toLowerCase())
@@ -610,6 +650,17 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     })
   }
 
+  console.log(
+    `[parser] ad_campaign_performance: parsed ${rows.length} rows from ${rawData.length - headerIndex - 1} data rows. Detected column indexes:`,
+    {
+      iDate, iCampaign, iCampaignType, iCurrency, iCost, iClicks, iImpressions,
+      iConversions, iCtr, iAvgCpc, iConvRate, iCostPerConv,
+      iSearchLostIsBudget, iSearchLostIsRank, iSearchImprShare,
+    },
+  )
+  if (rows.length > 0) {
+    console.log(`[parser] ad_campaign_performance: sample row:`, rows[0])
+  }
   return { reportType: "ad_campaign_performance", rows }
 }
 

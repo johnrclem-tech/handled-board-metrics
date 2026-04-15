@@ -147,7 +147,10 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       if (response.ok) {
         setResult({
           success: true,
-          message: `Successfully imported ${data.rowCount} records for period ${data.period}`,
+          message:
+            data.period
+              ? `Successfully imported ${data.rowCount} records for period ${data.period}`
+              : `Successfully imported ${data.rowCount} records`,
         })
         setFile(null)
         setReportType("")
