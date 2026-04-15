@@ -435,39 +435,25 @@ function parseDateCell(val: unknown): string | null {
 /**
  * Locate the header row in a Google Ads export. The export starts with a few
  * summary rows; the header row is the first row that contains a "Campaign"
- * cell and at least one other recognizable Google Ads column.
+ * cell along with at least one other non-empty text label. We normalize
+ * whitespace (including non-breaking spaces) so quirky exports still match.
  */
 function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: string[] } | null {
-  // Google Ads sometimes prepends 10+ summary/segment rows before the header,
-  // so scan deeper than just the first 20 rows
-  const limit = Math.min(rawData.length, 50)
+  const normalize = (s: string) =>
+    s.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
+  // Some exports have a lot of leading metadata; scan deep
+  const limit = Math.min(rawData.length, 100)
   for (let i = 0; i < limit; i++) {
     const row = rawData[i] as unknown[]
     if (!row) continue
-    const textCells = row.map((c) => (typeof c === "string" ? c.trim().toLowerCase() : ""))
+    const textCells = row.map((c) => (typeof c === "string" ? normalize(c) : ""))
     const hasCampaign = textCells.some((c) => c === "campaign" || c === "campaign name")
     if (!hasCampaign) continue
-    // Anything that looks like another Google Ads column counts — Day, Cost,
-    // Clicks, Impressions, Conversions, Currency, Search lost IS (...), etc.
-    const hasOtherColumn = textCells.some(
-      (c) =>
-        c === "day" ||
-        c === "date" ||
-        c === "currency" ||
-        c === "currency code" ||
-        c === "cost" ||
-        c === "spend" ||
-        c === "amount spent" ||
-        c === "clicks" ||
-        c === "impressions" ||
-        c === "impr." ||
-        c === "conversions" ||
-        c === "ad group" ||
-        c.startsWith("search lost is") ||
-        c.startsWith("search impr"),
-    )
-    if (hasOtherColumn) {
-      const headers = row.map((c) => (typeof c === "string" ? c.trim() : ""))
+    // Need at least one other non-empty text cell to be confident this is the
+    // header row and not just a value cell that happens to say "Campaign"
+    const nonEmpty = textCells.filter((c) => c.length > 0)
+    if (nonEmpty.length >= 2) {
+      const headers = row.map((c) => (typeof c === "string" ? c.replace(/\u00a0/g, " ").trim() : ""))
       return { headerIndex: i, headers }
     }
   }
@@ -480,8 +466,9 @@ function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
     console.warn(
       `[parser] ad_group_performance: no header row detected (scanned ${Math.min(
         rawData.length,
-        50,
-      )} rows)`,
+        100,
+      )} rows). Total rows: ${rawData.length}. First 10 rows:`,
+      JSON.stringify(rawData.slice(0, 10), null, 2),
     )
     return { reportType: "ad_group_performance", rows: [] }
   }
@@ -491,9 +478,12 @@ function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
     headers,
   )
 
+  const normalize = (s: string) =>
+    s.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
+  const normalizedHeaders = headers.map((h) => normalize(h))
   const col = (...names: string[]): number => {
-    const lowered = names.map((n) => n.toLowerCase())
-    return headers.findIndex((h) => lowered.includes(h.toLowerCase()))
+    const lowered = names.map((n) => normalize(n))
+    return normalizedHeaders.findIndex((h) => lowered.includes(h))
   }
 
   const iDate = col("day", "date", "start date")
@@ -562,9 +552,9 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     console.warn(
       `[parser] ad_campaign_performance: no header row detected (scanned ${Math.min(
         rawData.length,
-        50,
-      )} rows). First few rows:`,
-      rawData.slice(0, 6),
+        100,
+      )} rows). Total rows in file: ${rawData.length}. First 10 rows:`,
+      JSON.stringify(rawData.slice(0, 10), null, 2),
     )
     return { reportType: "ad_campaign_performance", rows: [] }
   }
@@ -574,9 +564,12 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     headers,
   )
 
+  const normalize = (s: string) =>
+    s.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
+  const normalizedHeaders = headers.map((h) => normalize(h))
   const col = (...names: string[]): number => {
-    const lowered = names.map((n) => n.toLowerCase())
-    return headers.findIndex((h) => lowered.includes(h.toLowerCase()))
+    const lowered = names.map((n) => normalize(n))
+    return normalizedHeaders.findIndex((h) => lowered.includes(h))
   }
 
   const iDate = col("day", "date", "start date")
