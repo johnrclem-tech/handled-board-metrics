@@ -6,14 +6,24 @@ import { eq } from "drizzle-orm"
 
 const CRM_TYPES = ["leads", "opportunities"]
 
-const CHUNK_SIZE = 500
+const CHUNK_SIZE = 100
 
 async function insertInChunks<T>(
+  label: string,
   rows: T[],
   runInsert: (chunk: T[]) => Promise<unknown>
 ) {
+  const chunkCount = Math.ceil(rows.length / CHUNK_SIZE)
+  console.log(
+    `[upload] inserting ${rows.length} ${label} rows in ${chunkCount} chunk(s) of up to ${CHUNK_SIZE}`
+  )
   for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-    await runInsert(rows.slice(i, i + CHUNK_SIZE))
+    const chunk = rows.slice(i, i + CHUNK_SIZE)
+    const chunkIndex = Math.floor(i / CHUNK_SIZE) + 1
+    console.log(
+      `[upload] ${label} chunk ${chunkIndex}/${chunkCount}: ${chunk.length} rows`
+    )
+    await runInsert(chunk)
   }
 }
 
@@ -66,7 +76,7 @@ export async function POST(request: NextRequest) {
           costPerConversion: row.costPerConversion != null ? String(row.costPerConversion) : null,
           uploadId: upload.id,
         }))
-        await insertInChunks(values, (chunk) =>
+        await insertInChunks("ad_campaign_performance", values, (chunk) =>
           db.insert(adCampaignPerformance).values(chunk)
         )
       }
@@ -111,7 +121,9 @@ export async function POST(request: NextRequest) {
           createdTime: row.createdTime,
           uploadId: upload.id,
         }))
-        await insertInChunks(values, (chunk) => db.insert(leads).values(chunk))
+        await insertInChunks("leads", values, (chunk) =>
+          db.insert(leads).values(chunk)
+        )
       }
 
       if (reportType === "opportunities" && parsed.opportunities && parsed.opportunities.length > 0) {
@@ -125,7 +137,7 @@ export async function POST(request: NextRequest) {
           ad: row.ad,
           uploadId: upload.id,
         }))
-        await insertInChunks(values, (chunk) =>
+        await insertInChunks("opportunities", values, (chunk) =>
           db.insert(opportunities).values(chunk)
         )
       }
@@ -169,7 +181,7 @@ export async function POST(request: NextRequest) {
         accountName: row.accountName,
         amount: String(row.amount),
       }))
-      await insertInChunks(values, (chunk) =>
+      await insertInChunks("financial_data", values, (chunk) =>
         db.insert(financialData).values(chunk)
       )
     }
