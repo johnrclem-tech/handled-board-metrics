@@ -18,6 +18,7 @@ export async function POST() {
     await sql`DELETE FROM leads`
     await sql`DELETE FROM opportunities`
     await sql`DELETE FROM ad_campaign_performance`
+    await sql`DELETE FROM ad_group_performance`
     await sql`DELETE FROM uploads`
 
     return NextResponse.json({ success: true, message: "All data cleared successfully" })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { parseExcelFile, parseCrmFile, parseAdCampaignFile } from "@/lib/excel-parser"
+import { parseExcelFile, parseCrmFile, parseAdCampaignFile, parseAdGroupFile } from "@/lib/excel-parser"
 import { getDb } from "@/lib/db"
 import { financialData, leads, opportunities, uploads } from "@/lib/db/schema"
 import { eq, sql } from "drizzle-orm"
@@ -44,9 +44,9 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer()
     const db = getDb()
 
-    // ── Ad Campaign Performance ──
-    if (reportType === "ad_campaign_performance") {
-      const parsed = parseAdCampaignFile(buffer)
+    // ── Ad Group Performance (one row per Day × Campaign × Ad Group) ──
+    if (reportType === "ad_group_performance") {
+      const parsed = parseAdGroupFile(buffer)
 
       const [upload] = await db
         .insert(uploads)
@@ -79,8 +79,6 @@ export async function POST(request: NextRequest) {
           uploadId: upload.id,
         }))
 
-        // De-duplicate within the upload itself by (date, campaign, ad_group)
-        // — last occurrence wins — so we can guarantee a single row per key
         const dedupedMap = new Map<string, (typeof mapped)[number]>()
         for (const v of mapped) {
           const key = `${v.date ?? ""}|${v.campaign ?? ""}|${v.adGroup ?? ""}`
@@ -89,14 +87,11 @@ export async function POST(request: NextRequest) {
         const values = Array.from(dedupedMap.values())
         const payload = JSON.stringify(values)
         console.log(
-          `[upload] ad_campaign_performance: ${parsed.rows.length} parsed rows, ${values.length} after dedupe, payload ${payload.length} bytes`
+          `[upload] ad_group_performance: ${parsed.rows.length} parsed rows, ${values.length} after dedupe, payload ${payload.length} bytes`
         )
 
-        // 1. Delete any existing rows whose (date, campaign, ad_group) matches
-        //    a row in the new upload — IS NOT DISTINCT FROM treats NULLs as
-        //    equal so rows missing one of the keys still match
         await db.execute(sql`
-          DELETE FROM ad_campaign_performance
+          DELETE FROM ad_group_performance
           WHERE EXISTS (
             SELECT 1
             FROM jsonb_to_recordset(${payload}::jsonb) AS t(
@@ -104,15 +99,14 @@ export async function POST(request: NextRequest) {
               "campaign" text,
               "adGroup" text
             )
-            WHERE ad_campaign_performance.date IS NOT DISTINCT FROM t."date"
-              AND ad_campaign_performance.campaign IS NOT DISTINCT FROM t."campaign"
-              AND ad_campaign_performance.ad_group IS NOT DISTINCT FROM t."adGroup"
+            WHERE ad_group_performance.date IS NOT DISTINCT FROM t."date"
+              AND ad_group_performance.campaign IS NOT DISTINCT FROM t."campaign"
+              AND ad_group_performance.ad_group IS NOT DISTINCT FROM t."adGroup"
           )
         `)
 
-        // 2. Insert all rows from the new upload as fresh records
         await db.execute(sql`
-          INSERT INTO ad_campaign_performance (
+          INSERT INTO ad_group_performance (
             date, campaign, campaign_type, ad_group, currency, cost, clicks,
             impressions, conversions, ctr, avg_cpc, conversion_rate,
             cost_per_conversion, search_lost_is_rank, search_impr_share, upload_id
@@ -135,6 +129,101 @@ export async function POST(request: NextRequest) {
             "avgCpc" numeric,
             "conversionRate" numeric,
             "costPerConversion" numeric,
+            "searchLostIsRank" numeric,
+            "searchImprShare" numeric,
+            "uploadId" integer
+          )
+        `)
+      }
+
+      return NextResponse.json({ success: true, upload, rowCount: parsed.rows.length })
+    }
+
+    // ── Ad Campaign Performance (one row per Day × Campaign) ──
+    if (reportType === "ad_campaign_performance") {
+      const parsed = parseAdCampaignFile(buffer)
+
+      const [upload] = await db
+        .insert(uploads)
+        .values({
+          fileName: file.name,
+          fileType: reportType,
+          recordCount: parsed.rows.length,
+          status: "processed",
+          metadata: { recordCount: parsed.rows.length },
+        })
+        .returning()
+
+      if (parsed.rows.length > 0) {
+        const mapped = parsed.rows.map((row) => ({
+          date: row.date,
+          campaign: row.campaign,
+          campaignType: row.campaignType,
+          currency: row.currency,
+          cost: row.cost,
+          clicks: row.clicks != null ? Math.round(row.clicks) : null,
+          impressions: row.impressions != null ? Math.round(row.impressions) : null,
+          conversions: row.conversions,
+          ctr: row.ctr,
+          avgCpc: row.avgCpc,
+          conversionRate: row.conversionRate,
+          costPerConversion: row.costPerConversion,
+          searchLostIsBudget: row.searchLostIsBudget,
+          searchLostIsRank: row.searchLostIsRank,
+          searchImprShare: row.searchImprShare,
+          uploadId: upload.id,
+        }))
+
+        const dedupedMap = new Map<string, (typeof mapped)[number]>()
+        for (const v of mapped) {
+          const key = `${v.date ?? ""}|${v.campaign ?? ""}`
+          dedupedMap.set(key, v)
+        }
+        const values = Array.from(dedupedMap.values())
+        const payload = JSON.stringify(values)
+        console.log(
+          `[upload] ad_campaign_performance: ${parsed.rows.length} parsed rows, ${values.length} after dedupe, payload ${payload.length} bytes`
+        )
+
+        await db.execute(sql`
+          DELETE FROM ad_campaign_performance
+          WHERE EXISTS (
+            SELECT 1
+            FROM jsonb_to_recordset(${payload}::jsonb) AS t(
+              "date" date,
+              "campaign" text
+            )
+            WHERE ad_campaign_performance.date IS NOT DISTINCT FROM t."date"
+              AND ad_campaign_performance.campaign IS NOT DISTINCT FROM t."campaign"
+          )
+        `)
+
+        await db.execute(sql`
+          INSERT INTO ad_campaign_performance (
+            date, campaign, campaign_type, currency, cost, clicks,
+            impressions, conversions, ctr, avg_cpc, conversion_rate,
+            cost_per_conversion, search_lost_is_budget, search_lost_is_rank,
+            search_impr_share, upload_id
+          )
+          SELECT
+            "date", "campaign", "campaignType", "currency", "cost", "clicks",
+            "impressions", "conversions", "ctr", "avgCpc", "conversionRate",
+            "costPerConversion", "searchLostIsBudget", "searchLostIsRank",
+            "searchImprShare", "uploadId"
+          FROM jsonb_to_recordset(${payload}::jsonb) AS t(
+            "date" date,
+            "campaign" text,
+            "campaignType" text,
+            "currency" text,
+            "cost" numeric,
+            "clicks" integer,
+            "impressions" integer,
+            "conversions" numeric,
+            "ctr" numeric,
+            "avgCpc" numeric,
+            "conversionRate" numeric,
+            "costPerConversion" numeric,
+            "searchLostIsBudget" numeric,
             "searchLostIsRank" numeric,
             "searchImprShare" numeric,
             "uploadId" integer

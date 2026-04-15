@@ -352,9 +352,9 @@ function parseOpportunities(rawData: unknown[][]): ParsedCrmReport {
   return { reportType: "opportunities", opportunities, rowCount: opportunities.length }
 }
 
-// ── Ad Campaign Performance Parser ──────────────────────────────────
+// ── Ad Spend Parsers ────────────────────────────────────────────────
 
-export interface ParsedAdCampaignRow {
+export interface ParsedAdGroupRow {
   date: string | null
   campaign: string | null
   campaignType: string | null
@@ -368,6 +368,29 @@ export interface ParsedAdCampaignRow {
   avgCpc: number | null
   conversionRate: number | null
   costPerConversion: number | null
+  searchLostIsRank: number | null
+  searchImprShare: number | null
+}
+
+export interface ParsedAdGroupReport {
+  reportType: "ad_group_performance"
+  rows: ParsedAdGroupRow[]
+}
+
+export interface ParsedAdCampaignRow {
+  date: string | null
+  campaign: string | null
+  campaignType: string | null
+  currency: string | null
+  cost: number | null
+  clicks: number | null
+  impressions: number | null
+  conversions: number | null
+  ctr: number | null
+  avgCpc: number | null
+  conversionRate: number | null
+  costPerConversion: number | null
+  searchLostIsBudget: number | null
   searchLostIsRank: number | null
   searchImprShare: number | null
 }
@@ -409,26 +432,38 @@ function parseDateCell(val: unknown): string | null {
   return null
 }
 
-function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignReport {
-  // Find the header row — look for rows containing keywords like "Campaign" or "Cost"
-  let headerIndex = -1
-  let headers: string[] = []
+/**
+ * Locate the header row in a Google Ads export. The export starts with a few
+ * summary rows; the header row is the first row containing both a "Campaign"
+ * cell and a recognizable spend column.
+ */
+function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: string[] } | null {
   for (let i = 0; i < Math.min(rawData.length, 20); i++) {
     const row = rawData[i] as unknown[]
     if (!row) continue
     const textCells = row.map((c) => (typeof c === "string" ? c.trim().toLowerCase() : ""))
     const hasCampaign = textCells.some((c) => c === "campaign")
-    const hasCost = textCells.some((c) => c === "cost" || c === "spend" || c === "amount spent")
-    if (hasCampaign && hasCost) {
-      headerIndex = i
-      headers = row.map((c) => (typeof c === "string" ? c.trim() : ""))
-      break
+    const hasMoneyCol = textCells.some(
+      (c) =>
+        c === "cost" ||
+        c === "spend" ||
+        c === "amount spent" ||
+        c.startsWith("search lost is") ||
+        c.startsWith("search impr"),
+    )
+    if (hasCampaign && hasMoneyCol) {
+      const headers = row.map((c) => (typeof c === "string" ? c.trim() : ""))
+      return { headerIndex: i, headers }
     }
   }
+  return null
+}
 
-  if (headerIndex === -1) return { reportType: "ad_campaign_performance", rows: [] }
+function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
+  const hdr = findAdHeaderRow(rawData)
+  if (!hdr) return { reportType: "ad_group_performance", rows: [] }
+  const { headerIndex, headers } = hdr
 
-  // Build column index map
   const col = (...names: string[]): number => {
     const lowered = names.map((n) => n.toLowerCase())
     return headers.findIndex((h) => lowered.includes(h.toLowerCase()))
@@ -458,7 +493,7 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     "search impr share",
   )
 
-  const rows: ParsedAdCampaignRow[] = []
+  const rows: ParsedAdGroupRow[] = []
   for (let i = headerIndex + 1; i < rawData.length; i++) {
     const row = rawData[i] as unknown[]
     if (!row || row.length === 0) continue
@@ -468,9 +503,7 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     // Collapse Google Ads "Name | Account | Network | Market"-style campaigns
     // down to just the leading segment (before the first pipe)
     const campaign = campaignRaw ? campaignRaw.split("|")[0].trim() || null : null
-    // Skip summary/total rows
     if (campaign && campaign.toLowerCase().startsWith("total")) continue
-    // Skip rows with no campaign name AND no cost
     const cost = iCost >= 0 ? parseNumericCell(row[iCost]) : null
     if (!campaign && (cost == null || cost === 0)) continue
 
@@ -493,7 +526,99 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     })
   }
 
+  return { reportType: "ad_group_performance", rows }
+}
+
+function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignReport {
+  const hdr = findAdHeaderRow(rawData)
+  if (!hdr) return { reportType: "ad_campaign_performance", rows: [] }
+  const { headerIndex, headers } = hdr
+
+  const col = (...names: string[]): number => {
+    const lowered = names.map((n) => n.toLowerCase())
+    return headers.findIndex((h) => lowered.includes(h.toLowerCase()))
+  }
+
+  const iDate = col("day", "date", "start date")
+  const iCampaign = col("campaign", "campaign name")
+  const iCampaignType = col("campaign type", "advertising channel type", "channel type")
+  const iCurrency = col("currency code", "currency")
+  const iCost = col("cost", "spend", "amount spent")
+  const iClicks = col("clicks")
+  const iImpressions = col("impressions", "impr.", "impr")
+  const iConversions = col("conversions", "all conv.", "all conversions")
+  const iCtr = col("ctr", "click-through rate")
+  const iAvgCpc = col("avg. cpc", "avg cpc", "cpc")
+  const iConvRate = col("conv. rate", "conversion rate", "conv rate", "all conv. rate")
+  const iCostPerConv = col("cost / conv.", "cost per conv.", "cost per conversion", "cost/conv.")
+  const iSearchLostIsBudget = col(
+    "search lost is (budget)",
+    "search lost impression share (budget)",
+    "search lost is(budget)",
+  )
+  const iSearchLostIsRank = col(
+    "search lost is (rank)",
+    "search lost impression share (rank)",
+    "search lost is(rank)",
+  )
+  const iSearchImprShare = col(
+    "search impr. share",
+    "search impression share",
+    "search impr share",
+  )
+
+  const rows: ParsedAdCampaignRow[] = []
+  for (let i = headerIndex + 1; i < rawData.length; i++) {
+    const row = rawData[i] as unknown[]
+    if (!row || row.length === 0) continue
+    if (row.every((c) => c == null || String(c).trim() === "")) continue
+
+    const campaignRaw = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
+    const campaign = campaignRaw ? campaignRaw.split("|")[0].trim() || null : null
+    if (campaign && campaign.toLowerCase().startsWith("total")) continue
+    const cost = iCost >= 0 ? parseNumericCell(row[iCost]) : null
+    // Allow rows that have a campaign + any campaign-level metric, not just cost
+    const searchLostIsBudget = iSearchLostIsBudget >= 0 ? parseNumericCell(row[iSearchLostIsBudget]) : null
+    const searchLostIsRank = iSearchLostIsRank >= 0 ? parseNumericCell(row[iSearchLostIsRank]) : null
+    const searchImprShare = iSearchImprShare >= 0 ? parseNumericCell(row[iSearchImprShare]) : null
+    if (
+      !campaign &&
+      (cost == null || cost === 0) &&
+      searchLostIsBudget == null &&
+      searchLostIsRank == null &&
+      searchImprShare == null
+    ) {
+      continue
+    }
+
+    rows.push({
+      date: iDate >= 0 ? parseDateCell(row[iDate]) : null,
+      campaign,
+      campaignType: iCampaignType >= 0 ? cellStr(row[iCampaignType]) : null,
+      currency: iCurrency >= 0 ? cellStr(row[iCurrency]) : null,
+      cost,
+      clicks: iClicks >= 0 ? parseNumericCell(row[iClicks]) : null,
+      impressions: iImpressions >= 0 ? parseNumericCell(row[iImpressions]) : null,
+      conversions: iConversions >= 0 ? parseNumericCell(row[iConversions]) : null,
+      ctr: iCtr >= 0 ? parseNumericCell(row[iCtr]) : null,
+      avgCpc: iAvgCpc >= 0 ? parseNumericCell(row[iAvgCpc]) : null,
+      conversionRate: iConvRate >= 0 ? parseNumericCell(row[iConvRate]) : null,
+      costPerConversion: iCostPerConv >= 0 ? parseNumericCell(row[iCostPerConv]) : null,
+      searchLostIsBudget,
+      searchLostIsRank,
+      searchImprShare,
+    })
+  }
+
   return { reportType: "ad_campaign_performance", rows }
+}
+
+export function parseAdGroupFile(buffer: ArrayBuffer): ParsedAdGroupReport {
+  const workbook = xlsxRead(buffer, { type: "array" })
+  const sheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[sheetName]
+  const rawData = xlsxUtils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+  return parseAdGroupPerformance(rawData)
 }
 
 export function parseAdCampaignFile(buffer: ArrayBuffer): ParsedAdCampaignReport {

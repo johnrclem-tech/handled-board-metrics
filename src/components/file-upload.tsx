@@ -254,6 +254,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                   <SelectItem value="leads">Leads</SelectItem>
                   <SelectItem value="opportunities">Opportunities</SelectItem>
                   <SelectItem value="ad_campaign_performance">Ad Campaign Performance</SelectItem>
+                  <SelectItem value="ad_group_performance">Ad Group Performance</SelectItem>
                 </SelectContent>
               </Select>
             </div>

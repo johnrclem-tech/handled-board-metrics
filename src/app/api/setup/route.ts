@@ -72,8 +72,42 @@ export async function GET() {
       )
     `
 
+    // ── Ad-spend tables ──────────────────────────────────────────────
+    // The original ad_campaign_performance table was actually ad-group-level
+    // (it had an ad_group column). Migrate it to ad_group_performance so the
+    // name matches its content, then create a fresh ad_campaign_performance
+    // table for true campaign-level data.
     await sql`
-      CREATE TABLE IF NOT EXISTS ad_campaign_performance (
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ad_campaign_performance' AND column_name = 'ad_group'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.tables WHERE table_name = 'ad_group_performance'
+        ) THEN
+          ALTER TABLE ad_campaign_performance RENAME TO ad_group_performance;
+        END IF;
+      END $$;
+    `
+
+    // If a stale ad_campaign_performance table from a half-applied migration
+    // still has the old ad_group column, drop it — the new schema has no ad_group
+    await sql`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'ad_campaign_performance' AND column_name = 'ad_group'
+        ) THEN
+          DROP TABLE ad_campaign_performance;
+        END IF;
+      END $$;
+    `
+
+    // Ad-group-level data (one row per Day × Campaign × Ad Group)
+    await sql`
+      CREATE TABLE IF NOT EXISTS ad_group_performance (
         id SERIAL PRIMARY KEY,
         date DATE,
         campaign TEXT,
@@ -95,14 +129,43 @@ export async function GET() {
       )
     `
 
+    // Campaign-level data (one row per Day × Campaign) — adds search_lost_is_budget
+    await sql`
+      CREATE TABLE IF NOT EXISTS ad_campaign_performance (
+        id SERIAL PRIMARY KEY,
+        date DATE,
+        campaign TEXT,
+        campaign_type TEXT,
+        currency TEXT,
+        cost NUMERIC(15, 2),
+        clicks INTEGER,
+        impressions INTEGER,
+        conversions NUMERIC(15, 4),
+        ctr NUMERIC(10, 4),
+        avg_cpc NUMERIC(10, 4),
+        conversion_rate NUMERIC(10, 4),
+        cost_per_conversion NUMERIC(15, 4),
+        search_lost_is_budget NUMERIC(10, 4),
+        search_lost_is_rank NUMERIC(10, 4),
+        search_impr_share NUMERIC(10, 4),
+        upload_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `
+
     // Back-fill columns on tables created before these fields existed
-    await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS ad_group TEXT`
-    await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS search_lost_is_rank NUMERIC(10, 4)`
-    await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS search_impr_share NUMERIC(10, 4)`
+    await sql`ALTER TABLE ad_group_performance ADD COLUMN IF NOT EXISTS search_lost_is_rank NUMERIC(10, 4)`
+    await sql`ALTER TABLE ad_group_performance ADD COLUMN IF NOT EXISTS search_impr_share NUMERIC(10, 4)`
+    await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS search_lost_is_budget NUMERIC(10, 4)`
 
     // Normalize pre-existing campaign names to the same shape the parser now
     // produces (text before the first "|"), so the import's delete-by-key
     // step can match old rows
+    await sql`
+      UPDATE ad_group_performance
+      SET campaign = trim(split_part(campaign, '|', 1))
+      WHERE campaign IS NOT NULL AND campaign LIKE '%|%'
+    `
     await sql`
       UPDATE ad_campaign_performance
       SET campaign = trim(split_part(campaign, '|', 1))

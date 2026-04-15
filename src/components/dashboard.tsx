@@ -32,6 +32,7 @@ export interface CohortDrillFilter {
 
 export type ChurnSegment = "all" | "new" | "existing"
 export type ChurnPeriod = "monthly" | "quarterly" | "annually"
+export type AdSpendView = "campaigns" | "ad-groups"
 
 const PAGE_TITLES: Record<string, string> = {
   "revenue-metrics": "Service Revenue",
@@ -78,6 +79,11 @@ const LEADS_TIME_RANGES: { value: LeadsTimeRange; label: string }[] = [
   { value: "ytd", label: "YTD" },
 ]
 
+const AD_SPEND_VIEWS: { value: AdSpendView; label: string }[] = [
+  { value: "campaigns", label: "Campaigns" },
+  { value: "ad-groups", label: "Ad Groups" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("revenue-metrics")
@@ -88,6 +94,7 @@ export function Dashboard() {
   const [leadsPeriod, setLeadsPeriod] = useState<LeadsPeriod>("monthly")
   const [leadsTimeRange, setLeadsTimeRange] = useState<LeadsTimeRange>("all")
   const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("monthly")
+  const [adSpendView, setAdSpendView] = useState<AdSpendView>("campaigns")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -190,6 +197,21 @@ export function Dashboard() {
             </div>
           )}
 
+          {activePage === "ad-spend" && (
+            <div className="ml-auto flex items-center gap-3">
+              <span className="text-sm font-medium text-muted-foreground">View:</span>
+              <Tabs value={adSpendView} onValueChange={(v) => setAdSpendView(v as AdSpendView)}>
+                <TabsList className="bg-muted h-9">
+                  {AD_SPEND_VIEWS.map((v) => (
+                    <TabsTrigger key={v.value} value={v.value} className="px-4">
+                      {v.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
+            </div>
+          )}
+
           {activePage === "leads" && (
             <div className="ml-auto flex items-center gap-3">
               <span className="text-sm font-medium text-muted-foreground">Range:</span>
@@ -260,7 +282,7 @@ export function Dashboard() {
           )}
 
           {activePage === "ad-spend" && (
-            <AdSpendPage key={`ad-spend-${refreshKey}`} />
+            <AdSpendPage key={`ad-spend-${refreshKey}-${adSpendView}`} view={adSpendView} />
           )}
 
           {activePage === "import" && (

@@ -45,6 +45,7 @@ interface AdRow {
   avgCpc: string | null
   conversionRate: string | null
   costPerConversion: string | null
+  searchLostIsBudget: string | null
   searchLostIsRank: string | null
   searchImprShare: string | null
 }
@@ -57,6 +58,7 @@ type SortField =
   | "cost"
   | "clicks"
   | "conversions"
+  | "searchLostIsBudget"
   | "searchLostIsRank"
   | "searchImprShare"
 
@@ -236,7 +238,8 @@ function MultiSelectFilter({
   )
 }
 
-export function AdSpendPage() {
+export function AdSpendPage({ view = "campaigns" }: { view?: "campaigns" | "ad-groups" }) {
+  const isAdGroupView = view === "ad-groups"
   const [rows, setRows] = useState<AdRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -246,12 +249,13 @@ export function AdSpendPage() {
   const [selectedAdGroups, setSelectedAdGroups] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch("/api/ad-spend")
+    setLoading(true)
+    fetch(`/api/ad-spend?view=${view}`)
       .then((r) => r.json())
       .then((data) => setRows(data.rows || []))
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }, [view])
 
   const campaignOptions = useMemo(() => {
     const set = new Set<string>()
@@ -303,6 +307,7 @@ export function AdSpendPage() {
         "cost",
         "clicks",
         "conversions",
+        "searchLostIsBudget",
         "searchLostIsRank",
         "searchImprShare",
       ]
@@ -353,9 +358,12 @@ export function AdSpendPage() {
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-16">
           <Package className="h-12 w-12 text-muted-foreground/50 mb-4" />
-          <h3 className="text-lg font-semibold">No ad campaign data</h3>
+          <h3 className="text-lg font-semibold">
+            No {isAdGroupView ? "ad group" : "ad campaign"} data
+          </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Import an Ad Campaign Performance file from the Import page to get started
+            Import an {isAdGroupView ? "Ad Group Performance" : "Ad Campaign Performance"} file from
+            the Import page to get started
           </p>
         </CardContent>
       </Card>
@@ -392,7 +400,7 @@ export function AdSpendPage() {
         <CardHeader>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <CardTitle>Ad Campaign Performance</CardTitle>
+              <CardTitle>{isAdGroupView ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
               <CardDescription>
                 {sorted.length.toLocaleString()} of {rows.length.toLocaleString()} rows
               </CardDescription>
@@ -404,12 +412,14 @@ export function AdSpendPage() {
                 selected={selectedCampaigns}
                 onChange={setSelectedCampaigns}
               />
-              <MultiSelectFilter
-                label="Ad Group"
-                options={adGroupOptions}
-                selected={selectedAdGroups}
-                onChange={setSelectedAdGroups}
-              />
+              {isAdGroupView && (
+                <MultiSelectFilter
+                  label="Ad Group"
+                  options={adGroupOptions}
+                  selected={selectedAdGroups}
+                  onChange={setSelectedAdGroups}
+                />
+              )}
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -433,9 +443,11 @@ export function AdSpendPage() {
                   <SortableHead field="campaign" active={sortField === "campaign"} dir={sortDir} onSort={handleSort}>
                     Campaign
                   </SortableHead>
-                  <SortableHead field="adGroup" active={sortField === "adGroup"} dir={sortDir} onSort={handleSort}>
-                    Ad Group
-                  </SortableHead>
+                  {isAdGroupView && (
+                    <SortableHead field="adGroup" active={sortField === "adGroup"} dir={sortDir} onSort={handleSort}>
+                      Ad Group
+                    </SortableHead>
+                  )}
                   <SortableHead field="currency" active={sortField === "currency"} dir={sortDir} onSort={handleSort}>
                     Currency
                   </SortableHead>
@@ -448,6 +460,11 @@ export function AdSpendPage() {
                   <SortableHead field="conversions" active={sortField === "conversions"} dir={sortDir} onSort={handleSort} align="right">
                     Conversions
                   </SortableHead>
+                  {!isAdGroupView && (
+                    <SortableHead field="searchLostIsBudget" active={sortField === "searchLostIsBudget"} dir={sortDir} onSort={handleSort} align="right">
+                      Search Lost IS (Budget)
+                    </SortableHead>
+                  )}
                   <SortableHead field="searchLostIsRank" active={sortField === "searchLostIsRank"} dir={sortDir} onSort={handleSort} align="right">
                     Search Lost IS (Rank)
                   </SortableHead>
@@ -461,7 +478,9 @@ export function AdSpendPage() {
                   <TableRow key={r.id}>
                     <TableCell className="whitespace-nowrap">{formatDate(r.date)}</TableCell>
                     <TableCell className="font-medium max-w-[300px] truncate">{r.campaign || "—"}</TableCell>
-                    <TableCell className="max-w-[240px] truncate">{r.adGroup || "—"}</TableCell>
+                    {isAdGroupView && (
+                      <TableCell className="max-w-[240px] truncate">{r.adGroup || "—"}</TableCell>
+                    )}
                     <TableCell>{r.currency || "—"}</TableCell>
                     <TableCell className="text-right font-mono">
                       {r.cost != null ? formatCurrency(parseFloat(r.cost)) : "—"}
@@ -472,6 +491,11 @@ export function AdSpendPage() {
                     <TableCell className="text-right font-mono">
                       {r.conversions != null ? formatNumber(parseFloat(r.conversions), 2) : "—"}
                     </TableCell>
+                    {!isAdGroupView && (
+                      <TableCell className="text-right font-mono">
+                        {r.searchLostIsBudget != null ? formatPct(parseFloat(r.searchLostIsBudget)) : "—"}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right font-mono">
                       {r.searchLostIsRank != null ? formatPct(parseFloat(r.searchLostIsRank)) : "—"}
                     </TableCell>
