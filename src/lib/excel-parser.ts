@@ -464,7 +464,10 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     if (!row || row.length === 0) continue
     if (row.every((c) => c == null || String(c).trim() === "")) continue
 
-    const campaign = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
+    const campaignRaw = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
+    // Collapse Google Ads "Name | Account | Network | Market"-style campaigns
+    // down to just the leading segment (before the first pipe)
+    const campaign = campaignRaw ? campaignRaw.split("|")[0].trim() || null : null
     // Skip summary/total rows
     if (campaign && campaign.toLowerCase().startsWith("total")) continue
     // Skip rows with no campaign name AND no cost

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { parseExcelFile, parseCrmFile, parseAdCampaignFile } from "@/lib/excel-parser"
 import { getDb } from "@/lib/db"
-import { financialData, leads, opportunities, adCampaignPerformance, uploads } from "@/lib/db/schema"
+import { financialData, leads, opportunities, uploads } from "@/lib/db/schema"
 import { eq, sql } from "drizzle-orm"
 
 const CRM_TYPES = ["leads", "opportunities"]
@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
     // ── Ad Campaign Performance ──
     if (reportType === "ad_campaign_performance") {
       const parsed = parseAdCampaignFile(buffer)
-      await db.delete(adCampaignPerformance)
 
       const [upload] = await db
         .insert(uploads)
@@ -111,6 +110,20 @@ export async function POST(request: NextRequest) {
             "searchImprShare" numeric,
             "uploadId" integer
           )
+          ON CONFLICT (date, campaign, ad_group) DO UPDATE SET
+            campaign_type = EXCLUDED.campaign_type,
+            currency = EXCLUDED.currency,
+            cost = EXCLUDED.cost,
+            clicks = EXCLUDED.clicks,
+            impressions = EXCLUDED.impressions,
+            conversions = EXCLUDED.conversions,
+            ctr = EXCLUDED.ctr,
+            avg_cpc = EXCLUDED.avg_cpc,
+            conversion_rate = EXCLUDED.conversion_rate,
+            cost_per_conversion = EXCLUDED.cost_per_conversion,
+            search_lost_is_rank = EXCLUDED.search_lost_is_rank,
+            search_impr_share = EXCLUDED.search_impr_share,
+            upload_id = EXCLUDED.upload_id
         `)
       }
 
