@@ -22,7 +22,7 @@ import type { ServicePeriod } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
 import type { LeadsPeriod, LeadsTimeRange } from "@/components/leads-page"
 import { AdSpendPage } from "@/components/ad-spend-page"
-import type { AdSpendRange } from "@/components/ad-spend-page"
+import type { AdSpendRange, AdSpendChannel } from "@/components/ad-spend-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -87,6 +87,12 @@ const AD_SPEND_RANGES: { value: AdSpendRange; label: string }[] = [
   { value: "last-qtr", label: "Last Qtr" },
 ]
 
+const AD_SPEND_CHANNELS: { value: AdSpendChannel; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "ppc-website", label: "PPC+Website" },
+  { value: "ppc-only", label: "PPC only" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("revenue-metrics")
@@ -98,6 +104,7 @@ export function Dashboard() {
   const [leadsTimeRange, setLeadsTimeRange] = useState<LeadsTimeRange>("all")
   const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("monthly")
   const [adSpendRange, setAdSpendRange] = useState<AdSpendRange>("all")
+  const [adSpendChannel, setAdSpendChannel] = useState<AdSpendChannel>("all")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -212,6 +219,17 @@ export function Dashboard() {
                   ))}
                 </TabsList>
               </Tabs>
+              <Separator orientation="vertical" className="h-4" />
+              <span className="text-sm font-medium text-muted-foreground">Channel:</span>
+              <Tabs value={adSpendChannel} onValueChange={(v) => setAdSpendChannel(v as AdSpendChannel)}>
+                <TabsList className="bg-muted h-9">
+                  {AD_SPEND_CHANNELS.map((c) => (
+                    <TabsTrigger key={c.value} value={c.value} className="px-4">
+                      {c.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             </div>
           )}
 
@@ -285,7 +303,11 @@ export function Dashboard() {
           )}
 
           {activePage === "ad-spend" && (
-            <AdSpendPage key={`ad-spend-${refreshKey}`} range={adSpendRange} />
+            <AdSpendPage
+              key={`ad-spend-${refreshKey}`}
+              range={adSpendRange}
+              channel={adSpendChannel}
+            />
           )}
 
           {activePage === "import" && (

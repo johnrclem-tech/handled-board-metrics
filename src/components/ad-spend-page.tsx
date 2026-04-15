@@ -22,7 +22,7 @@ import {
   Search,
   Package,
   Megaphone,
-  MousePointerClick,
+  UserPlus,
   Target,
   PieChart,
   ChevronDown,
@@ -242,6 +242,47 @@ function MultiSelectFilter({
 
 type AdSpendView = "campaigns" | "ad-groups"
 export type AdSpendRange = "all" | "ytd" | "ttm" | "last-mo" | "last-qtr"
+export type AdSpendChannel = "all" | "ppc-website" | "ppc-only"
+
+// Classify a lead_source / source string as PPC, Website, or other. We try to
+// be generous with PPC aliases since different CRMs label paid channels
+// differently.
+function classifySource(source: string | null | undefined): "ppc" | "website" | "other" {
+  if (!source) return "other"
+  const s = source.toLowerCase()
+  if (
+    s.includes("adwords") ||
+    s.includes("google ads") ||
+    s.includes("google ad ") ||
+    s.includes("ppc") ||
+    s === "paid search" ||
+    s.includes("paid social") ||
+    s.includes("paid") ||
+    s.includes("bing") ||
+    s.includes("facebook ad") ||
+    s.includes("meta ad") ||
+    s.includes("linkedin ad") ||
+    s.includes("sem") ||
+    s.includes("sponsored")
+  ) {
+    return "ppc"
+  }
+  if (s === "website" || s === "web" || s.includes("organic")) {
+    return "website"
+  }
+  return "other"
+}
+
+function sourceMatchesChannel(
+  source: string | null | undefined,
+  channel: AdSpendChannel,
+): boolean {
+  if (channel === "all") return true
+  const c = classifySource(source)
+  if (channel === "ppc-only") return c === "ppc"
+  if (channel === "ppc-website") return c === "ppc" || c === "website"
+  return true
+}
 
 function rangeBounds(range: AdSpendRange): { start: Date | null; end: Date | null } {
   if (range === "all") return { start: null, end: null }
@@ -269,7 +310,18 @@ function rangeBounds(range: AdSpendRange): { start: Date | null; end: Date | nul
   return { start: null, end: null }
 }
 
-export function AdSpendPage({ range = "all" }: { range?: AdSpendRange }) {
+interface AcquisitionRow {
+  createdTime: string | null
+  leadSource: string | null
+}
+
+export function AdSpendPage({
+  range = "all",
+  channel = "all",
+}: {
+  range?: AdSpendRange
+  channel?: AdSpendChannel
+}) {
   const [view, setView] = useState<AdSpendView>("ad-groups")
   const isAdGroupView = view === "ad-groups"
   const [rows, setRows] = useState<AdRow[]>([])
@@ -279,6 +331,7 @@ export function AdSpendPage({ range = "all" }: { range?: AdSpendRange }) {
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set())
   const [selectedAdGroups, setSelectedAdGroups] = useState<Set<string>>(new Set())
+  const [acquisitions, setAcquisitions] = useState<AcquisitionRow[]>([])
 
   useEffect(() => {
     setLoading(true)
@@ -293,6 +346,21 @@ export function AdSpendPage({ range = "all" }: { range?: AdSpendRange }) {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [view])
+
+  // Leads feed the CPA denominator ("acquisitions"). Fetch them once and
+  // filter client-side by range + channel.
+  useEffect(() => {
+    fetch("/api/leads")
+      .then((r) => r.json())
+      .then((data) => {
+        const leadsRows: AcquisitionRow[] = (data.leads || []).map((l: { createdTime: string | null; leadSource: string | null }) => ({
+          createdTime: l.createdTime,
+          leadSource: l.leadSource,
+        }))
+        setAcquisitions(leadsRows)
+      })
+      .catch(console.error)
+  }, [])
 
   // Apply the page-level Range filter first so every other derived value
   // (KPIs, filter options, table) reflects the same window
@@ -395,12 +463,38 @@ export function AdSpendPage({ range = "all" }: { range?: AdSpendRange }) {
     return { cost, clicks, conversions, cpc, costPerConv, avgImprShare }
   }, [rangeFilteredRows])
 
+  // Total acquisitions = leads whose createdTime is within the selected range
+  // AND whose source matches the selected Channel.
+  const acquisitionsInRange = useMemo(() => {
+    const { start, end } = rangeBounds(range)
+    let count = 0
+    for (const a of acquisitions) {
+      if (!a.createdTime) continue
+      const d = new Date(a.createdTime)
+      if (isNaN(d.getTime())) continue
+      if (start && d < start) continue
+      if (end && d > end) continue
+      if (!sourceMatchesChannel(a.leadSource, channel)) continue
+      count++
+    }
+    return count
+  }, [acquisitions, range, channel])
+
+  const cpa = acquisitionsInRange > 0 ? totals.cost / acquisitionsInRange : 0
+
   const hasData = !loading && rows.length > 0
 
   const kpis = hasData
     ? [
         { title: "Total Spend", value: formatCurrency(totals.cost), icon: Megaphone, color: "text-chart-1", bg: "bg-chart-1/15" },
-        { title: "Total Clicks", value: formatNumber(totals.clicks), sub: `${formatCurrency(totals.cpc)} avg CPC`, icon: MousePointerClick, color: "text-chart-2", bg: "bg-chart-2/15" },
+        {
+          title: "CPA",
+          value: acquisitionsInRange > 0 ? formatCurrency(cpa) : "—",
+          sub: `${formatNumber(acquisitionsInRange)} acquisition${acquisitionsInRange === 1 ? "" : "s"}`,
+          icon: UserPlus,
+          color: "text-chart-2",
+          bg: "bg-chart-2/15",
+        },
         { title: "Conversions", value: formatNumber(totals.conversions, 1), sub: `${formatCurrency(totals.costPerConv)} / conv`, icon: Target, color: "text-chart-3", bg: "bg-chart-3/15" },
         { title: "Avg Impr. Share", value: formatPct(totals.avgImprShare), sub: "Search impression share", icon: PieChart, color: "text-chart-4", bg: "bg-chart-4/15" },
       ]
