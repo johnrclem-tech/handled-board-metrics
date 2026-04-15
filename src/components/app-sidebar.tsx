@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Package, Settings, TrendingDown, Upload, Users, Funnel } from "lucide-react"
+import { Package, Settings, TrendingDown, Upload, Users, Funnel, Megaphone } from "lucide-react"
 
 interface AppSidebarProps {
   activePage: string
@@ -76,6 +76,15 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
                 >
                   <Funnel className="size-4" />
                   <span>Leads</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={activePage === "ad-spend"}
+                  onClick={() => onNavigate("ad-spend")}
+                >
+                  <Megaphone className="size-4" />
+                  <span>Ad Spend</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

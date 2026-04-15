@@ -50,6 +50,24 @@ export const opportunities = pgTable("opportunities", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
+export const adCampaignPerformance = pgTable("ad_campaign_performance", {
+  id: serial("id").primaryKey(),
+  date: date("date"),
+  campaign: text("campaign"),
+  campaignType: text("campaign_type"),
+  currency: text("currency"),
+  cost: numeric("cost", { precision: 15, scale: 2 }),
+  clicks: integer("clicks"),
+  impressions: integer("impressions"),
+  conversions: numeric("conversions", { precision: 15, scale: 4 }),
+  ctr: numeric("ctr", { precision: 10, scale: 4 }),
+  avgCpc: numeric("avg_cpc", { precision: 10, scale: 4 }),
+  conversionRate: numeric("conversion_rate", { precision: 10, scale: 4 }),
+  costPerConversion: numeric("cost_per_conversion", { precision: 15, scale: 4 }),
+  uploadId: integer("upload_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
 export const kpiTargets = pgTable("kpi_targets", {
   id: serial("id").primaryKey(),
   kpiName: text("kpi_name").notNull(),

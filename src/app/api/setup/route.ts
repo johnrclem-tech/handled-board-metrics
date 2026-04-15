@@ -73,6 +73,26 @@ export async function GET() {
     `
 
     await sql`
+      CREATE TABLE IF NOT EXISTS ad_campaign_performance (
+        id SERIAL PRIMARY KEY,
+        date DATE,
+        campaign TEXT,
+        campaign_type TEXT,
+        currency TEXT,
+        cost NUMERIC(15, 2),
+        clicks INTEGER,
+        impressions INTEGER,
+        conversions NUMERIC(15, 4),
+        ctr NUMERIC(10, 4),
+        avg_cpc NUMERIC(10, 4),
+        conversion_rate NUMERIC(10, 4),
+        cost_per_conversion NUMERIC(15, 4),
+        upload_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `
+
+    await sql`
       CREATE TABLE IF NOT EXISTS kpi_targets (
         id SERIAL PRIMARY KEY,
         kpi_name TEXT NOT NULL,

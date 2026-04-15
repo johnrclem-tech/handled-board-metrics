@@ -21,6 +21,7 @@ import { RevenueMetricsPage } from "@/components/revenue-metrics-page"
 import type { ServicePeriod } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
 import type { LeadsPeriod, LeadsTimeRange } from "@/components/leads-page"
+import { AdSpendPage } from "@/components/ad-spend-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -37,6 +38,7 @@ const PAGE_TITLES: Record<string, string> = {
   financials: "Customer Revenue",
   churn: "LTV-Churn",
   leads: "Leads",
+  "ad-spend": "Ad Spend",
   import: "Import",
 }
 
@@ -255,6 +257,10 @@ export function Dashboard() {
           )}
           {activePage === "leads" && (
             <LeadsPage key={`leads-${refreshKey}`} period={leadsPeriod} timeRange={leadsTimeRange} />
+          )}
+
+          {activePage === "ad-spend" && (
+            <AdSpendPage key={`ad-spend-${refreshKey}`} />
           )}
 
           {activePage === "import" && (

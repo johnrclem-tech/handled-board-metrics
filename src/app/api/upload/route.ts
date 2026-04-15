@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { parseExcelFile, parseCrmFile } from "@/lib/excel-parser"
+import { parseExcelFile, parseCrmFile, parseAdCampaignFile } from "@/lib/excel-parser"
 import { getDb } from "@/lib/db"
-import { financialData, leads, opportunities, uploads } from "@/lib/db/schema"
+import { financialData, leads, opportunities, adCampaignPerformance, uploads } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 
 const CRM_TYPES = ["leads", "opportunities"]
@@ -22,6 +22,45 @@ export async function POST(request: NextRequest) {
 
     const buffer = await file.arrayBuffer()
     const db = getDb()
+
+    // ── Ad Campaign Performance ──
+    if (reportType === "ad_campaign_performance") {
+      const parsed = parseAdCampaignFile(buffer)
+      await db.delete(adCampaignPerformance)
+
+      const [upload] = await db
+        .insert(uploads)
+        .values({
+          fileName: file.name,
+          fileType: reportType,
+          recordCount: parsed.rows.length,
+          status: "processed",
+          metadata: { recordCount: parsed.rows.length },
+        })
+        .returning()
+
+      if (parsed.rows.length > 0) {
+        await db.insert(adCampaignPerformance).values(
+          parsed.rows.map((row) => ({
+            date: row.date,
+            campaign: row.campaign,
+            campaignType: row.campaignType,
+            currency: row.currency,
+            cost: row.cost != null ? String(row.cost) : null,
+            clicks: row.clicks != null ? Math.round(row.clicks) : null,
+            impressions: row.impressions != null ? Math.round(row.impressions) : null,
+            conversions: row.conversions != null ? String(row.conversions) : null,
+            ctr: row.ctr != null ? String(row.ctr) : null,
+            avgCpc: row.avgCpc != null ? String(row.avgCpc) : null,
+            conversionRate: row.conversionRate != null ? String(row.conversionRate) : null,
+            costPerConversion: row.costPerConversion != null ? String(row.costPerConversion) : null,
+            uploadId: upload.id,
+          }))
+        )
+      }
+
+      return NextResponse.json({ success: true, upload, rowCount: parsed.rows.length })
+    }
 
     // ── CRM uploads (leads / opportunities) ──
     if (CRM_TYPES.includes(reportType)) {

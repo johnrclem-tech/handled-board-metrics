@@ -253,6 +253,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                   <SelectItem value="ap_aging">Accounts Payable Aging</SelectItem>
                   <SelectItem value="leads">Leads</SelectItem>
                   <SelectItem value="opportunities">Opportunities</SelectItem>
+                  <SelectItem value="ad_campaign_performance">Ad Campaign Performance</SelectItem>
                 </SelectContent>
               </Select>
             </div>

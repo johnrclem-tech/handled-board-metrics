@@ -352,6 +352,137 @@ function parseOpportunities(rawData: unknown[][]): ParsedCrmReport {
   return { reportType: "opportunities", opportunities, rowCount: opportunities.length }
 }
 
+// ── Ad Campaign Performance Parser ──────────────────────────────────
+
+export interface ParsedAdCampaignRow {
+  date: string | null
+  campaign: string | null
+  campaignType: string | null
+  currency: string | null
+  cost: number | null
+  clicks: number | null
+  impressions: number | null
+  conversions: number | null
+  ctr: number | null
+  avgCpc: number | null
+  conversionRate: number | null
+  costPerConversion: number | null
+}
+
+export interface ParsedAdCampaignReport {
+  reportType: "ad_campaign_performance"
+  rows: ParsedAdCampaignRow[]
+}
+
+function parseNumericCell(val: unknown): number | null {
+  if (val == null || val === "") return null
+  if (typeof val === "number") return val
+  if (typeof val === "string") {
+    // Strip currency symbols, commas, percent signs, parens (negatives)
+    const cleaned = val.replace(/[$€£¥,()\s%]/g, "").trim()
+    if (cleaned === "" || cleaned === "—" || cleaned === "-") return null
+    const n = parseFloat(cleaned)
+    if (isNaN(n)) return null
+    return val.includes("(") ? -n : n
+  }
+  return null
+}
+
+function parseDateCell(val: unknown): string | null {
+  if (val == null || val === "") return null
+  if (typeof val === "number") {
+    // Excel serial date
+    const epoch = new Date(1899, 11, 30)
+    const d = new Date(epoch.getTime() + val * 86400000)
+    if (isNaN(d.getTime())) return null
+    return d.toISOString().slice(0, 10)
+  }
+  if (typeof val === "string") {
+    const d = new Date(val)
+    if (isNaN(d.getTime())) return null
+    return d.toISOString().slice(0, 10)
+  }
+  return null
+}
+
+function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignReport {
+  // Find the header row — look for rows containing keywords like "Campaign" or "Cost"
+  let headerIndex = -1
+  let headers: string[] = []
+  for (let i = 0; i < Math.min(rawData.length, 20); i++) {
+    const row = rawData[i] as unknown[]
+    if (!row) continue
+    const textCells = row.map((c) => (typeof c === "string" ? c.trim().toLowerCase() : ""))
+    const hasCampaign = textCells.some((c) => c === "campaign")
+    const hasCost = textCells.some((c) => c === "cost" || c === "spend" || c === "amount spent")
+    if (hasCampaign && hasCost) {
+      headerIndex = i
+      headers = row.map((c) => (typeof c === "string" ? c.trim() : ""))
+      break
+    }
+  }
+
+  if (headerIndex === -1) return { reportType: "ad_campaign_performance", rows: [] }
+
+  // Build column index map
+  const col = (...names: string[]): number => {
+    const lowered = names.map((n) => n.toLowerCase())
+    return headers.findIndex((h) => lowered.includes(h.toLowerCase()))
+  }
+
+  const iDate = col("day", "date", "start date")
+  const iCampaign = col("campaign", "campaign name")
+  const iCampaignType = col("campaign type", "advertising channel type", "channel type")
+  const iCurrency = col("currency code", "currency")
+  const iCost = col("cost", "spend", "amount spent")
+  const iClicks = col("clicks")
+  const iImpressions = col("impressions", "impr.", "impr")
+  const iConversions = col("conversions", "all conv.", "all conversions")
+  const iCtr = col("ctr", "click-through rate")
+  const iAvgCpc = col("avg. cpc", "avg cpc", "cpc")
+  const iConvRate = col("conv. rate", "conversion rate", "conv rate", "all conv. rate")
+  const iCostPerConv = col("cost / conv.", "cost per conv.", "cost per conversion", "cost/conv.")
+
+  const rows: ParsedAdCampaignRow[] = []
+  for (let i = headerIndex + 1; i < rawData.length; i++) {
+    const row = rawData[i] as unknown[]
+    if (!row || row.length === 0) continue
+    if (row.every((c) => c == null || String(c).trim() === "")) continue
+
+    const campaign = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
+    // Skip summary/total rows
+    if (campaign && campaign.toLowerCase().startsWith("total")) continue
+    // Skip rows with no campaign name AND no cost
+    const cost = iCost >= 0 ? parseNumericCell(row[iCost]) : null
+    if (!campaign && (cost == null || cost === 0)) continue
+
+    rows.push({
+      date: iDate >= 0 ? parseDateCell(row[iDate]) : null,
+      campaign,
+      campaignType: iCampaignType >= 0 ? cellStr(row[iCampaignType]) : null,
+      currency: iCurrency >= 0 ? cellStr(row[iCurrency]) : null,
+      cost,
+      clicks: iClicks >= 0 ? parseNumericCell(row[iClicks]) : null,
+      impressions: iImpressions >= 0 ? parseNumericCell(row[iImpressions]) : null,
+      conversions: iConversions >= 0 ? parseNumericCell(row[iConversions]) : null,
+      ctr: iCtr >= 0 ? parseNumericCell(row[iCtr]) : null,
+      avgCpc: iAvgCpc >= 0 ? parseNumericCell(row[iAvgCpc]) : null,
+      conversionRate: iConvRate >= 0 ? parseNumericCell(row[iConvRate]) : null,
+      costPerConversion: iCostPerConv >= 0 ? parseNumericCell(row[iCostPerConv]) : null,
+    })
+  }
+
+  return { reportType: "ad_campaign_performance", rows }
+}
+
+export function parseAdCampaignFile(buffer: ArrayBuffer): ParsedAdCampaignReport {
+  const workbook = XLSX.read(buffer, { type: "array" })
+  const sheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[sheetName]
+  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+  return parseAdCampaignPerformance(rawData)
+}
+
 // ── Main Entry Point ────────────────────────────────────────────────
 
 export function parseCrmFile(buffer: ArrayBuffer, reportType: string): ParsedCrmReport {
