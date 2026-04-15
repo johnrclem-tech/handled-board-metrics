@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { parseExcelFile, parseCrmFile, parseAdCampaignFile } from "@/lib/excel-parser"
 import { getDb } from "@/lib/db"
 import { financialData, leads, opportunities, adCampaignPerformance, uploads } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 const CRM_TYPES = ["leads", "opportunities"]
 
@@ -66,19 +66,46 @@ export async function POST(request: NextRequest) {
           campaign: row.campaign,
           campaignType: row.campaignType,
           currency: row.currency,
-          cost: row.cost != null ? String(row.cost) : null,
+          cost: row.cost,
           clicks: row.clicks != null ? Math.round(row.clicks) : null,
           impressions: row.impressions != null ? Math.round(row.impressions) : null,
-          conversions: row.conversions != null ? String(row.conversions) : null,
-          ctr: row.ctr != null ? String(row.ctr) : null,
-          avgCpc: row.avgCpc != null ? String(row.avgCpc) : null,
-          conversionRate: row.conversionRate != null ? String(row.conversionRate) : null,
-          costPerConversion: row.costPerConversion != null ? String(row.costPerConversion) : null,
+          conversions: row.conversions,
+          ctr: row.ctr,
+          avgCpc: row.avgCpc,
+          conversionRate: row.conversionRate,
+          costPerConversion: row.costPerConversion,
           uploadId: upload.id,
         }))
-        await insertInChunks("ad_campaign_performance", values, (chunk) =>
-          db.insert(adCampaignPerformance).values(chunk)
+        const payload = JSON.stringify(values)
+        console.log(
+          `[upload] inserting ${values.length} ad_campaign_performance rows via jsonb_to_recordset (payload ${payload.length} bytes)`
         )
+        await db.execute(sql`
+          INSERT INTO ad_campaign_performance (
+            date, campaign, campaign_type, currency, cost, clicks,
+            impressions, conversions, ctr, avg_cpc, conversion_rate,
+            cost_per_conversion, upload_id
+          )
+          SELECT
+            "date", "campaign", "campaignType", "currency", "cost", "clicks",
+            "impressions", "conversions", "ctr", "avgCpc", "conversionRate",
+            "costPerConversion", "uploadId"
+          FROM jsonb_to_recordset(${payload}::jsonb) AS t(
+            "date" date,
+            "campaign" text,
+            "campaignType" text,
+            "currency" text,
+            "cost" numeric,
+            "clicks" integer,
+            "impressions" integer,
+            "conversions" numeric,
+            "ctr" numeric,
+            "avgCpc" numeric,
+            "conversionRate" numeric,
+            "costPerConversion" numeric,
+            "uploadId" integer
+          )
+        `)
       }
 
       return NextResponse.json({ success: true, upload, rowCount: parsed.rows.length })
