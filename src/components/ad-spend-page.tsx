@@ -4,13 +4,14 @@ import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Search, Package, Megaphone, MousePointerClick, Eye, Target } from "lucide-react"
+import { Search, Package, Megaphone, MousePointerClick, Target, PieChart } from "lucide-react"
 
 interface AdRow {
   id: number
   date: string | null
   campaign: string | null
   campaignType: string | null
+  adGroup: string | null
   currency: string | null
   cost: string | null
   clicks: number | null
@@ -20,6 +21,8 @@ interface AdRow {
   avgCpc: string | null
   conversionRate: string | null
   costPerConversion: string | null
+  searchLostIsRank: string | null
+  searchImprShare: string | null
 }
 
 function formatCurrency(value: number): string {
@@ -70,26 +73,30 @@ export function AdSpendPage() {
     return rows.filter(
       (r) =>
         (r.campaign || "").toLowerCase().includes(q) ||
-        (r.campaignType || "").toLowerCase().includes(q)
+        (r.adGroup || "").toLowerCase().includes(q)
     )
   }, [rows, search])
 
   const totals = useMemo(() => {
     let cost = 0
     let clicks = 0
-    let impressions = 0
     let conversions = 0
+    let impressionShareSum = 0
+    let impressionShareCount = 0
     for (const r of rows) {
       if (r.cost) cost += parseFloat(r.cost)
       if (r.clicks) clicks += r.clicks
-      if (r.impressions) impressions += r.impressions
       if (r.conversions) conversions += parseFloat(r.conversions)
+      if (r.searchImprShare) {
+        impressionShareSum += parseFloat(r.searchImprShare)
+        impressionShareCount++
+      }
     }
-    const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0
     const cpc = clicks > 0 ? cost / clicks : 0
-    const convRate = clicks > 0 ? (conversions / clicks) * 100 : 0
     const costPerConv = conversions > 0 ? cost / conversions : 0
-    return { cost, clicks, impressions, conversions, ctr, cpc, convRate, costPerConv }
+    const avgImprShare =
+      impressionShareCount > 0 ? impressionShareSum / impressionShareCount : 0
+    return { cost, clicks, conversions, cpc, costPerConv, avgImprShare }
   }, [rows])
 
   if (loading) {
@@ -118,9 +125,9 @@ export function AdSpendPage() {
 
   const kpis = [
     { title: "Total Spend", value: formatCurrency(totals.cost), icon: Megaphone, color: "text-chart-1", bg: "bg-chart-1/15" },
-    { title: "Total Clicks", value: formatNumber(totals.clicks), sub: `${totals.ctr.toFixed(2)}% CTR`, icon: MousePointerClick, color: "text-chart-2", bg: "bg-chart-2/15" },
-    { title: "Impressions", value: formatNumber(totals.impressions), sub: `${formatCurrency(totals.cpc)} avg CPC`, icon: Eye, color: "text-chart-3", bg: "bg-chart-3/15" },
-    { title: "Conversions", value: formatNumber(totals.conversions, 1), sub: `${formatCurrency(totals.costPerConv)} / conv`, icon: Target, color: "text-chart-4", bg: "bg-chart-4/15" },
+    { title: "Total Clicks", value: formatNumber(totals.clicks), sub: `${formatCurrency(totals.cpc)} avg CPC`, icon: MousePointerClick, color: "text-chart-2", bg: "bg-chart-2/15" },
+    { title: "Conversions", value: formatNumber(totals.conversions, 1), sub: `${formatCurrency(totals.costPerConv)} / conv`, icon: Target, color: "text-chart-3", bg: "bg-chart-3/15" },
+    { title: "Avg Impr. Share", value: formatPct(totals.avgImprShare), sub: "Search impression share", icon: PieChart, color: "text-chart-4", bg: "bg-chart-4/15" },
   ]
 
   return (
@@ -167,17 +174,15 @@ export function AdSpendPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
+                  <TableHead>Day</TableHead>
                   <TableHead>Campaign</TableHead>
-                  <TableHead>Type</TableHead>
+                  <TableHead>Ad Group</TableHead>
+                  <TableHead>Currency</TableHead>
                   <TableHead className="text-right">Cost</TableHead>
                   <TableHead className="text-right">Clicks</TableHead>
-                  <TableHead className="text-right">Impressions</TableHead>
-                  <TableHead className="text-right">CTR</TableHead>
-                  <TableHead className="text-right">Avg. CPC</TableHead>
-                  <TableHead className="text-right">Conv.</TableHead>
-                  <TableHead className="text-right">Conv. Rate</TableHead>
-                  <TableHead className="text-right">Cost / Conv.</TableHead>
+                  <TableHead className="text-right">Conversions</TableHead>
+                  <TableHead className="text-right">Search Lost IS (Rank)</TableHead>
+                  <TableHead className="text-right">Search Impr. Share</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -185,7 +190,8 @@ export function AdSpendPage() {
                   <TableRow key={r.id}>
                     <TableCell className="whitespace-nowrap">{formatDate(r.date)}</TableCell>
                     <TableCell className="font-medium max-w-[300px] truncate">{r.campaign || "—"}</TableCell>
-                    <TableCell>{r.campaignType || "—"}</TableCell>
+                    <TableCell className="max-w-[240px] truncate">{r.adGroup || "—"}</TableCell>
+                    <TableCell>{r.currency || "—"}</TableCell>
                     <TableCell className="text-right font-mono">
                       {r.cost != null ? formatCurrency(parseFloat(r.cost)) : "—"}
                     </TableCell>
@@ -193,22 +199,13 @@ export function AdSpendPage() {
                       {r.clicks != null ? formatNumber(r.clicks) : "—"}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {r.impressions != null ? formatNumber(r.impressions) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {r.ctr != null ? formatPct(parseFloat(r.ctr)) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {r.avgCpc != null ? formatCurrency(parseFloat(r.avgCpc)) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
                       {r.conversions != null ? formatNumber(parseFloat(r.conversions), 2) : "—"}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {r.conversionRate != null ? formatPct(parseFloat(r.conversionRate)) : "—"}
+                      {r.searchLostIsRank != null ? formatPct(parseFloat(r.searchLostIsRank)) : "—"}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {r.costPerConversion != null ? formatCurrency(parseFloat(r.costPerConversion)) : "—"}
+                      {r.searchImprShare != null ? formatPct(parseFloat(r.searchImprShare)) : "—"}
                     </TableCell>
                   </TableRow>
                 ))}

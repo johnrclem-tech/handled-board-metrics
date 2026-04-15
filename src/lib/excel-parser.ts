@@ -358,6 +358,7 @@ export interface ParsedAdCampaignRow {
   date: string | null
   campaign: string | null
   campaignType: string | null
+  adGroup: string | null
   currency: string | null
   cost: number | null
   clicks: number | null
@@ -367,6 +368,8 @@ export interface ParsedAdCampaignRow {
   avgCpc: number | null
   conversionRate: number | null
   costPerConversion: number | null
+  searchLostIsRank: number | null
+  searchImprShare: number | null
 }
 
 export interface ParsedAdCampaignReport {
@@ -378,9 +381,10 @@ function parseNumericCell(val: unknown): number | null {
   if (val == null || val === "") return null
   if (typeof val === "number") return val
   if (typeof val === "string") {
-    // Strip currency symbols, commas, percent signs, parens (negatives)
-    const cleaned = val.replace(/[$€£¥,()\s%]/g, "").trim()
-    if (cleaned === "" || cleaned === "—" || cleaned === "-") return null
+    // Strip currency symbols, commas, percent signs, parens (negatives),
+    // and comparison markers (< / >) used by Google Ads ("< 10%", "> 90%")
+    const cleaned = val.replace(/[$€£¥,()\s%<>]/g, "").trim()
+    if (cleaned === "" || cleaned === "—" || cleaned === "-" || cleaned === "--") return null
     const n = parseFloat(cleaned)
     if (isNaN(n)) return null
     return val.includes("(") ? -n : n
@@ -433,6 +437,7 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
   const iDate = col("day", "date", "start date")
   const iCampaign = col("campaign", "campaign name")
   const iCampaignType = col("campaign type", "advertising channel type", "channel type")
+  const iAdGroup = col("ad group", "ad group name")
   const iCurrency = col("currency code", "currency")
   const iCost = col("cost", "spend", "amount spent")
   const iClicks = col("clicks")
@@ -442,6 +447,16 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
   const iAvgCpc = col("avg. cpc", "avg cpc", "cpc")
   const iConvRate = col("conv. rate", "conversion rate", "conv rate", "all conv. rate")
   const iCostPerConv = col("cost / conv.", "cost per conv.", "cost per conversion", "cost/conv.")
+  const iSearchLostIsRank = col(
+    "search lost is (rank)",
+    "search lost impression share (rank)",
+    "search lost is(rank)",
+  )
+  const iSearchImprShare = col(
+    "search impr. share",
+    "search impression share",
+    "search impr share",
+  )
 
   const rows: ParsedAdCampaignRow[] = []
   for (let i = headerIndex + 1; i < rawData.length; i++) {
@@ -460,6 +475,7 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
       date: iDate >= 0 ? parseDateCell(row[iDate]) : null,
       campaign,
       campaignType: iCampaignType >= 0 ? cellStr(row[iCampaignType]) : null,
+      adGroup: iAdGroup >= 0 ? cellStr(row[iAdGroup]) : null,
       currency: iCurrency >= 0 ? cellStr(row[iCurrency]) : null,
       cost,
       clicks: iClicks >= 0 ? parseNumericCell(row[iClicks]) : null,
@@ -469,6 +485,8 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
       avgCpc: iAvgCpc >= 0 ? parseNumericCell(row[iAvgCpc]) : null,
       conversionRate: iConvRate >= 0 ? parseNumericCell(row[iConvRate]) : null,
       costPerConversion: iCostPerConv >= 0 ? parseNumericCell(row[iCostPerConv]) : null,
+      searchLostIsRank: iSearchLostIsRank >= 0 ? parseNumericCell(row[iSearchLostIsRank]) : null,
+      searchImprShare: iSearchImprShare >= 0 ? parseNumericCell(row[iSearchImprShare]) : null,
     })
   }
 

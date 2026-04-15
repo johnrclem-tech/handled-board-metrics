@@ -55,6 +55,7 @@ export const adCampaignPerformance = pgTable("ad_campaign_performance", {
   date: date("date"),
   campaign: text("campaign"),
   campaignType: text("campaign_type"),
+  adGroup: text("ad_group"),
   currency: text("currency"),
   cost: numeric("cost", { precision: 15, scale: 2 }),
   clicks: integer("clicks"),
@@ -64,6 +65,8 @@ export const adCampaignPerformance = pgTable("ad_campaign_performance", {
   avgCpc: numeric("avg_cpc", { precision: 10, scale: 4 }),
   conversionRate: numeric("conversion_rate", { precision: 10, scale: 4 }),
   costPerConversion: numeric("cost_per_conversion", { precision: 15, scale: 4 }),
+  searchLostIsRank: numeric("search_lost_is_rank", { precision: 10, scale: 4 }),
+  searchImprShare: numeric("search_impr_share", { precision: 10, scale: 4 }),
   uploadId: integer("upload_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })

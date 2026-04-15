@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
           date: row.date,
           campaign: row.campaign,
           campaignType: row.campaignType,
+          adGroup: row.adGroup,
           currency: row.currency,
           cost: row.cost,
           clicks: row.clicks != null ? Math.round(row.clicks) : null,
@@ -74,6 +75,8 @@ export async function POST(request: NextRequest) {
           avgCpc: row.avgCpc,
           conversionRate: row.conversionRate,
           costPerConversion: row.costPerConversion,
+          searchLostIsRank: row.searchLostIsRank,
+          searchImprShare: row.searchImprShare,
           uploadId: upload.id,
         }))
         const payload = JSON.stringify(values)
@@ -82,18 +85,19 @@ export async function POST(request: NextRequest) {
         )
         await db.execute(sql`
           INSERT INTO ad_campaign_performance (
-            date, campaign, campaign_type, currency, cost, clicks,
+            date, campaign, campaign_type, ad_group, currency, cost, clicks,
             impressions, conversions, ctr, avg_cpc, conversion_rate,
-            cost_per_conversion, upload_id
+            cost_per_conversion, search_lost_is_rank, search_impr_share, upload_id
           )
           SELECT
-            "date", "campaign", "campaignType", "currency", "cost", "clicks",
+            "date", "campaign", "campaignType", "adGroup", "currency", "cost", "clicks",
             "impressions", "conversions", "ctr", "avgCpc", "conversionRate",
-            "costPerConversion", "uploadId"
+            "costPerConversion", "searchLostIsRank", "searchImprShare", "uploadId"
           FROM jsonb_to_recordset(${payload}::jsonb) AS t(
             "date" date,
             "campaign" text,
             "campaignType" text,
+            "adGroup" text,
             "currency" text,
             "cost" numeric,
             "clicks" integer,
@@ -103,6 +107,8 @@ export async function POST(request: NextRequest) {
             "avgCpc" numeric,
             "conversionRate" numeric,
             "costPerConversion" numeric,
+            "searchLostIsRank" numeric,
+            "searchImprShare" numeric,
             "uploadId" integer
           )
         `)

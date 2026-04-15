@@ -78,6 +78,7 @@ export async function GET() {
         date DATE,
         campaign TEXT,
         campaign_type TEXT,
+        ad_group TEXT,
         currency TEXT,
         cost NUMERIC(15, 2),
         clicks INTEGER,
@@ -87,10 +88,17 @@ export async function GET() {
         avg_cpc NUMERIC(10, 4),
         conversion_rate NUMERIC(10, 4),
         cost_per_conversion NUMERIC(15, 4),
+        search_lost_is_rank NUMERIC(10, 4),
+        search_impr_share NUMERIC(10, 4),
         upload_id INTEGER,
         created_at TIMESTAMP DEFAULT NOW() NOT NULL
       )
     `
+
+    // Back-fill columns on tables created before these fields existed
+    await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS ad_group TEXT`
+    await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS search_lost_is_rank NUMERIC(10, 4)`
+    await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS search_impr_share NUMERIC(10, 4)`
 
     await sql`
       CREATE TABLE IF NOT EXISTS kpi_targets (
