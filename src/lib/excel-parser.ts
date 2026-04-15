@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx"
+import { read as xlsxRead, utils as xlsxUtils } from "xlsx"
 
 export interface ParsedRow {
   category: string
@@ -476,20 +476,20 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
 }
 
 export function parseAdCampaignFile(buffer: ArrayBuffer): ParsedAdCampaignReport {
-  const workbook = XLSX.read(buffer, { type: "array" })
+  const workbook = xlsxRead(buffer, { type: "array" })
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+  const rawData = xlsxUtils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
   return parseAdCampaignPerformance(rawData)
 }
 
 // ── Main Entry Point ────────────────────────────────────────────────
 
 export function parseCrmFile(buffer: ArrayBuffer, reportType: string): ParsedCrmReport {
-  const workbook = XLSX.read(buffer, { type: "array" })
+  const workbook = xlsxRead(buffer, { type: "array" })
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+  const rawData = xlsxUtils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
 
   if (reportType === "leads") return parseLeads(rawData)
   if (reportType === "opportunities") return parseOpportunities(rawData)
@@ -498,10 +498,10 @@ export function parseCrmFile(buffer: ArrayBuffer, reportType: string): ParsedCrm
 }
 
 export function parseExcelFile(buffer: ArrayBuffer, reportType: string): ParsedReport {
-  const workbook = XLSX.read(buffer, { type: "array" })
+  const workbook = xlsxRead(buffer, { type: "array" })
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
-  const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+  const rawData = xlsxUtils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
 
   const revenueByCustomerTypes = [
     "revenue_by_customer",

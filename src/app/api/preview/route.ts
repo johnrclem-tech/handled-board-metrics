@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import * as XLSX from "xlsx"
+import { read as xlsxRead, utils as xlsxUtils } from "xlsx"
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,10 +11,10 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer()
-    const workbook = XLSX.read(buffer, { type: "array" })
+    const workbook = xlsxRead(buffer, { type: "array" })
     const sheetName = workbook.SheetNames[0]
     const worksheet = workbook.Sheets[sheetName]
-    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
+    const rawData = xlsxUtils.sheet_to_json(worksheet, { header: 1 }) as unknown[][]
 
     // Return first 10 rows so we can see headers + sample data
     const preview = rawData.slice(0, 10).map((row, i) => ({
