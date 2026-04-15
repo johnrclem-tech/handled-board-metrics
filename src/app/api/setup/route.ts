@@ -101,30 +101,18 @@ export async function GET() {
     await sql`ALTER TABLE ad_campaign_performance ADD COLUMN IF NOT EXISTS search_impr_share NUMERIC(10, 4)`
 
     // Normalize pre-existing campaign names to the same shape the parser now
-    // produces (text before the first "|"), so the upsert key works correctly
-    // on rows imported under the old rules
+    // produces (text before the first "|"), so the import's delete-by-key
+    // step can match old rows
     await sql`
       UPDATE ad_campaign_performance
       SET campaign = trim(split_part(campaign, '|', 1))
       WHERE campaign IS NOT NULL AND campaign LIKE '%|%'
     `
 
-    // Drop duplicates on (date, campaign, ad_group), keeping the most recent
-    // row, so we can add a unique index the upsert can target
-    await sql`
-      DELETE FROM ad_campaign_performance
-      WHERE id NOT IN (
-        SELECT MAX(id)
-        FROM ad_campaign_performance
-        GROUP BY date, campaign, ad_group
-      )
-    `
-
-    // Unique key used by the import upsert
-    await sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS ad_campaign_perf_day_campaign_ad_group_key
-      ON ad_campaign_performance (date, campaign, ad_group) NULLS NOT DISTINCT
-    `
+    // Drop the unique index left over from the previous upsert attempt — the
+    // current import flow uses delete-then-insert and tolerates duplicates,
+    // so the constraint just gets in the way
+    await sql`DROP INDEX IF EXISTS ad_campaign_perf_day_campaign_ad_group_key`
 
     await sql`
       CREATE TABLE IF NOT EXISTS kpi_targets (

@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, numeric, integer, date, jsonb, unique } from "drizzle-orm/pg-core"
+import { pgTable, serial, text, timestamp, numeric, integer, date, jsonb } from "drizzle-orm/pg-core"
 
 export const financialData = pgTable("financial_data", {
   id: serial("id").primaryKey(),
@@ -50,34 +50,26 @@ export const opportunities = pgTable("opportunities", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
-export const adCampaignPerformance = pgTable(
-  "ad_campaign_performance",
-  {
-    id: serial("id").primaryKey(),
-    date: date("date"),
-    campaign: text("campaign"),
-    campaignType: text("campaign_type"),
-    adGroup: text("ad_group"),
-    currency: text("currency"),
-    cost: numeric("cost", { precision: 15, scale: 2 }),
-    clicks: integer("clicks"),
-    impressions: integer("impressions"),
-    conversions: numeric("conversions", { precision: 15, scale: 4 }),
-    ctr: numeric("ctr", { precision: 10, scale: 4 }),
-    avgCpc: numeric("avg_cpc", { precision: 10, scale: 4 }),
-    conversionRate: numeric("conversion_rate", { precision: 10, scale: 4 }),
-    costPerConversion: numeric("cost_per_conversion", { precision: 15, scale: 4 }),
-    searchLostIsRank: numeric("search_lost_is_rank", { precision: 10, scale: 4 }),
-    searchImprShare: numeric("search_impr_share", { precision: 10, scale: 4 }),
-    uploadId: integer("upload_id"),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (table) => [
-    unique("ad_campaign_perf_day_campaign_ad_group_key")
-      .on(table.date, table.campaign, table.adGroup)
-      .nullsNotDistinct(),
-  ]
-)
+export const adCampaignPerformance = pgTable("ad_campaign_performance", {
+  id: serial("id").primaryKey(),
+  date: date("date"),
+  campaign: text("campaign"),
+  campaignType: text("campaign_type"),
+  adGroup: text("ad_group"),
+  currency: text("currency"),
+  cost: numeric("cost", { precision: 15, scale: 2 }),
+  clicks: integer("clicks"),
+  impressions: integer("impressions"),
+  conversions: numeric("conversions", { precision: 15, scale: 4 }),
+  ctr: numeric("ctr", { precision: 10, scale: 4 }),
+  avgCpc: numeric("avg_cpc", { precision: 10, scale: 4 }),
+  conversionRate: numeric("conversion_rate", { precision: 10, scale: 4 }),
+  costPerConversion: numeric("cost_per_conversion", { precision: 15, scale: 4 }),
+  searchLostIsRank: numeric("search_lost_is_rank", { precision: 10, scale: 4 }),
+  searchImprShare: numeric("search_impr_share", { precision: 10, scale: 4 }),
+  uploadId: integer("upload_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
 
 export const kpiTargets = pgTable("kpi_targets", {
   id: serial("id").primaryKey(),

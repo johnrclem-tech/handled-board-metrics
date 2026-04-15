@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         .returning()
 
       if (parsed.rows.length > 0) {
-        const values = parsed.rows.map((row) => ({
+        const mapped = parsed.rows.map((row) => ({
           date: row.date,
           campaign: row.campaign,
           campaignType: row.campaignType,
@@ -78,10 +78,39 @@ export async function POST(request: NextRequest) {
           searchImprShare: row.searchImprShare,
           uploadId: upload.id,
         }))
+
+        // De-duplicate within the upload itself by (date, campaign, ad_group)
+        // — last occurrence wins — so we can guarantee a single row per key
+        const dedupedMap = new Map<string, (typeof mapped)[number]>()
+        for (const v of mapped) {
+          const key = `${v.date ?? ""}|${v.campaign ?? ""}|${v.adGroup ?? ""}`
+          dedupedMap.set(key, v)
+        }
+        const values = Array.from(dedupedMap.values())
         const payload = JSON.stringify(values)
         console.log(
-          `[upload] inserting ${values.length} ad_campaign_performance rows via jsonb_to_recordset (payload ${payload.length} bytes)`
+          `[upload] ad_campaign_performance: ${parsed.rows.length} parsed rows, ${values.length} after dedupe, payload ${payload.length} bytes`
         )
+
+        // 1. Delete any existing rows whose (date, campaign, ad_group) matches
+        //    a row in the new upload — IS NOT DISTINCT FROM treats NULLs as
+        //    equal so rows missing one of the keys still match
+        await db.execute(sql`
+          DELETE FROM ad_campaign_performance
+          WHERE EXISTS (
+            SELECT 1
+            FROM jsonb_to_recordset(${payload}::jsonb) AS t(
+              "date" date,
+              "campaign" text,
+              "adGroup" text
+            )
+            WHERE ad_campaign_performance.date IS NOT DISTINCT FROM t."date"
+              AND ad_campaign_performance.campaign IS NOT DISTINCT FROM t."campaign"
+              AND ad_campaign_performance.ad_group IS NOT DISTINCT FROM t."adGroup"
+          )
+        `)
+
+        // 2. Insert all rows from the new upload as fresh records
         await db.execute(sql`
           INSERT INTO ad_campaign_performance (
             date, campaign, campaign_type, ad_group, currency, cost, clicks,
@@ -110,20 +139,6 @@ export async function POST(request: NextRequest) {
             "searchImprShare" numeric,
             "uploadId" integer
           )
-          ON CONFLICT (date, campaign, ad_group) DO UPDATE SET
-            campaign_type = EXCLUDED.campaign_type,
-            currency = EXCLUDED.currency,
-            cost = EXCLUDED.cost,
-            clicks = EXCLUDED.clicks,
-            impressions = EXCLUDED.impressions,
-            conversions = EXCLUDED.conversions,
-            ctr = EXCLUDED.ctr,
-            avg_cpc = EXCLUDED.avg_cpc,
-            conversion_rate = EXCLUDED.conversion_rate,
-            cost_per_conversion = EXCLUDED.cost_per_conversion,
-            search_lost_is_rank = EXCLUDED.search_lost_is_rank,
-            search_impr_share = EXCLUDED.search_impr_share,
-            upload_id = EXCLUDED.upload_id
         `)
       }
 
