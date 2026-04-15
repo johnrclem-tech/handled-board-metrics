@@ -149,40 +149,56 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
   // Skip first month (no prior to compare)
   const monthlyData = months.slice(1)
 
-  // Get the most recent period's values for KPI cards
-  const latestMonth = monthlyData[monthlyData.length - 1]
-
   // Build chart data based on selected period
   const chartData = monthlyData.map((m) => ({
     ...m,
     label: formatPeriodLabel(m.period),
   }))
 
-  // Filter all churn charts to show only complete periods
+  // Inclusion rules applied to KPI averages, Logo Churn chart, and Revenue
+  // Churn chart:
+  //   1. Exclude any period whose year is before 2025
+  //   2. Exclude the current in-progress calendar period
+  //   3. For TTM, additionally exclude the most recent month (already-ended
+  //      windows only)
+  const START_YEAR = 2025
   const _now = new Date()
   const _currentMonth = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}`
   const _currentQuarter = `${_now.getFullYear()}-Q${Math.ceil((_now.getMonth() + 1) / 3)}`
-  // Monthly: drop current calendar month (used by Logo Churn, Revenue Churn, NRR)
-  const filteredChartData = chartData.filter((m) => m.period < _currentMonth)
+  const yearOf = (period: string) => parseInt(period.slice(0, 4), 10)
+
+  // Monthly: drop current calendar month, drop pre-2025
+  const filteredChartData = chartData.filter(
+    (m) => m.period < _currentMonth && yearOf(m.period) >= START_YEAR,
+  )
   const nrrMonthlyData = filteredChartData
 
-  // Use API-computed quarterly and TTM data (true cohort churn)
-  // Quarterly: drop current calendar quarter
-  const quarterlyLogoData = (data.quarterly || []).filter((q) => q.period < _currentQuarter).map((q) => ({ label: q.label, quarterlyLogoChurnRate: q.logoChurnRate }))
-  const quarterlyRevData = (data.quarterly || []).filter((q) => q.period < _currentQuarter).map((q) => ({ label: q.label, quarterlyRevenueChurnRate: q.revenueChurnRate }))
-  const quarterlyNrrData = (data.quarterly || []).filter((q) => q.period < _currentQuarter).map((q) => ({ period: q.period, label: q.label, quarterlyNrr: q.nrr }))
+  // Quarterly: drop current calendar quarter, drop pre-2025
+  const quarterlyBase = (data.quarterly || []).filter(
+    (q) => q.period < _currentQuarter && yearOf(q.period) >= START_YEAR,
+  )
+  const quarterlyLogoData = quarterlyBase.map((q) => ({ label: q.label, quarterlyLogoChurnRate: q.logoChurnRate }))
+  const quarterlyRevData = quarterlyBase.map((q) => ({ label: q.label, quarterlyRevenueChurnRate: q.revenueChurnRate }))
+  const quarterlyNrrData = quarterlyBase.map((q) => ({ period: q.period, label: q.label, quarterlyNrr: q.nrr }))
   const nrrQuarterlyData = quarterlyNrrData
 
-  // TTM: exclude the most recent month of data
-  const rollingTtmLogoData = (data.ttm || []).slice(0, -1).map((t) => ({ label: t.label, ttmLogoChurnRate: t.logoChurnRate }))
-  const rollingTtmRevData = (data.ttm || []).slice(0, -1).map((t) => ({ label: t.label, ttmRevenueChurnRate: t.revenueChurnRate }))
+  // TTM: drop most-recent TTM window, drop pre-2025 (ending-month year)
+  const ttmBase = (data.ttm || [])
+    .slice(0, -1)
+    .filter((t) => yearOf(t.period) >= START_YEAR)
+  const rollingTtmLogoData = ttmBase.map((t) => ({ label: t.label, ttmLogoChurnRate: t.logoChurnRate }))
+  const rollingTtmRevData = ttmBase.map((t) => ({ label: t.label, ttmRevenueChurnRate: t.revenueChurnRate }))
 
-  // Annual NRR data (year-over-year same-customer comparison)
-  const annualNrrData = (data?.annualNrr || []).map((d) => ({
+  // Annual NRR data (year-over-year same-customer comparison) — apply the same
+  // window rules so the NRR card average reads from a consistent set
+  const annualNrrBase = (data?.annualNrr || []).filter(
+    (d) => yearOf(d.period) >= START_YEAR,
+  )
+  const annualNrrData = annualNrrBase.map((d) => ({
     ...d,
     label: formatPeriodLabel(d.period),
   }))
-  // NRR chart: drop the most recent month from annual NRR (TTM exclusion)
+  // NRR chart (annually tab): drop the most recent month from annual NRR (TTM exclusion)
   const nrrAnnualData = annualNrrData.slice(0, -1)
 
   // Lookup for clicking on annual NRR points
@@ -190,7 +206,10 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
     (data?.annualNrr || []).map((d) => [d.period, d])
   )
 
-  // KPI cards: values based on selected period
+  // KPI cards: average across all qualifying periods for the selected tab
+  const avg = (nums: number[]) =>
+    nums.length === 0 ? 0 : nums.reduce((s, n) => s + n, 0) / nums.length
+
   let kpiLabel = ""
   let kpiLogo = 0
   let kpiLogoSub = ""
@@ -200,57 +219,53 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
   let kpiNrrSub = ""
 
   if (period === "monthly") {
-    const m = latestMonth
-    kpiLabel = formatPeriodLabel(m.period)
-    kpiLogo = m.logoChurnRate
-    kpiLogoSub = `${m.churnedCount} of ${m.activeCount + m.churnedCount} customers`
-    kpiRevChurn = m.revenueChurnRate
-    kpiRevSub = `${formatCurrency(m.lostRevenue)} lost`
-    kpiNrr = m.nrr
-    kpiNrrSub = `${formatCurrency(m.totalRevenue)} current revenue`
-  } else if (period === "quarterly" && quarterlyLogoData.length > 0) {
-    const lastQ = quarterlyLogoData[quarterlyLogoData.length - 1]
-    const lastQRev = quarterlyRevData[quarterlyRevData.length - 1]
-    const lastQNrr = quarterlyNrrData[quarterlyNrrData.length - 1]
-    kpiLabel = lastQ.label
-    kpiLogo = lastQ.quarterlyLogoChurnRate
-    kpiLogoSub = "Avg monthly rate for quarter"
-    kpiRevChurn = lastQRev.quarterlyRevenueChurnRate
-    kpiRevSub = "True quarterly cohort churn"
-    kpiNrr = lastQNrr.quarterlyNrr
-    kpiNrrSub = "Avg monthly NRR for quarter"
+    kpiLogo = avg(filteredChartData.map((m) => m.logoChurnRate))
+    kpiRevChurn = avg(filteredChartData.map((m) => m.revenueChurnRate))
+    kpiNrr = avg(filteredChartData.map((m) => m.nrr))
+    const n = filteredChartData.length
+    kpiLabel = `Avg across ${n} ${n === 1 ? "month" : "months"}`
+    kpiLogoSub = "Average monthly logo churn"
+    kpiRevSub = "Average monthly revenue churn"
+    kpiNrrSub = "Average monthly NRR"
+  } else if (period === "quarterly") {
+    kpiLogo = avg(quarterlyLogoData.map((q) => q.quarterlyLogoChurnRate))
+    kpiRevChurn = avg(quarterlyRevData.map((q) => q.quarterlyRevenueChurnRate))
+    kpiNrr = avg(quarterlyNrrData.map((q) => q.quarterlyNrr))
+    const n = quarterlyLogoData.length
+    kpiLabel = `Avg across ${n} ${n === 1 ? "quarter" : "quarters"}`
+    kpiLogoSub = "Average quarterly cohort churn"
+    kpiRevSub = "Average quarterly cohort revenue churn"
+    kpiNrrSub = "Average quarterly NRR"
   } else if (period === "annually") {
-    const lastAnnualNrr = annualNrrData.length > 0 ? annualNrrData[annualNrrData.length - 1] : null
-    const lastTtmLogo = rollingTtmLogoData.length > 0 ? rollingTtmLogoData[rollingTtmLogoData.length - 1] : null
-    const lastTtmRev = rollingTtmRevData.length > 0 ? rollingTtmRevData[rollingTtmRevData.length - 1] : null
-    kpiLabel = lastTtmLogo?.label || lastAnnualNrr?.label || formatPeriodLabel(latestMonth.period)
-    kpiLogo = lastTtmLogo?.ttmLogoChurnRate || 0
-    kpiLogoSub = "True TTM cohort churn"
-    kpiRevChurn = lastTtmRev?.ttmRevenueChurnRate || 0
-    kpiRevSub = "True TTM cohort revenue churn"
-    kpiNrr = lastAnnualNrr?.nrr || 0
-    kpiNrrSub = lastAnnualNrr ? `${formatCurrency(lastAnnualNrr.priorRevenue)} prior → ${formatCurrency(lastAnnualNrr.currentRevenue)} current` : "No YoY data yet"
+    kpiLogo = avg(rollingTtmLogoData.map((t) => t.ttmLogoChurnRate))
+    kpiRevChurn = avg(rollingTtmRevData.map((t) => t.ttmRevenueChurnRate))
+    kpiNrr = avg(annualNrrData.map((d) => d.nrr))
+    const n = rollingTtmLogoData.length
+    kpiLabel = `Avg across ${n} TTM ${n === 1 ? "window" : "windows"}`
+    kpiLogoSub = "Average TTM cohort logo churn"
+    kpiRevSub = "Average TTM cohort revenue churn"
+    kpiNrrSub = "Average annual NRR"
   }
 
   const kpiCards = [
     {
       title: "Logo Churn",
       value: formatPct(kpiLogo),
-      sub: `${kpiLabel} — ${kpiLogoSub}`,
+      sub: kpiLogoSub,
       icon: Users,
       warn: kpiLogo > 10,
     },
     {
       title: "Revenue Churn",
       value: formatPct(kpiRevChurn),
-      sub: `${kpiLabel} — ${kpiRevSub}`,
+      sub: kpiRevSub,
       icon: DollarSign,
       warn: kpiRevChurn > 10,
     },
     {
       title: "Net Revenue Retention",
       value: formatPct(kpiNrr),
-      sub: `${kpiLabel} — ${kpiNrrSub}`,
+      sub: kpiNrrSub,
       icon: TrendingUp,
       warn: kpiNrr < 90,
     },
@@ -276,7 +291,7 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
                 {kpi.value}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {formatPeriodLabel(latestMonth.period)} — {kpi.sub}
+                {kpiLabel} — {kpi.sub}
               </p>
             </CardContent>
           </Card>
