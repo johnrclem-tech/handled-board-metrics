@@ -4,7 +4,31 @@ import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
-import { Search, Package, Megaphone, MousePointerClick, Target, PieChart } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuCheckboxItem,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import {
+  Search,
+  Package,
+  Megaphone,
+  MousePointerClick,
+  Target,
+  PieChart,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  ListFilter,
+} from "lucide-react"
+import { cn } from "@/lib/utils"
 
 interface AdRow {
   id: number
@@ -24,6 +48,19 @@ interface AdRow {
   searchLostIsRank: string | null
   searchImprShare: string | null
 }
+
+type SortField =
+  | "date"
+  | "campaign"
+  | "adGroup"
+  | "currency"
+  | "cost"
+  | "clicks"
+  | "conversions"
+  | "searchLostIsRank"
+  | "searchImprShare"
+
+type SortDir = "asc" | "desc"
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -54,10 +91,159 @@ function formatDate(d: string | null): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
 }
 
+function compare(a: unknown, b: unknown, dir: SortDir): number {
+  // Push nullish to the bottom regardless of sort direction
+  const aNull = a == null || a === ""
+  const bNull = b == null || b === ""
+  if (aNull && bNull) return 0
+  if (aNull) return 1
+  if (bNull) return -1
+
+  const an = typeof a === "number" ? a : Number(a)
+  const bn = typeof b === "number" ? b : Number(b)
+  const bothNumeric = !Number.isNaN(an) && !Number.isNaN(bn)
+  const result = bothNumeric
+    ? an - bn
+    : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" })
+  return dir === "asc" ? result : -result
+}
+
+function SortableHead({
+  field,
+  active,
+  dir,
+  onSort,
+  align = "left",
+  children,
+}: {
+  field: SortField
+  active: boolean
+  dir: SortDir
+  onSort: (f: SortField) => void
+  align?: "left" | "right"
+  children: React.ReactNode
+}) {
+  const Icon = active ? (dir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        type="button"
+        onClick={() => onSort(field)}
+        className={cn(
+          "inline-flex items-center gap-1 hover:text-foreground transition-colors",
+          align === "right" && "ml-auto",
+          active ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        <span>{children}</span>
+        <Icon className={cn("h-3.5 w-3.5", active ? "opacity-100" : "opacity-50")} />
+      </button>
+    </TableHead>
+  )
+}
+
+function MultiSelectFilter({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string
+  options: string[]
+  selected: Set<string>
+  onChange: (next: Set<string>) => void
+}) {
+  const allSelected = selected.size === 0 || selected.size === options.length
+  const summary =
+    selected.size === 0 || selected.size === options.length
+      ? "All"
+      : selected.size === 1
+        ? Array.from(selected)[0]
+        : `${selected.size} selected`
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 justify-between gap-2 min-w-[180px]">
+          <span className="flex items-center gap-2 truncate">
+            <ListFilter className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span className="text-muted-foreground">{label}:</span>
+            <span className="truncate font-medium">{summary}</span>
+          </span>
+          {!allSelected && (
+            <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+              {selected.size}
+            </Badge>
+          )}
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-72 p-0">
+        <DropdownMenuLabel className="flex items-center justify-between">
+          <span>Filter by {label.toLowerCase()}</span>
+          <span className="text-xs text-muted-foreground font-normal">
+            {options.length} total
+          </span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div className="flex items-center gap-2 px-2 pb-2">
+          <DropdownMenuItem
+            className="flex-1 justify-center text-xs"
+            onSelect={(e) => {
+              e.preventDefault()
+              onChange(new Set(options))
+            }}
+          >
+            Select all
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="flex-1 justify-center text-xs"
+            onSelect={(e) => {
+              e.preventDefault()
+              onChange(new Set())
+            }}
+          >
+            Clear
+          </DropdownMenuItem>
+        </div>
+        <DropdownMenuSeparator />
+        <ScrollArea className="h-72">
+          {options.map((opt) => {
+            const isChecked = selected.size === 0 || selected.has(opt)
+            return (
+              <DropdownMenuCheckboxItem
+                key={opt}
+                checked={isChecked}
+                onCheckedChange={(checked) => {
+                  // Treat empty selected set as "all"; first toggle materializes the full list
+                  const base = selected.size === 0 ? new Set(options) : new Set(selected)
+                  if (checked) {
+                    base.add(opt)
+                  } else {
+                    base.delete(opt)
+                  }
+                  onChange(base)
+                }}
+                onSelect={(e) => e.preventDefault()}
+              >
+                <span className="truncate">{opt}</span>
+              </DropdownMenuCheckboxItem>
+            )
+          })}
+        </ScrollArea>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function AdSpendPage() {
   const [rows, setRows] = useState<AdRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
+  const [sortField, setSortField] = useState<SortField>("date")
+  const [sortDir, setSortDir] = useState<SortDir>("desc")
+  const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set())
+  const [selectedAdGroups, setSelectedAdGroups] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch("/api/ad-spend")
@@ -67,15 +253,68 @@ export function AdSpendPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  const campaignOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const r of rows) if (r.campaign) set.add(r.campaign)
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [rows])
+
+  const adGroupOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const r of rows) if (r.adGroup) set.add(r.adGroup)
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [rows])
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortField(field)
+      // Default direction: numeric/date columns descend first, text ascends
+      const textCols: SortField[] = ["campaign", "adGroup", "currency"]
+      setSortDir(textCols.includes(field) ? "asc" : "desc")
+    }
+  }
+
   const filtered = useMemo(() => {
-    if (!search) return rows
-    const q = search.toLowerCase()
-    return rows.filter(
-      (r) =>
-        (r.campaign || "").toLowerCase().includes(q) ||
-        (r.adGroup || "").toLowerCase().includes(q)
-    )
-  }, [rows, search])
+    const q = search.trim().toLowerCase()
+    return rows.filter((r) => {
+      if (selectedCampaigns.size > 0 && !selectedCampaigns.has(r.campaign || "")) {
+        return false
+      }
+      if (selectedAdGroups.size > 0 && !selectedAdGroups.has(r.adGroup || "")) {
+        return false
+      }
+      if (q) {
+        const hay = `${r.campaign || ""} ${r.adGroup || ""} ${r.currency || ""}`.toLowerCase()
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+  }, [rows, search, selectedCampaigns, selectedAdGroups])
+
+  const sorted = useMemo(() => {
+    const copy = [...filtered]
+    copy.sort((a, b) => {
+      const av = a[sortField]
+      const bv = b[sortField]
+      // String numerics like "12.34" should be compared as numbers
+      const numericFields: SortField[] = [
+        "cost",
+        "clicks",
+        "conversions",
+        "searchLostIsRank",
+        "searchImprShare",
+      ]
+      if (numericFields.includes(sortField)) {
+        const an = av == null ? null : typeof av === "number" ? av : parseFloat(av as string)
+        const bn = bv == null ? null : typeof bv === "number" ? bv : parseFloat(bv as string)
+        return compare(an, bn, sortDir)
+      }
+      return compare(av, bv, sortDir)
+    })
+    return copy
+  }, [filtered, sortField, sortDir])
 
   const totals = useMemo(() => {
     let cost = 0
@@ -151,21 +390,35 @@ export function AdSpendPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <CardTitle>Ad Campaign Performance</CardTitle>
               <CardDescription>
-                {filtered.length.toLocaleString()} rows
+                {sorted.length.toLocaleString()} of {rows.length.toLocaleString()} rows
               </CardDescription>
             </div>
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search campaigns..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8"
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <MultiSelectFilter
+                label="Campaign"
+                options={campaignOptions}
+                selected={selectedCampaigns}
+                onChange={setSelectedCampaigns}
               />
+              <MultiSelectFilter
+                label="Ad Group"
+                options={adGroupOptions}
+                selected={selectedAdGroups}
+                onChange={setSelectedAdGroups}
+              />
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search campaigns..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 h-9"
+                />
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -174,19 +427,37 @@ export function AdSpendPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Day</TableHead>
-                  <TableHead>Campaign</TableHead>
-                  <TableHead>Ad Group</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead className="text-right">Cost</TableHead>
-                  <TableHead className="text-right">Clicks</TableHead>
-                  <TableHead className="text-right">Conversions</TableHead>
-                  <TableHead className="text-right">Search Lost IS (Rank)</TableHead>
-                  <TableHead className="text-right">Search Impr. Share</TableHead>
+                  <SortableHead field="date" active={sortField === "date"} dir={sortDir} onSort={handleSort}>
+                    Day
+                  </SortableHead>
+                  <SortableHead field="campaign" active={sortField === "campaign"} dir={sortDir} onSort={handleSort}>
+                    Campaign
+                  </SortableHead>
+                  <SortableHead field="adGroup" active={sortField === "adGroup"} dir={sortDir} onSort={handleSort}>
+                    Ad Group
+                  </SortableHead>
+                  <SortableHead field="currency" active={sortField === "currency"} dir={sortDir} onSort={handleSort}>
+                    Currency
+                  </SortableHead>
+                  <SortableHead field="cost" active={sortField === "cost"} dir={sortDir} onSort={handleSort} align="right">
+                    Cost
+                  </SortableHead>
+                  <SortableHead field="clicks" active={sortField === "clicks"} dir={sortDir} onSort={handleSort} align="right">
+                    Clicks
+                  </SortableHead>
+                  <SortableHead field="conversions" active={sortField === "conversions"} dir={sortDir} onSort={handleSort} align="right">
+                    Conversions
+                  </SortableHead>
+                  <SortableHead field="searchLostIsRank" active={sortField === "searchLostIsRank"} dir={sortDir} onSort={handleSort} align="right">
+                    Search Lost IS (Rank)
+                  </SortableHead>
+                  <SortableHead field="searchImprShare" active={sortField === "searchImprShare"} dir={sortDir} onSort={handleSort} align="right">
+                    Search Impr. Share
+                  </SortableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((r) => (
+                {sorted.map((r) => (
                   <TableRow key={r.id}>
                     <TableCell className="whitespace-nowrap">{formatDate(r.date)}</TableCell>
                     <TableCell className="font-medium max-w-[300px] truncate">{r.campaign || "—"}</TableCell>
