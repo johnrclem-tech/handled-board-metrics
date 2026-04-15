@@ -50,3 +50,15 @@ src/
 - Deploy on Vercel
 - Add `DATABASE_URL` to Vercel environment variables
 - Database provisioned via Vercel Storage (Neon Postgres)
+- **Vercel deploys from `main` only.** There is no preview-branch workflow
+  in use for this project, so changes are not live until they reach `main`.
+
+## Git Workflow
+- After committing and pushing to the session's feature branch, fast-forward
+  merge the feature branch into `main` and push `origin main` so Vercel
+  redeploys production.
+- This is an authorized action per these durable instructions — no further
+  confirmation is required for the merge/push to `main` at the end of a
+  completed task. Still confirm before any destructive git operation
+  (force push, reset --hard, branch deletion, history rewrites).
+- Never use `git push --force` on `main`.
