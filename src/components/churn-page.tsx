@@ -801,6 +801,7 @@ function AllLtvTable() {
       customer: string
       totalRevenue: number
       totalGm: number
+      avgMonthlyGm: number
       months: Map<string, number>
     }
 
@@ -808,6 +809,7 @@ function AllLtvTable() {
     for (const [customer, periodMap] of raw) {
       let totalRevenue = 0
       let totalGm = 0
+      let activeMonthCount = 0
       const months = new Map<string, number>()
       for (const [period, catMap] of periodMap) {
         let periodTotal = 0
@@ -819,16 +821,25 @@ function AllLtvTable() {
         months.set(period, periodTotal)
         totalRevenue += periodTotal
         totalGm += periodGm
+        if (periodTotal > 0) activeMonthCount++
       }
-      rows.push({ customer, totalRevenue, totalGm, months })
+      rows.push({
+        customer,
+        totalRevenue,
+        totalGm,
+        avgMonthlyGm: activeMonthCount > 0 ? totalGm / activeMonthCount : 0,
+        months,
+      })
     }
 
     const avgMonths = new Map<string, number>()
     let grandRevenue = 0
     let grandGm = 0
+    let grandAvgMonthlyGm = 0
     for (const r of rows) {
       grandRevenue += r.totalRevenue
       grandGm += r.totalGm
+      grandAvgMonthlyGm += r.avgMonthlyGm
       for (const [p, v] of r.months) {
         avgMonths.set(p, (avgMonths.get(p) || 0) + v)
       }
@@ -841,7 +852,7 @@ function AllLtvTable() {
     return {
       customerRows: rows,
       periods: sortedPeriods,
-      totalRow: { customer: "Average", totalRevenue: grandRevenue / n, totalGm: grandGm / n, months: avgMonths },
+      totalRow: { customer: "Average", totalRevenue: grandRevenue / n, totalGm: grandGm / n, avgMonthlyGm: grandAvgMonthlyGm / n, months: avgMonths },
     }
   }, [records])
 
@@ -859,6 +870,9 @@ function AllLtvTable() {
       } else if (sortField === "totalGm") {
         av = a.totalGm
         bv = b.totalGm
+      } else if (sortField === "avgMonthlyGm") {
+        av = a.avgMonthlyGm
+        bv = b.avgMonthlyGm
       } else {
         av = a.months.get(sortField) || 0
         bv = b.months.get(sortField) || 0
@@ -905,7 +919,7 @@ function AllLtvTable() {
     }).format(v)
 
   const renderRow = (
-    row: { customer: string; totalRevenue: number; totalGm: number; months: Map<string, number> },
+    row: { customer: string; totalRevenue: number; totalGm: number; avgMonthlyGm: number; months: Map<string, number> },
     isBold: boolean,
   ) => (
     <tr key={row.customer} className={`border-b ${isBold ? "bg-muted/30 font-semibold" : ""}`}>
@@ -914,6 +928,7 @@ function AllLtvTable() {
       </td>
       <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalRevenue)}</td>
       <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalGm)}</td>
+      <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.avgMonthlyGm)}</td>
       {periods.map((p) => {
         const val = row.months.get(p)
         return (
@@ -948,6 +963,12 @@ function AllLtvTable() {
                 onClick={() => handleSort("totalGm")}
               >
                 Total GM <SortIcon field="totalGm" />
+              </th>
+              <th
+                className="text-right py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap"
+                onClick={() => handleSort("avgMonthlyGm")}
+              >
+                Avg. Monthly GM <SortIcon field="avgMonthlyGm" />
               </th>
               {periods.map((p) => (
                 <th
