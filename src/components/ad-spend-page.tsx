@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback, type ReactElement } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
@@ -41,6 +41,12 @@ import {
   Tooltip,
   Legend,
   ComposedChart,
+  ScatterChart,
+  Scatter,
+  ZAxis,
+  ReferenceLine,
+  Cell,
+  Label,
 } from "recharts"
 import { cn } from "@/lib/utils"
 
@@ -716,6 +722,72 @@ export function AdSpendPage({
     }).filter((d) => d.spend > 0)
   }, [rangeFilteredRows, acquisitions, range, channel, period])
 
+  // ── Scatter chart: ad group quadrant analysis ──
+  const [scatterCampaignFilter, setScatterCampaignFilter] = useState<string>("all")
+
+  const scatterData = useMemo(() => {
+    // Always use ad-group level rows from rangeFilteredRows
+    const groupMap = new Map<string, { campaign: string; cost: number; clicks: number; impressions: number; conversions: number; imprShareSum: number; lostIsRankSum: number; rowCount: number }>()
+    for (const r of rangeFilteredRows) {
+      const name = r.adGroup || r.campaign || "Unknown"
+      const campaign = r.campaign || "Unknown"
+      const cost = r.cost ? parseFloat(r.cost) : 0
+      if (cost <= 0) continue
+      const prev = groupMap.get(name) || { campaign, cost: 0, clicks: 0, impressions: 0, conversions: 0, imprShareSum: 0, lostIsRankSum: 0, rowCount: 0 }
+      prev.cost += cost
+      prev.clicks += r.clicks || 0
+      prev.impressions += r.impressions || 0
+      prev.conversions += r.conversions ? parseFloat(r.conversions) : 0
+      const imprShare = r.searchImprShare ? parseFloat(r.searchImprShare) : 0
+      const lostRank = r.searchLostIsRank ? parseFloat(r.searchLostIsRank) : 0
+      if (imprShare > 0 || lostRank > 0) {
+        prev.imprShareSum += imprShare
+        prev.lostIsRankSum += lostRank
+        prev.rowCount++
+      }
+      prev.campaign = campaign
+      groupMap.set(name, prev)
+    }
+
+    return Array.from(groupMap.entries()).map(([name, d]) => ({
+      name,
+      campaign: d.campaign,
+      cost: d.cost,
+      clicks: d.clicks,
+      conversions: Math.round(d.conversions * 10) / 10,
+      cpc: d.clicks > 0 ? d.cost / d.clicks : 0,
+      imprShare: d.rowCount > 0 ? d.imprShareSum / d.rowCount : 0,
+      lostIsRank: d.rowCount > 0 ? d.lostIsRankSum / d.rowCount : 0,
+    }))
+  }, [rangeFilteredRows])
+
+  const scatterCampaigns = useMemo(() => {
+    const set = new Set<string>()
+    for (const d of scatterData) set.add(d.campaign)
+    return Array.from(set).sort()
+  }, [scatterData])
+
+  const medianCpc = useMemo(() => {
+    const sorted = scatterData.map((d) => d.cpc).sort((a, b) => a - b)
+    if (sorted.length === 0) return 0
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+  }, [scatterData])
+
+  const medianClicks = useMemo(() => {
+    const sorted = scatterData.map((d) => d.clicks).sort((a, b) => a - b)
+    if (sorted.length === 0) return 0
+    const mid = Math.floor(sorted.length / 2)
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
+  }, [scatterData])
+
+  const getQuadrantColor = useCallback((cpc: number, clicks: number) => {
+    if (cpc <= medianCpc && clicks >= medianClicks) return "#22c55e" // green — traffic drivers
+    if (cpc > medianCpc && clicks >= medianClicks) return "#f59e0b"  // amber — watch
+    if (cpc <= medianCpc && clicks < medianClicks) return "#3b82f6"  // blue — low volume
+    return "#ef4444" // red — cut/restructure
+  }, [medianCpc, medianClicks])
+
   const viewToggle = (
     <div className="flex items-center gap-2">
       <span className="text-sm font-medium text-muted-foreground">View:</span>
@@ -818,6 +890,119 @@ export function AdSpendPage({
                 />
               </ComposedChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {hasData && scatterData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <CardTitle>Ad Group Performance Quadrant</CardTitle>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1">
+                    <ListFilter className="h-4 w-4" />
+                    {scatterCampaignFilter === "all" ? "All Campaigns" : scatterCampaignFilter}
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-64 overflow-auto">
+                  <DropdownMenuLabel>Filter by Campaign</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => setScatterCampaignFilter("all")}>
+                    All Campaigns
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {scatterCampaigns.map((c) => (
+                    <DropdownMenuItem key={c} onClick={() => setScatterCampaignFilter(c)}>
+                      {c}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={420}>
+              <ScatterChart margin={{ top: 30, right: 30, bottom: 20, left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis
+                  type="number"
+                  dataKey="clicks"
+                  name="Clicks"
+                  tick={{ fontSize: 11 }}
+                  label={{ value: "Total Clicks", position: "insideBottom", offset: -10, fontSize: 12 }}
+                />
+                <YAxis
+                  type="number"
+                  dataKey="cpc"
+                  name="CPC"
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `$${v.toFixed(2)}`}
+                  label={{ value: "CPC ($)", angle: -90, position: "insideLeft", offset: 0, fontSize: 12 }}
+                />
+                <ZAxis type="number" dataKey="conversions" range={[256, 1600]} />
+                <ReferenceLine x={medianClicks} stroke="#999" strokeDasharray="3 3">
+                  <Label value={`${medianClicks} clicks`} position="top" fontSize={10} fill="#999" />
+                </ReferenceLine>
+                <ReferenceLine y={medianCpc} stroke="#999" strokeDasharray="3 3">
+                  <Label value={`$${medianCpc.toFixed(2)} CPC`} position="right" fontSize={10} fill="#999" />
+                </ReferenceLine>
+                {/* Quadrant labels */}
+                <ReferenceLine y={0} stroke="transparent" ifOverflow="visible">
+                  <Label value="🟢 Traffic Drivers" position="insideTopRight" fontSize={10} fill="#22c55e" offset={20} />
+                </ReferenceLine>
+                <Tooltip
+                  content={({ payload }) => {
+                    if (!payload?.[0]?.payload) return null
+                    const d = payload[0].payload as typeof scatterData[0]
+                    return (
+                      <div className="rounded-lg border bg-background p-3 shadow-sm text-sm space-y-1">
+                        <div className="font-semibold">{d.name}</div>
+                        <div className="text-muted-foreground text-xs">{d.campaign}</div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-1">
+                          <span className="text-muted-foreground">CPC:</span><span className="font-mono">${d.cpc.toFixed(2)}</span>
+                          <span className="text-muted-foreground">Clicks:</span><span className="font-mono">{d.clicks.toLocaleString()}</span>
+                          <span className="text-muted-foreground">Spend:</span><span className="font-mono">{formatCurrency(d.cost)}</span>
+                          <span className="text-muted-foreground">Conversions:</span><span className="font-mono">{d.conversions}</span>
+                          <span className="text-muted-foreground">Impr. Share:</span><span className="font-mono">{d.imprShare.toFixed(1)}%</span>
+                          <span className="text-muted-foreground">Lost IS (Rank):</span><span className="font-mono">{d.lostIsRank.toFixed(1)}%</span>
+                        </div>
+                      </div>
+                    )
+                  }}
+                />
+                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                <Scatter data={scatterData} shape={(props: any): ReactElement => {
+                  const d = props.payload as typeof scatterData[0]
+                  const cx = (props.cx as number) || 0
+                  const cy = (props.cy as number) || 0
+                  const isFiltered = scatterCampaignFilter !== "all" && d.campaign !== scatterCampaignFilter
+                  const hasConversions = d.conversions > 0
+                  const radius = Math.max(8, 8 + d.conversions * 6)
+                  const quadColor = getQuadrantColor(d.cpc, d.clicks)
+                  const fill = isFiltered ? "#d1d5db" : hasConversions ? "#22c55e" : quadColor
+                  const opacity = isFiltered ? 0.4 : 0.8
+                  return (
+                    <g>
+                      <circle cx={cx} cy={cy} r={radius} fill={fill} opacity={opacity} stroke={isFiltered ? "#9ca3af" : "#fff"} strokeWidth={1.5} />
+                      {hasConversions && !isFiltered && (
+                        <text x={cx} y={cy - radius - 4} textAnchor="middle" fontSize={10} fill="#eab308" fontWeight="bold">
+                          ⭐ {d.conversions}
+                        </text>
+                      )}
+                    </g>
+                  )
+                }} />
+              </ScatterChart>
+            </ResponsiveContainer>
+            <div className="flex flex-wrap justify-center gap-4 mt-2 text-xs">
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-green-500" /> Traffic Drivers (low CPC, high clicks)</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-amber-500" /> Watch (high CPC, high clicks)</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-blue-500" /> Low Volume (low CPC, low clicks)</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-full bg-red-500" /> Cut / Restructure (high CPC, low clicks)</span>
+            </div>
           </CardContent>
         </Card>
       )}
