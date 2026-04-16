@@ -596,7 +596,7 @@ export function AdSpendPage({
           cpa: windowAcq > 0 ? windowSpend / windowAcq : null,
         })
       }
-      return ttmData
+      return ttmData.filter((d) => d.spend > 0)
     }
 
     // Monthly / Quarterly: straightforward
@@ -617,7 +617,7 @@ export function AdSpendPage({
         spend,
         cpa: acq > 0 ? spend / acq : null,
       }
-    })
+    }).filter((d) => d.spend > 0)
   }, [rangeFilteredRows, acquisitions, range, channel, period])
 
   const viewToggle = (
