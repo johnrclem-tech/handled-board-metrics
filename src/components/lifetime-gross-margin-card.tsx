@@ -11,9 +11,9 @@ interface FinancialRecord {
   amount: string
 }
 
-interface ChurnMonth {
+interface TtmWindow {
   period: string
-  logoChurnRate: number
+  revenueChurnRate: number
 }
 
 const GM_MARGIN: Record<string, number> = {
@@ -91,24 +91,27 @@ export function LifetimeGrossMarginCard() {
         const avgGm = custCount > 0 ? sumAvgMonthlyGm / custCount : 0
         setAvgMonthlyGm(avgGm)
 
-        // Average monthly logo churn rate from 2025+, excluding current month
-        const now = new Date()
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-        const churnMonths: ChurnMonth[] = (churnData.months || [])
-          .slice(1)
-          .filter((m: ChurnMonth) => {
-            const year = parseInt(m.period.slice(0, 4), 10)
-            return year >= START_YEAR && m.period < currentMonth
+        // Average annual revenue churn from TTM windows (2025+, excluding most recent)
+        const ttmWindows: TtmWindow[] = (churnData.ttm || [])
+          .slice(0, -1)
+          .filter((t: TtmWindow) => {
+            const year = parseInt(t.period.slice(0, 4), 10)
+            return year >= START_YEAR
           })
 
-        const avgChurn =
-          churnMonths.length > 0
-            ? churnMonths.reduce((s: number, m: ChurnMonth) => s + m.logoChurnRate, 0) / churnMonths.length
+        const avgAnnualChurn =
+          ttmWindows.length > 0
+            ? ttmWindows.reduce((s: number, t: TtmWindow) => s + t.revenueChurnRate, 0) / ttmWindows.length
             : 0
-        setChurnRate(avgChurn)
 
-        if (avgChurn > 0 && avgGm > 0) {
-          setLtv(avgGm / (avgChurn / 100))
+        // Convert annual to monthly equivalent: (1 - (1 - annual/100)^(1/12)) × 100
+        const monthlyEquiv = avgAnnualChurn > 0
+          ? (1 - Math.pow(1 - avgAnnualChurn / 100, 1 / 12)) * 100
+          : 0
+        setChurnRate(monthlyEquiv)
+
+        if (monthlyEquiv > 0 && avgGm > 0) {
+          setLtv(avgGm / (monthlyEquiv / 100))
         } else {
           setLtv(null)
         }
@@ -132,7 +135,7 @@ export function LifetimeGrossMarginCard() {
           {avgMonthlyGm != null ? `${formatCurrency(avgMonthlyGm)} avg monthly GM` : ""}
         </p>
         <p className="text-xs text-muted-foreground">
-          {churnRate != null ? `${churnRate.toFixed(1)}% avg monthly churn` : ""}
+          {churnRate != null ? `${churnRate.toFixed(1)}%/mo revenue churn (from annual)` : ""}
         </p>
       </CardContent>
     </Card>
