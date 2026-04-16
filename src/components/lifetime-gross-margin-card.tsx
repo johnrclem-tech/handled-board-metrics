@@ -119,7 +119,7 @@ export function LifetimeGrossMarginCard() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardDescription className="text-sm font-medium">Lifetime Value</CardDescription>
+        <CardDescription className="text-sm font-medium">Lifetime Value (All Customers)</CardDescription>
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-chart-1/15">
           <DollarSign className="h-4 w-4 text-chart-1" />
         </div>

@@ -19,6 +19,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
   Legend,
+  LabelList,
 } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import type { CohortDrillFilter } from "@/components/dashboard"
@@ -108,7 +109,7 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Lifetime Revenue (Average Revenue by Billing Month)</CardTitle>
+          <CardTitle>New Customer LTV by Billing Month</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[300px] flex items-center justify-center">
@@ -137,20 +138,21 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
   const gmHandling = lifetimeHandling * 0.30
   const gmTotal = gmStorage + gmShipping + gmHandling
 
-  // Chart data (first 12 months)
-  const maxMonthsToShow = Math.min(12, metadata.maxBillingMonths)
-  const chartMonths = Array.from({ length: maxMonthsToShow }, (_, i) => i + 1)
+  // Chart data — show ALL months, using gross margins instead of revenue
+  const chartMonths = Array.from({ length: metadata.maxBillingMonths }, (_, i) => i + 1)
 
   const storageLookup = new Map(cohortData.storage.map((e) => [e.month, e]))
   const shippingLookup = new Map(cohortData.shipping.map((e) => [e.month, e]))
   const handlingLookup = new Map(cohortData.handling.map((e) => [e.month, e]))
+  const totalLookup = new Map(cohortData.total.map((e) => [e.month, e]))
 
   const monthlyBarData = chartMonths.map((month) => ({
     month: `Mo ${month}`,
     monthNum: month,
-    storage: storageLookup.get(month)?.average || 0,
-    shipping: shippingLookup.get(month)?.average || 0,
-    handling: handlingLookup.get(month)?.average || 0,
+    storage: (storageLookup.get(month)?.average || 0) * 0.10,
+    shipping: (shippingLookup.get(month)?.average || 0) * 0.15,
+    handling: (handlingLookup.get(month)?.average || 0) * 0.30,
+    customerCount: totalLookup.get(month)?.customerCount || 0,
   }))
 
   // Quarterly aggregation: group billing months into quarters
@@ -170,19 +172,22 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
   const quarterlyShipping = aggregateToQuarters(cohortData.shipping)
   const quarterlyHandling = aggregateToQuarters(cohortData.handling)
 
-  const maxQuartersToShow = Math.min(4, Math.ceil(metadata.maxBillingMonths / 3))
-  const chartQuarters = Array.from({ length: maxQuartersToShow }, (_, i) => i + 1)
+  const chartQuarters = Array.from({ length: Math.ceil(metadata.maxBillingMonths / 3) }, (_, i) => i + 1)
 
   const qStorageLookup = new Map(quarterlyStorage.map((e) => [e.quarter, e]))
   const qShippingLookup = new Map(quarterlyShipping.map((e) => [e.quarter, e]))
   const qHandlingLookup = new Map(quarterlyHandling.map((e) => [e.quarter, e]))
 
+  const quarterlyTotal = aggregateToQuarters(cohortData.total)
+  const qTotalLookup = new Map(quarterlyTotal.map((e) => [e.quarter, e]))
+
   const quarterlyBarData = chartQuarters.map((q) => ({
     month: `Q${q}`,
     monthNum: q,
-    storage: qStorageLookup.get(q)?.average || 0,
-    shipping: qShippingLookup.get(q)?.average || 0,
-    handling: qHandlingLookup.get(q)?.average || 0,
+    storage: (qStorageLookup.get(q)?.average || 0) * 0.10,
+    shipping: (qShippingLookup.get(q)?.average || 0) * 0.15,
+    handling: (qHandlingLookup.get(q)?.average || 0) * 0.30,
+    customerCount: qTotalLookup.get(q)?.customerCount || 0,
   }))
 
   const barChartData = period === "quarterly" ? quarterlyBarData : monthlyBarData
@@ -198,10 +203,10 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
   ]
 
   const cohortChartConfig = {
-    handling: { label: "Handling", color: "var(--chart-1)" },
-    shipping: { label: "Shipping", color: "var(--chart-2)" },
-    storage: { label: "Storage", color: "var(--chart-3)" },
-    total: { label: "Total", color: "var(--chart-5)" },
+    handling: { label: "Handling GM", color: "var(--chart-1)" },
+    shipping: { label: "Shipping GM", color: "var(--chart-2)" },
+    storage: { label: "Storage GM", color: "var(--chart-3)" },
+    total: { label: "Total GM", color: "var(--chart-5)" },
   } satisfies ChartConfig
 
   const lookups = Object.fromEntries(
@@ -264,7 +269,7 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Lifetime Revenue (Average Revenue by {period === "quarterly" ? "Billing Quarter" : "Billing Month"})
+              New Customer LTV by {period === "quarterly" ? "Billing Quarter" : "Billing Month"}
               <InfoTooltip text={
                 viewMode === "chart"
                   ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Excludes pre-existing customers and those with first month before Jan 2025. Click a bar to view records.`
@@ -322,9 +327,16 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
                 content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => String(label)} formatter={(value) => [formatCurrency(Number(value))]} />}
               />
               <Legend />
-              <Bar dataKey="handling" name="Handling" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="shipping" name="Shipping" stackId="revenue" fill="var(--chart-2)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="storage" name="Storage" stackId="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="handling" name="Handling GM" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="shipping" name="Shipping GM" stackId="revenue" fill="var(--chart-2)" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="storage" name="Storage GM" stackId="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+                <LabelList
+                  dataKey="customerCount"
+                  position="top"
+                  className="fill-muted-foreground text-[10px]"
+                  formatter={(v) => `n = ${v}`}
+                />
+              </Bar>
             </BarChart>
           </ChartContainer>
         )}
