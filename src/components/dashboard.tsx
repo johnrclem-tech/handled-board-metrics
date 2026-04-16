@@ -153,11 +153,9 @@ export function Dashboard() {
             </BreadcrumbList>
           </Breadcrumb>
 
-          {(activePage === "churn" || activePage === "revenue-metrics") && (
+          {activePage === "revenue-metrics" && (
             <div className="ml-auto flex items-center gap-3">
-              {(activePage === "revenue-metrics" || activePage === "churn") && (
-                <span className="text-sm font-medium text-muted-foreground">Customers:</span>
-              )}
+              <span className="text-sm font-medium text-muted-foreground">Customers:</span>
               <Tabs value={churnSegment} onValueChange={(v) => setChurnSegment(v as ChurnSegment)}>
                 <TabsList className="bg-muted h-9">
                   {SEGMENTS.map((s) => (
@@ -167,21 +165,6 @@ export function Dashboard() {
                   ))}
                 </TabsList>
               </Tabs>
-              {activePage === "churn" && (
-                <>
-                  <Separator orientation="vertical" className="h-4" />
-                  <span className="text-sm font-medium text-muted-foreground">View:</span>
-                  <Tabs value={churnPeriod} onValueChange={(v) => setChurnPeriod(v as ChurnPeriod)}>
-                    <TabsList className="bg-muted h-9">
-                      {PERIODS.map((p) => (
-                        <TabsTrigger key={p.value} value={p.value} className="px-4">
-                          {p.label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </Tabs>
-                </>
-              )}
               {activePage === "revenue-metrics" && (
                 <>
                   <Separator orientation="vertical" className="h-4" />
@@ -286,8 +269,8 @@ export function Dashboard() {
           {activePage === "churn" && (
             <ChurnPage
               key={`churn-${refreshKey}`}
-              segment={churnSegment}
-              period={churnPeriod}
+              segment="all"
+              period="annually"
               ltvCard={<LifetimeGrossMarginCard key={`ltv-card-${refreshKey}`} />}
               ltvChart={
                 <CohortSummaryChart

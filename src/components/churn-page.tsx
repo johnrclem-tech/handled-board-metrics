@@ -216,17 +216,22 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
     kpiRevSub = "Average TTM cohort revenue churn"
   }
 
+  const toMonthlyEquiv = (annual: number) =>
+    annual > 0 ? (1 - Math.pow(1 - annual / 100, 1 / 12)) * 100 : 0
+
   const kpiCards = [
     {
-      title: "Logo Churn",
+      title: "Annual Logo Churn",
       value: formatPct(kpiLogo),
+      monthlyEquiv: formatPct(toMonthlyEquiv(kpiLogo)),
       sub: kpiLogoSub,
       icon: Users,
       warn: kpiLogo > 10,
     },
     {
-      title: "Revenue Churn",
+      title: "Annual Revenue Churn",
       value: formatPct(kpiRevChurn),
+      monthlyEquiv: formatPct(toMonthlyEquiv(kpiRevChurn)),
       sub: kpiRevSub,
       icon: DollarSign,
       warn: kpiRevChurn > 10,
@@ -252,8 +257,11 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
               <div className={`text-2xl font-bold ${kpi.warn ? "text-red-600" : ""}`}>
                 {kpi.value}
               </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {kpi.monthlyEquiv}/mo equivalent
+              </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {kpiLabel} — {kpi.sub}
+                {kpiLabel}
               </p>
             </CardContent>
           </Card>
