@@ -823,21 +823,25 @@ function AllLtvTable() {
       rows.push({ customer, totalRevenue, totalGm, months })
     }
 
-    const totalMonths = new Map<string, number>()
+    const avgMonths = new Map<string, number>()
     let grandRevenue = 0
     let grandGm = 0
     for (const r of rows) {
       grandRevenue += r.totalRevenue
       grandGm += r.totalGm
       for (const [p, v] of r.months) {
-        totalMonths.set(p, (totalMonths.get(p) || 0) + v)
+        avgMonths.set(p, (avgMonths.get(p) || 0) + v)
       }
+    }
+    const n = rows.length || 1
+    for (const [p, v] of avgMonths) {
+      avgMonths.set(p, v / n)
     }
 
     return {
       customerRows: rows,
       periods: sortedPeriods,
-      totalRow: { customer: "Total", totalRevenue: grandRevenue, totalGm: grandGm, months: totalMonths },
+      totalRow: { customer: "Average", totalRevenue: grandRevenue / n, totalGm: grandGm / n, months: avgMonths },
     }
   }, [records])
 
