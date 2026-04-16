@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -22,7 +23,7 @@ import type { ServicePeriod } from "@/components/revenue-metrics-page"
 import { LeadsPage } from "@/components/leads-page"
 import type { LeadsPeriod, LeadsTimeRange } from "@/components/leads-page"
 import { AdSpendPage } from "@/components/ad-spend-page"
-import type { AdSpendRange, AdSpendChannel } from "@/components/ad-spend-page"
+import type { AdSpendRange, AdSpendChannel, AdSpendPeriod } from "@/components/ad-spend-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -93,6 +94,12 @@ const AD_SPEND_CHANNELS: { value: AdSpendChannel; label: string }[] = [
   { value: "ppc-only", label: "PPC only" },
 ]
 
+const AD_SPEND_PERIODS: { value: AdSpendPeriod; label: string }[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "ttm", label: "TTM" },
+]
+
 export function Dashboard() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [activePage, setActivePage] = useState("revenue-metrics")
@@ -105,6 +112,7 @@ export function Dashboard() {
   const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("monthly")
   const [adSpendRange, setAdSpendRange] = useState<AdSpendRange>("all")
   const [adSpendChannel, setAdSpendChannel] = useState<AdSpendChannel>("all")
+  const [adSpendPeriod, setAdSpendPeriod] = useState<AdSpendPeriod>("monthly")
 
   useEffect(() => {
     fetch("/api/setup").catch(() => {})
@@ -209,12 +217,12 @@ export function Dashboard() {
 
           {activePage === "ad-spend" && (
             <div className="ml-auto flex items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">Range:</span>
-              <Tabs value={adSpendRange} onValueChange={(v) => setAdSpendRange(v as AdSpendRange)}>
+              <span className="text-sm font-medium text-muted-foreground">View:</span>
+              <Tabs value={adSpendPeriod} onValueChange={(v) => setAdSpendPeriod(v as AdSpendPeriod)}>
                 <TabsList className="bg-muted h-9">
-                  {AD_SPEND_RANGES.map((r) => (
-                    <TabsTrigger key={r.value} value={r.value} className="px-4">
-                      {r.label}
+                  {AD_SPEND_PERIODS.map((p) => (
+                    <TabsTrigger key={p.value} value={p.value} className="px-4">
+                      {p.label}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -230,6 +238,20 @@ export function Dashboard() {
                   ))}
                 </TabsList>
               </Tabs>
+              <Separator orientation="vertical" className="h-4" />
+              <span className="text-sm font-medium text-muted-foreground">Range:</span>
+              <Select value={adSpendRange} onValueChange={(v) => setAdSpendRange(v as AdSpendRange)}>
+                <SelectTrigger className="h-9 w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {AD_SPEND_RANGES.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -307,6 +329,7 @@ export function Dashboard() {
               key={`ad-spend-${refreshKey}`}
               range={adSpendRange}
               channel={adSpendChannel}
+              period={adSpendPeriod}
             />
           )}
 

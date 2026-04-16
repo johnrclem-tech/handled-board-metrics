@@ -30,6 +30,18 @@ import {
   ChevronsUpDown,
   ListFilter,
 } from "lucide-react"
+import {
+  BarChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  Legend,
+  ComposedChart,
+} from "recharts"
 import { cn } from "@/lib/utils"
 
 interface AdRow {
@@ -243,6 +255,7 @@ function MultiSelectFilter({
 type AdSpendView = "campaigns" | "ad-groups"
 export type AdSpendRange = "all" | "ytd" | "ttm" | "last-mo" | "last-qtr"
 export type AdSpendChannel = "all" | "ppc-website" | "ppc-only"
+export type AdSpendPeriod = "monthly" | "quarterly" | "ttm"
 
 // Classify a lead_source / source string as PPC, Website, or other. We try to
 // be generous with PPC aliases since different CRMs label paid channels
@@ -320,9 +333,11 @@ interface AcquisitionRow {
 export function AdSpendPage({
   range = "all",
   channel = "all",
+  period = "monthly",
 }: {
   range?: AdSpendRange
   channel?: AdSpendChannel
+  period?: AdSpendPeriod
 }) {
   const [view, setView] = useState<AdSpendView>("ad-groups")
   const isAdGroupView = view === "ad-groups"
@@ -515,6 +530,96 @@ export function AdSpendPage({
       ]
     : []
 
+  // ── Chart data: aggregate spend + CPA by period ──
+  const chartData = useMemo(() => {
+    if (rangeFilteredRows.length === 0) return []
+
+    // Group ad-spend rows by period bucket
+    const spendByBucket = new Map<string, number>()
+    for (const r of rangeFilteredRows) {
+      if (!r.date) continue
+      const d = new Date(r.date)
+      if (isNaN(d.getTime())) continue
+      let key: string
+      if (period === "monthly") {
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      } else if (period === "quarterly") {
+        key = `${d.getFullYear()}-Q${Math.ceil((d.getMonth() + 1) / 3)}`
+      } else {
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      }
+      spendByBucket.set(key, (spendByBucket.get(key) || 0) + (r.cost ? parseFloat(r.cost) : 0))
+    }
+
+    // Group acquisitions (Closed Won opps) by same period buckets
+    const acqByBucket = new Map<string, number>()
+    const { start, end } = rangeBounds(range)
+    for (const a of acquisitions) {
+      const stage = (a.stage || "").toLowerCase().replace(/[-_]/g, " ").trim()
+      if (stage !== "closed won") continue
+      if (!sourceMatchesChannel(a.leadSource, channel)) continue
+      const dateStr = a.closingDate || a.createdTime
+      if (!dateStr) continue
+      const d = new Date(dateStr)
+      if (isNaN(d.getTime())) continue
+      if (start && d < start) continue
+      if (end && d > end) continue
+      let key: string
+      if (period === "monthly") {
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      } else if (period === "quarterly") {
+        key = `${d.getFullYear()}-Q${Math.ceil((d.getMonth() + 1) / 3)}`
+      } else {
+        key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      }
+      acqByBucket.set(key, (acqByBucket.get(key) || 0) + 1)
+    }
+
+    // For TTM: roll monthly buckets into trailing-12-month windows
+    if (period === "ttm") {
+      const monthKeys = [...new Set([...spendByBucket.keys(), ...acqByBucket.keys()])].sort()
+      const ttmData: { label: string; spend: number; cpa: number | null }[] = []
+      for (let i = 11; i < monthKeys.length; i++) {
+        const windowKeys = monthKeys.slice(i - 11, i + 1)
+        let windowSpend = 0
+        let windowAcq = 0
+        for (const k of windowKeys) {
+          windowSpend += spendByBucket.get(k) || 0
+          windowAcq += acqByBucket.get(k) || 0
+        }
+        const endKey = windowKeys[windowKeys.length - 1]
+        const [y, m] = endKey.split("-").map(Number)
+        const label = `${new Date(y, m - 1).toLocaleString("en-US", { month: "short" })} ${String(y).slice(2)}`
+        ttmData.push({
+          label,
+          spend: windowSpend,
+          cpa: windowAcq > 0 ? windowSpend / windowAcq : null,
+        })
+      }
+      return ttmData
+    }
+
+    // Monthly / Quarterly: straightforward
+    const allKeys = [...new Set([...spendByBucket.keys(), ...acqByBucket.keys()])].sort()
+    return allKeys.map((key) => {
+      const spend = spendByBucket.get(key) || 0
+      const acq = acqByBucket.get(key) || 0
+      let label: string
+      if (period === "quarterly") {
+        const [y, qPart] = key.split("-Q")
+        label = `Q${qPart} ${y.slice(2)}`
+      } else {
+        const [y, m] = key.split("-").map(Number)
+        label = `${new Date(y, m - 1).toLocaleString("en-US", { month: "short" })} ${String(y).slice(2)}`
+      }
+      return {
+        label,
+        spend,
+        cpa: acq > 0 ? spend / acq : null,
+      }
+    })
+  }, [rangeFilteredRows, acquisitions, range, channel, period])
+
   const viewToggle = (
     <div className="flex items-center gap-2">
       <span className="text-sm font-medium text-muted-foreground">View:</span>
@@ -546,6 +651,61 @@ export function AdSpendPage({
             </Card>
           ))}
         </div>
+      )}
+
+      {hasData && chartData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Ad Spend {period === "monthly" ? "& CPA by Month" : period === "quarterly" ? "& CPA by Quarter" : "& CPA — TTM"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={340}>
+              <ComposedChart data={chartData} margin={{ top: 20, right: 20, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={55} interval={0} />
+                <YAxis
+                  yAxisId="spend"
+                  tick={{ fontSize: 11 }}
+                  width={70}
+                  tickFormatter={(v: number) =>
+                    v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
+                  }
+                />
+                <YAxis
+                  yAxisId="cpa"
+                  orientation="right"
+                  tick={{ fontSize: 11 }}
+                  width={70}
+                  tickFormatter={(v: number) => `$${v.toLocaleString()}`}
+                />
+                <Tooltip
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  formatter={(value: any, name: any) => {
+                    const v = Number(value)
+                    if (name === "spend") return [`$${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, "Ad Spend"]
+                    if (name === "cpa") return [`$${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, "CPA"]
+                    return [value, name]
+                  }}
+                />
+                <Legend
+                  formatter={(value: string) => (value === "spend" ? "Ad Spend" : "CPA")}
+                />
+                <Bar yAxisId="spend" dataKey="spend" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
+                <Line
+                  yAxisId="cpa"
+                  dataKey="cpa"
+                  type="monotone"
+                  stroke="var(--chart-2)"
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: "var(--chart-2)" }}
+                  connectNulls
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
 
       <Card>
