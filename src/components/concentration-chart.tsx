@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Users, PieChart as PieChartIcon, TrendingUp } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, XAxis, ReferenceLine, BarChart, Bar, LabelList, Legend, YAxis } from "recharts"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { LifetimeValueCard } from "@/components/lifetime-value-card"
 
 export type ConcentrationPeriod = "monthly" | "quarterly" | "ttm"
 
@@ -245,8 +244,7 @@ export function ConcentrationChart({ children, period }: { children?: React.Reac
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <LifetimeValueCard />
+      <div className="grid gap-4 md:grid-cols-3">
         {kpiCards.map((kpi) => (
           <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
