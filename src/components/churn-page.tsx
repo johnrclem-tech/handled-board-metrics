@@ -2,10 +2,9 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { UserX, DollarSign, Users, TrendingUp, ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react"
+import { UserX, DollarSign, Users, ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   BarChart,
@@ -108,7 +107,6 @@ interface ChurnPageProps {
 export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: ChurnPageProps) {
   const [data, setData] = useState<ChurnResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedNrrDetail, setSelectedNrrDetail] = useState<AnnualNrrEntry | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -172,40 +170,18 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
   const filteredChartData = chartData.filter(
     (m) => m.period < _currentMonth && yearOf(m.period) >= START_YEAR,
   )
-  const nrrMonthlyData = filteredChartData
-
   // Quarterly: drop current calendar quarter, drop pre-2025
   const quarterlyBase = (data.quarterly || []).filter(
     (q) => q.period < _currentQuarter && yearOf(q.period) >= START_YEAR,
   )
   const quarterlyLogoData = quarterlyBase.map((q) => ({ label: q.label, quarterlyLogoChurnRate: q.logoChurnRate }))
   const quarterlyRevData = quarterlyBase.map((q) => ({ label: q.label, quarterlyRevenueChurnRate: q.revenueChurnRate }))
-  const quarterlyNrrData = quarterlyBase.map((q) => ({ period: q.period, label: q.label, quarterlyNrr: q.nrr }))
-  const nrrQuarterlyData = quarterlyNrrData
-
   // TTM: drop most-recent TTM window, drop pre-2025 (ending-month year)
   const ttmBase = (data.ttm || [])
     .slice(0, -1)
     .filter((t) => yearOf(t.period) >= START_YEAR)
   const rollingTtmLogoData = ttmBase.map((t) => ({ label: t.label, ttmLogoChurnRate: t.logoChurnRate }))
   const rollingTtmRevData = ttmBase.map((t) => ({ label: t.label, ttmRevenueChurnRate: t.revenueChurnRate }))
-
-  // Annual NRR data (year-over-year same-customer comparison) — apply the same
-  // window rules so the NRR card average reads from a consistent set
-  const annualNrrBase = (data?.annualNrr || []).filter(
-    (d) => yearOf(d.period) >= START_YEAR,
-  )
-  const annualNrrData = annualNrrBase.map((d) => ({
-    ...d,
-    label: formatPeriodLabel(d.period),
-  }))
-  // NRR chart (annually tab): drop the most recent month from annual NRR (TTM exclusion)
-  const nrrAnnualData = annualNrrData.slice(0, -1)
-
-  // Lookup for clicking on annual NRR points
-  const annualNrrByPeriod = new Map(
-    (data?.annualNrr || []).map((d) => [d.period, d])
-  )
 
   // KPI cards: average across all qualifying periods for the selected tab
   const avg = (nums: number[]) =>
@@ -216,36 +192,28 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
   let kpiLogoSub = ""
   let kpiRevChurn = 0
   let kpiRevSub = ""
-  let kpiNrr = 0
-  let kpiNrrSub = ""
 
   if (period === "monthly") {
     kpiLogo = avg(filteredChartData.map((m) => m.logoChurnRate))
     kpiRevChurn = avg(filteredChartData.map((m) => m.revenueChurnRate))
-    kpiNrr = avg(filteredChartData.map((m) => m.nrr))
     const n = filteredChartData.length
     kpiLabel = `Avg across ${n} ${n === 1 ? "month" : "months"}`
     kpiLogoSub = "Average monthly logo churn"
     kpiRevSub = "Average monthly revenue churn"
-    kpiNrrSub = "Average monthly NRR"
   } else if (period === "quarterly") {
     kpiLogo = avg(quarterlyLogoData.map((q) => q.quarterlyLogoChurnRate))
     kpiRevChurn = avg(quarterlyRevData.map((q) => q.quarterlyRevenueChurnRate))
-    kpiNrr = avg(quarterlyNrrData.map((q) => q.quarterlyNrr))
     const n = quarterlyLogoData.length
     kpiLabel = `Avg across ${n} ${n === 1 ? "quarter" : "quarters"}`
     kpiLogoSub = "Average quarterly cohort churn"
     kpiRevSub = "Average quarterly cohort revenue churn"
-    kpiNrrSub = "Average quarterly NRR"
   } else if (period === "annually") {
     kpiLogo = avg(rollingTtmLogoData.map((t) => t.ttmLogoChurnRate))
     kpiRevChurn = avg(rollingTtmRevData.map((t) => t.ttmRevenueChurnRate))
-    kpiNrr = avg(annualNrrData.map((d) => d.nrr))
     const n = rollingTtmLogoData.length
     kpiLabel = `Avg across ${n} TTM ${n === 1 ? "window" : "windows"}`
     kpiLogoSub = "Average TTM cohort logo churn"
     kpiRevSub = "Average TTM cohort revenue churn"
-    kpiNrrSub = "Average annual NRR"
   }
 
   const kpiCards = [
@@ -262,13 +230,6 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
       sub: kpiRevSub,
       icon: DollarSign,
       warn: kpiRevChurn > 10,
-    },
-    {
-      title: "Net Revenue Retention",
-      value: formatPct(kpiNrr),
-      sub: kpiNrrSub,
-      icon: TrendingUp,
-      warn: kpiNrr < 90,
     },
   ]
 
@@ -401,131 +362,6 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {period === "annually" ? "Annual Net Revenue Retention" : "Net Revenue Retention"}
-            <InfoTooltip text={
-              period === "monthly"
-                ? "Current month revenue from prior month's customers / prior month total revenue × 100. Includes expansion (customers paying more), contraction (paying less), and churn ($0). Does NOT include new customers. >100% = expansion outpaces churn."
-                : period === "quarterly"
-                  ? "End-of-quarter revenue from starting cohort / starting cohort revenue × 100. Starting cohort = customers active in the month before the quarter. Compares their quarter-end revenue snapshot to their quarter-start revenue. A customer who churned mid-quarter but returned by quarter-end is counted as retained."
-                  : "Year-over-year same-customer comparison. For each month M, finds customers with revenue in M-12 and compares their M revenue to their M-12 revenue. NRR = current month revenue / same-month-last-year revenue × 100. Click a point to see per-customer detail."
-            } />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={280}>
-            {period === "monthly" ? (
-              <BarChart data={nrrMonthlyData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
-                <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Bar dataKey="nrr" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="nrr" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
-                </Bar>
-              </BarChart>
-            ) : period === "quarterly" ? (
-              <BarChart data={nrrQuarterlyData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
-                <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Bar dataKey="quarterlyNrr" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="quarterlyNrr" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
-                </Bar>
-              </BarChart>
-            ) : (
-              <BarChart
-                data={nrrAnnualData}
-                margin={{ top: 20, right: 10, left: 0, bottom: 5 }}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                onClick={(state: any) => {
-                  const payload = state?.activePayload?.[0]?.payload
-                  if (payload?.period) {
-                    const detail = annualNrrByPeriod.get(payload.period)
-                    if (detail) setSelectedNrrDetail(detail)
-                  }
-                }}
-                style={{ cursor: "pointer" }}
-              >
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={50} />
-                <ReferenceLine y={100} stroke="var(--chart-2)" strokeWidth={2} strokeDasharray="3 3" label={{ value: "100%", position: "right", fontSize: 11 }} />
-                <Bar dataKey="nrr" fill="var(--chart-2)" radius={[4, 4, 0, 0]}>
-                  <LabelList dataKey="nrr" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
-                </Bar>
-              </BarChart>
-            )}
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {selectedNrrDetail && period === "annually" && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Annual NRR Detail — {formatPeriodLabel(selectedNrrDetail.period)}
-                  <InfoTooltip text={`Comparing ${formatPeriodLabel(selectedNrrDetail.period)} vs ${formatPeriodLabel(selectedNrrDetail.priorPeriod)} for ${selectedNrrDetail.customerCount} customers who had revenue in both periods.`} />
-                </CardTitle>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => setSelectedNrrDetail(null)} className="gap-1">
-                <UserX className="h-4 w-4" />
-                Close
-              </Button>
-            </div>
-            <div className="flex gap-6 text-sm mt-2">
-              <div>
-                <span className="text-muted-foreground">Prior Year ({formatPeriodLabel(selectedNrrDetail.priorPeriod)})</span>
-                <div className="font-semibold">{formatCurrency(selectedNrrDetail.priorRevenue)}</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Current ({formatPeriodLabel(selectedNrrDetail.period)})</span>
-                <div className="font-semibold">{formatCurrency(selectedNrrDetail.currentRevenue)}</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">NRR</span>
-                <div className={`font-semibold ${selectedNrrDetail.nrr < 100 ? "text-red-600" : "text-green-600"}`}>{formatPct(selectedNrrDetail.nrr)}</div>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Customers</span>
-                <div className="font-semibold">{selectedNrrDetail.customerCount}</div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Customer</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">{formatPeriodLabel(selectedNrrDetail.priorPeriod)}</th>
-                    <th className="text-right py-2 px-3 font-medium text-muted-foreground">{formatPeriodLabel(selectedNrrDetail.period)}</th>
-                    <th className="text-right py-2 pl-3 font-medium text-muted-foreground">Change</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedNrrDetail.customers.map((c) => (
-                    <tr key={c.name} className="border-b last:border-0">
-                      <td className="py-2 pr-4 font-medium">{c.name}</td>
-                      <td className="text-right py-2 px-3 font-mono">{formatCurrency(c.priorRevenue)}</td>
-                      <td className="text-right py-2 px-3 font-mono">{formatCurrency(c.currentRevenue)}</td>
-                      <td className={`text-right py-2 pl-3 font-mono ${c.change < 0 ? "text-red-600" : c.change > 0 ? "text-green-600" : ""}`}>
-                        {c.change > 0 ? "+" : ""}{formatCurrency(c.change)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <ChurnDetailsTable months={months} period={period} quarterly={data.quarterly || []} ttm={data.ttm || []} ltvTable={ltvTable} />
     </div>
   )
@@ -533,7 +369,7 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
 
 function ChurnDetailsTable({ months, period, quarterly, ttm, ltvTable }: { months: ChurnMonth[]; period: ChurnPeriod; quarterly: PeriodChurn[]; ttm: PeriodChurn[]; ltvTable?: React.ReactNode }) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
-  const [rawView, setRawView] = useState<"churn" | "new-ltv" | "all-ltv" | "nrr">("churn")
+  const [rawView, setRawView] = useState<"churn" | "new-ltv" | "all-ltv">("churn")
 
   const rawTabs = (
     <Tabs value={rawView} onValueChange={(v) => setRawView(v as typeof rawView)}>
@@ -541,7 +377,6 @@ function ChurnDetailsTable({ months, period, quarterly, ttm, ltvTable }: { month
         <TabsTrigger value="churn" className="px-4">Churn</TabsTrigger>
         <TabsTrigger value="new-ltv" className="px-4">New LTV</TabsTrigger>
         <TabsTrigger value="all-ltv" className="px-4">All LTV</TabsTrigger>
-        <TabsTrigger value="nrr" className="px-4">NRR</TabsTrigger>
       </TabsList>
     </Tabs>
   )
@@ -571,22 +406,6 @@ function ChurnDetailsTable({ months, period, quarterly, ttm, ltvTable }: { month
         </CardHeader>
         <CardContent>
           <AllLtvTable />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (rawView === "nrr") {
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Raw Data</CardTitle>
-            {rawTabs}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <NrrAuditTable />
         </CardContent>
       </Card>
     )
@@ -1001,232 +820,3 @@ function AllLtvTable() {
   )
 }
 
-// ── NRR Audit Table ──────────────────────────────────────────────────
-
-interface NrrCustomerDetail {
-  name: string
-  priorRevenue: number
-  currentRevenue: number
-  change: number
-  status: "Expanded" | "Contracted" | "Flat" | "Churned" | "New"
-}
-
-interface NrrMonthRow {
-  period: string
-  label: string
-  priorRevenue: number
-  retainedRevenue: number
-  nrr: number
-  returning: number
-  newCount: number
-  churned: number
-  expanded: number
-  contracted: number
-  customers: NrrCustomerDetail[]
-}
-
-function NrrAuditTable() {
-  const [records, setRecords] = useState<FinancialRecord[]>([])
-  const [loading, setLoading] = useState(true)
-  const [expandedRow, setExpandedRow] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch("/api/metrics?category=Storage Revenue,Shipping Revenue,Handling Revenue")
-      .then((r) => r.json())
-      .then((data) => setRecords(data.details || []))
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
-
-  const nrrRows = useMemo(() => {
-    // Build customer × period → total revenue
-    const custPeriod = new Map<string, Map<string, number>>()
-    const periodSet = new Set<string>()
-    for (const r of records) {
-      const amt = parseFloat(r.amount) || 0
-      if (amt === 0) continue
-      periodSet.add(r.period)
-      if (!custPeriod.has(r.accountName)) custPeriod.set(r.accountName, new Map())
-      const pm = custPeriod.get(r.accountName)!
-      pm.set(r.period, (pm.get(r.period) || 0) + amt)
-    }
-
-    const sortedPeriods = [...periodSet].sort()
-
-    // Exclude pre-2025 and current month
-    const now = new Date()
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-
-    const rows: NrrMonthRow[] = []
-    for (let i = 1; i < sortedPeriods.length; i++) {
-      const prevPeriod = sortedPeriods[i - 1]
-      const currPeriod = sortedPeriods[i]
-      if (parseInt(currPeriod.slice(0, 4), 10) < 2025) continue
-      if (currPeriod >= currentMonth) continue
-
-      // Build active maps for both months
-      const prevActive = new Map<string, number>()
-      const currActive = new Map<string, number>()
-      for (const [cust, pm] of custPeriod) {
-        const pv = pm.get(prevPeriod) || 0
-        const cv = pm.get(currPeriod) || 0
-        if (pv > 0) prevActive.set(cust, pv)
-        if (cv > 0) currActive.set(cust, cv)
-      }
-
-      const priorRevenue = [...prevActive.values()].reduce((s, v) => s + v, 0)
-      let retainedRevenue = 0
-      let returning = 0
-      let expanded = 0
-      let contracted = 0
-      const customers: NrrCustomerDetail[] = []
-
-      // Returning customers (in both months)
-      for (const [cust, prevRev] of prevActive) {
-        const currRev = currActive.get(cust) || 0
-        if (currRev > 0) {
-          retainedRevenue += currRev
-          returning++
-          const change = currRev - prevRev
-          let status: NrrCustomerDetail["status"]
-          if (change > 0.01) { expanded++; status = "Expanded" }
-          else if (change < -0.01) { contracted++; status = "Contracted" }
-          else { status = "Flat" }
-          customers.push({ name: cust, priorRevenue: prevRev, currentRevenue: currRev, change, status })
-        } else {
-          customers.push({ name: cust, priorRevenue: prevRev, currentRevenue: 0, change: -prevRev, status: "Churned" })
-        }
-      }
-
-      // New customers (in current but not previous)
-      let newCount = 0
-      for (const [cust, currRev] of currActive) {
-        if (!prevActive.has(cust)) {
-          newCount++
-          customers.push({ name: cust, priorRevenue: 0, currentRevenue: currRev, change: currRev, status: "New" })
-        }
-      }
-
-      const churned = prevActive.size - returning
-
-      customers.sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
-
-      rows.push({
-        period: currPeriod,
-        label: formatPeriodLabel(currPeriod),
-        priorRevenue,
-        retainedRevenue,
-        nrr: priorRevenue > 0 ? (retainedRevenue / priorRevenue) * 100 : 0,
-        returning,
-        newCount,
-        churned,
-        expanded,
-        contracted,
-        customers,
-      })
-    }
-    return rows
-  }, [records])
-
-  if (loading) {
-    return <p className="text-sm text-muted-foreground py-4">Loading NRR data...</p>
-  }
-
-  if (nrrRows.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4">No NRR data available</p>
-  }
-
-  const fmtCur = (v: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v)
-
-  const statusColor: Record<string, string> = {
-    Expanded: "text-green-600",
-    Contracted: "text-red-600",
-    Flat: "text-muted-foreground",
-    Churned: "text-red-600 font-semibold",
-    New: "text-blue-600",
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b">
-            <th className="w-6 py-2 pr-1"></th>
-            <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Month</th>
-            <th className="text-right py-2 px-3 font-medium text-muted-foreground">Prior Mo Revenue</th>
-            <th className="text-right py-2 px-3 font-medium text-muted-foreground">Retained Revenue</th>
-            <th className="text-right py-2 px-3 font-medium text-muted-foreground">NRR %</th>
-            <th className="text-right py-2 px-3 font-medium text-muted-foreground">Returning</th>
-            <th className="text-right py-2 px-3 font-medium text-muted-foreground">New</th>
-            <th className="text-right py-2 px-3 font-medium text-muted-foreground">Churned</th>
-            <th className="text-right py-2 px-3 font-medium text-muted-foreground">Expanded</th>
-            <th className="text-right py-2 pl-3 font-medium text-muted-foreground">Contracted</th>
-          </tr>
-        </thead>
-        <tbody>
-          {nrrRows.map((r) => {
-            const isExpanded = expandedRow === r.period
-            return (
-              <React.Fragment key={r.period}>
-                <tr
-                  className={`border-b cursor-pointer transition-colors hover:bg-muted/50 ${isExpanded ? "bg-muted/30" : ""}`}
-                  onClick={() => setExpandedRow(isExpanded ? null : r.period)}
-                >
-                  <td className="py-2 pr-1">
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`} />
-                  </td>
-                  <td className="py-2 pr-4 font-medium">{r.label}</td>
-                  <td className="text-right py-2 px-3 font-mono">{fmtCur(r.priorRevenue)}</td>
-                  <td className="text-right py-2 px-3 font-mono">{fmtCur(r.retainedRevenue)}</td>
-                  <td className={`text-right py-2 px-3 font-mono font-semibold ${r.nrr < 100 ? "text-red-600" : "text-green-600"}`}>
-                    {r.nrr.toFixed(1)}%
-                  </td>
-                  <td className="text-right py-2 px-3">{r.returning}</td>
-                  <td className="text-right py-2 px-3 text-blue-600">{r.newCount}</td>
-                  <td className="text-right py-2 px-3 text-red-600">{r.churned}</td>
-                  <td className="text-right py-2 px-3 text-green-600">{r.expanded}</td>
-                  <td className="text-right py-2 pl-3 text-red-600">{r.contracted}</td>
-                </tr>
-                {isExpanded && (
-                  <tr className="border-b bg-muted/20">
-                    <td colSpan={10} className="p-0">
-                      <div className="px-6 py-3">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left py-1.5 pr-4 font-medium text-muted-foreground">Customer</th>
-                              <th className="text-right py-1.5 px-3 font-medium text-muted-foreground">Prior Revenue</th>
-                              <th className="text-right py-1.5 px-3 font-medium text-muted-foreground">Current Revenue</th>
-                              <th className="text-right py-1.5 px-3 font-medium text-muted-foreground">Change</th>
-                              <th className="text-right py-1.5 pl-3 font-medium text-muted-foreground">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {r.customers.map((c, i) => (
-                              <tr key={`${c.name}-${i}`} className="border-b last:border-0">
-                                <td className="py-1.5 pr-4 font-medium">{c.name}</td>
-                                <td className="text-right py-1.5 px-3 font-mono">{c.priorRevenue > 0 ? fmtCur(c.priorRevenue) : "—"}</td>
-                                <td className="text-right py-1.5 px-3 font-mono">{c.currentRevenue > 0 ? fmtCur(c.currentRevenue) : "—"}</td>
-                                <td className={`text-right py-1.5 px-3 font-mono ${c.change > 0 ? "text-green-600" : c.change < 0 ? "text-red-600" : ""}`}>
-                                  {c.change > 0 ? "+" : ""}{fmtCur(c.change)}
-                                </td>
-                                <td className={`text-right py-1.5 pl-3 font-medium ${statusColor[c.status]}`}>
-                                  {c.status}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
