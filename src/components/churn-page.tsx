@@ -1,11 +1,12 @@
 "use client"
 
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useMemo, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { InfoTooltip } from "@/components/info-tooltip"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { UserX, DollarSign, Users, TrendingUp, ChevronDown } from "lucide-react"
+import { UserX, DollarSign, Users, TrendingUp, ChevronDown, ChevronUp, ChevronsUpDown } from "lucide-react"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   BarChart,
   Bar,
@@ -532,23 +533,46 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
 
 function ChurnDetailsTable({ months, period, quarterly, ttm, ltvTable }: { months: ChurnMonth[]; period: ChurnPeriod; quarterly: PeriodChurn[]; ttm: PeriodChurn[]; ltvTable?: React.ReactNode }) {
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
-  const [rawView, setRawView] = useState<"churn" | "ltv">("churn")
+  const [rawView, setRawView] = useState<"churn" | "new-ltv" | "all-ltv">("churn")
 
-  if (rawView === "ltv" && ltvTable) {
+  if (rawView === "new-ltv" && ltvTable) {
     return (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Raw Data</CardTitle>
-            <Tabs value={rawView} onValueChange={(v) => setRawView(v as "churn" | "ltv")}>
+            <Tabs value={rawView} onValueChange={(v) => setRawView(v as "churn" | "new-ltv" | "all-ltv")}>
               <TabsList className="bg-muted h-9">
                 <TabsTrigger value="churn" className="px-4">Churn</TabsTrigger>
-                <TabsTrigger value="ltv" className="px-4">LTV</TabsTrigger>
+                <TabsTrigger value="new-ltv" className="px-4">New LTV</TabsTrigger>
+                <TabsTrigger value="all-ltv" className="px-4">All LTV</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
         </CardHeader>
         <CardContent>{ltvTable}</CardContent>
+      </Card>
+    )
+  }
+
+  if (rawView === "all-ltv") {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Raw Data</CardTitle>
+            <Tabs value={rawView} onValueChange={(v) => setRawView(v as "churn" | "new-ltv" | "all-ltv")}>
+              <TabsList className="bg-muted h-9">
+                <TabsTrigger value="churn" className="px-4">Churn</TabsTrigger>
+                <TabsTrigger value="new-ltv" className="px-4">New LTV</TabsTrigger>
+                <TabsTrigger value="all-ltv" className="px-4">All LTV</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <AllLtvTable />
+        </CardContent>
       </Card>
     )
   }
@@ -631,14 +655,13 @@ function ChurnDetailsTable({ months, period, quarterly, ttm, ltvTable }: { month
             Raw Data
             <InfoTooltip text={`${periodLabel} churn details. Active customers, churned count, and lost revenue by ${periodLabel.toLowerCase()} period. Click a row to see churned customers.`} />
           </CardTitle>
-          {ltvTable && (
-            <Tabs value={rawView} onValueChange={(v) => setRawView(v as "churn" | "ltv")}>
-              <TabsList className="bg-muted h-9">
-                <TabsTrigger value="churn" className="px-4">Churn</TabsTrigger>
-                <TabsTrigger value="ltv" className="px-4">LTV</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          )}
+          <Tabs value={rawView} onValueChange={(v) => setRawView(v as "churn" | "new-ltv" | "all-ltv")}>
+            <TabsList className="bg-muted h-9">
+              <TabsTrigger value="churn" className="px-4">Churn</TabsTrigger>
+              <TabsTrigger value="new-ltv" className="px-4">New LTV</TabsTrigger>
+              <TabsTrigger value="all-ltv" className="px-4">All LTV</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </CardHeader>
       <CardContent>
@@ -720,5 +743,226 @@ function ChurnDetailsTable({ months, period, quarterly, ttm, ltvTable }: { month
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+// ── All LTV Table ────────────────────────────────────────────────────
+// Shows every customer × every month, with Total Revenue & Total GM
+// summary columns and a pinned "Total" row at the top.
+
+const GM_MARGIN: Record<string, number> = {
+  "Storage Revenue": 0.10,
+  "Shipping Revenue": 0.15,
+  "Handling Revenue": 0.30,
+}
+
+interface FinancialRecord {
+  category: string
+  accountName: string
+  period: string
+  amount: string
+}
+
+type AllLtvSortField = "customer" | "totalRevenue" | "totalGm" | string
+type AllLtvSortDir = "asc" | "desc"
+
+function AllLtvTable() {
+  const [records, setRecords] = useState<FinancialRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [sortField, setSortField] = useState<AllLtvSortField>("totalRevenue")
+  const [sortDir, setSortDir] = useState<AllLtvSortDir>("desc")
+
+  useEffect(() => {
+    fetch("/api/metrics?category=Storage Revenue,Shipping Revenue,Handling Revenue")
+      .then((r) => r.json())
+      .then((data) => setRecords(data.records || []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const { customerRows, periods, totalRow } = useMemo(() => {
+    const raw = new Map<string, Map<string, Map<string, number>>>()
+    const periodSet = new Set<string>()
+
+    for (const r of records) {
+      const amt = parseFloat(r.amount) || 0
+      if (amt === 0) continue
+      periodSet.add(r.period)
+      if (!raw.has(r.accountName)) raw.set(r.accountName, new Map())
+      const custMap = raw.get(r.accountName)!
+      if (!custMap.has(r.period)) custMap.set(r.period, new Map())
+      const catMap = custMap.get(r.period)!
+      catMap.set(r.category, (catMap.get(r.category) || 0) + amt)
+    }
+
+    const sortedPeriods = [...periodSet].sort()
+
+    interface CustRow {
+      customer: string
+      totalRevenue: number
+      totalGm: number
+      months: Map<string, number>
+    }
+
+    const rows: CustRow[] = []
+    for (const [customer, periodMap] of raw) {
+      let totalRevenue = 0
+      let totalGm = 0
+      const months = new Map<string, number>()
+      for (const [period, catMap] of periodMap) {
+        let periodTotal = 0
+        let periodGm = 0
+        for (const [cat, amt] of catMap) {
+          periodTotal += amt
+          periodGm += amt * (GM_MARGIN[cat] || 0)
+        }
+        months.set(period, periodTotal)
+        totalRevenue += periodTotal
+        totalGm += periodGm
+      }
+      rows.push({ customer, totalRevenue, totalGm, months })
+    }
+
+    const totalMonths = new Map<string, number>()
+    let grandRevenue = 0
+    let grandGm = 0
+    for (const r of rows) {
+      grandRevenue += r.totalRevenue
+      grandGm += r.totalGm
+      for (const [p, v] of r.months) {
+        totalMonths.set(p, (totalMonths.get(p) || 0) + v)
+      }
+    }
+
+    return {
+      customerRows: rows,
+      periods: sortedPeriods,
+      totalRow: { customer: "Total", totalRevenue: grandRevenue, totalGm: grandGm, months: totalMonths },
+    }
+  }, [records])
+
+  const sortedRows = useMemo(() => {
+    const copy = [...customerRows]
+    copy.sort((a, b) => {
+      let av: number | string
+      let bv: number | string
+      if (sortField === "customer") {
+        av = a.customer.toLowerCase()
+        bv = b.customer.toLowerCase()
+      } else if (sortField === "totalRevenue") {
+        av = a.totalRevenue
+        bv = b.totalRevenue
+      } else if (sortField === "totalGm") {
+        av = a.totalGm
+        bv = b.totalGm
+      } else {
+        av = a.months.get(sortField) || 0
+        bv = b.months.get(sortField) || 0
+      }
+      if (av < bv) return sortDir === "asc" ? -1 : 1
+      if (av > bv) return sortDir === "asc" ? 1 : -1
+      return 0
+    })
+    return copy
+  }, [customerRows, sortField, sortDir])
+
+  const handleSort = useCallback((field: AllLtvSortField) => {
+    setSortField((prev) => {
+      if (prev === field) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+        return prev
+      }
+      setSortDir(field === "customer" ? "asc" : "desc")
+      return field
+    })
+  }, [])
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground py-4">Loading revenue data...</p>
+  }
+
+  if (customerRows.length === 0) {
+    return <p className="text-sm text-muted-foreground py-4">No revenue data available</p>
+  }
+
+  const SortIcon = ({ field }: { field: AllLtvSortField }) => {
+    if (sortField !== field) return <ChevronsUpDown className="inline h-3 w-3 ml-1 opacity-40" />
+    return sortDir === "asc"
+      ? <ChevronUp className="inline h-3 w-3 ml-1" />
+      : <ChevronDown className="inline h-3 w-3 ml-1" />
+  }
+
+  const fmtCur = (v: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(v)
+
+  const renderRow = (
+    row: { customer: string; totalRevenue: number; totalGm: number; months: Map<string, number> },
+    isBold: boolean,
+  ) => (
+    <tr key={row.customer} className={`border-b ${isBold ? "bg-muted/30 font-semibold" : ""}`}>
+      <td className="py-1.5 px-3 whitespace-nowrap sticky left-0 bg-background z-10">
+        {row.customer}
+      </td>
+      <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalRevenue)}</td>
+      <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalGm)}</td>
+      {periods.map((p) => {
+        const val = row.months.get(p)
+        return (
+          <td key={p} className="py-1.5 px-3 text-right font-mono whitespace-nowrap">
+            {val != null && val !== 0 ? fmtCur(val) : "—"}
+          </td>
+        )
+      })}
+    </tr>
+  )
+
+  return (
+    <ScrollArea className="w-full">
+      <div className="min-w-max">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th
+                className="text-left py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap sticky left-0 bg-background z-10"
+                onClick={() => handleSort("customer")}
+              >
+                Customer <SortIcon field="customer" />
+              </th>
+              <th
+                className="text-right py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap"
+                onClick={() => handleSort("totalRevenue")}
+              >
+                Total Revenue <SortIcon field="totalRevenue" />
+              </th>
+              <th
+                className="text-right py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap"
+                onClick={() => handleSort("totalGm")}
+              >
+                Total GM <SortIcon field="totalGm" />
+              </th>
+              {periods.map((p) => (
+                <th
+                  key={p}
+                  className="text-right py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap"
+                  onClick={() => handleSort(p)}
+                >
+                  {formatPeriodLabel(p)} <SortIcon field={p} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {renderRow(totalRow, true)}
+            {sortedRows.map((r) => renderRow(r, false))}
+          </tbody>
+        </table>
+      </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
   )
 }
