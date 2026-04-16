@@ -1022,30 +1022,30 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
         </Card>
       </div>
       <div className="grid gap-6 grid-cols-3">
-        {/* Win Rates */}
+        {/* Open Opportunities */}
         <Card className="col-span-1 flex flex-col">
-          <CardHeader>
+          <CardHeader className="border-b">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                Win Rates
-                <InfoTooltip text="Percentage of conversions (Closed Won) per source. Leads uses total leads (leads + opportunities) as the denominator. Opps uses opportunities as the denominator." />
+                Open Opportunities
+                <InfoTooltip text="Active opportunities. Excludes Closed Won, Closed Lost, Junk Lead, and Unknown. By Age groups opportunities by the calendar month they were created." />
               </CardTitle>
-              <Tabs value={convRateMode} onValueChange={(v) => setConvRateMode(v as "leads" | "opps")}>
+              <Tabs value={openOppsView} onValueChange={(v) => setOpenOppsView(v as "status" | "age")}>
                 <TabsList className="bg-muted h-9">
-                  <TabsTrigger value="leads" className="px-3">Leads</TabsTrigger>
-                  <TabsTrigger value="opps" className="px-3">Opps</TabsTrigger>
+                  <TabsTrigger value="status" className="px-3">By Status</TabsTrigger>
+                  <TabsTrigger value="age" className="px-3">By Age</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
           </CardHeader>
           <CardContent className="flex flex-1 pt-4 pb-2">
-            {convRateData.length > 0 ? (
+            {(openOppsView === "status" ? openOppsData : openOppsByAge).length > 0 ? (
               <ChartContainer
-                config={{ rate: { label: "Win Rate", color: "var(--primary)" } } satisfies ChartConfig}
+                config={{ count: { label: "Opportunities", color: "var(--primary)" } } satisfies ChartConfig}
                 className="w-full flex-1"
               >
                 <BarChart
-                  data={convRateData}
+                  data={openOppsView === "status" ? openOppsData : openOppsByAge}
                   layout="vertical"
                   margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
                 >
@@ -1060,20 +1060,19 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
                     width={100}
                     tick={{ fontSize: 13 }}
                   />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel formatter={(v) => `${v}%`} />} />
-                  <Bar dataKey="value" name="Win Rate" fill="var(--primary)" radius={6}>
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+                  <Bar dataKey="value" name="Opportunities" fill="var(--primary)" radius={6}>
                     <LabelList
                       dataKey="value"
                       offset={8}
                       position="right"
                       className="fill-foreground text-xs"
-                      formatter={(v) => `${v}%`}
                     />
                   </Bar>
                 </BarChart>
               </ChartContainer>
             ) : (
-              <p className="text-sm text-muted-foreground py-4">No conversion data</p>
+              <p className="text-sm text-muted-foreground py-4">No open opportunities</p>
             )}
           </CardContent>
         </Card>
@@ -1164,28 +1163,28 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
           </div>
         </div>
         <Card className="col-span-1 flex flex-col">
-          <CardHeader className="border-b">
+          <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
-                Open Opportunities
-                <InfoTooltip text="Active opportunities. Excludes Closed Won, Closed Lost, Junk Lead, and Unknown. By Age groups opportunities by the calendar month they were created." />
+                Win Rates
+                <InfoTooltip text="Percentage of conversions (Closed Won) per source. Leads uses total leads (leads + opportunities) as the denominator. Opps uses opportunities as the denominator." />
               </CardTitle>
-              <Tabs value={openOppsView} onValueChange={(v) => setOpenOppsView(v as "status" | "age")}>
+              <Tabs value={convRateMode} onValueChange={(v) => setConvRateMode(v as "leads" | "opps")}>
                 <TabsList className="bg-muted h-9">
-                  <TabsTrigger value="status" className="px-3">By Status</TabsTrigger>
-                  <TabsTrigger value="age" className="px-3">By Age</TabsTrigger>
+                  <TabsTrigger value="leads" className="px-3">Leads</TabsTrigger>
+                  <TabsTrigger value="opps" className="px-3">Opps</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
           </CardHeader>
           <CardContent className="flex flex-1 pt-4 pb-2">
-            {(openOppsView === "status" ? openOppsData : openOppsByAge).length > 0 ? (
+            {convRateData.length > 0 ? (
               <ChartContainer
-                config={{ count: { label: "Opportunities", color: "var(--primary)" } } satisfies ChartConfig}
+                config={{ rate: { label: "Win Rate", color: "var(--primary)" } } satisfies ChartConfig}
                 className="w-full flex-1"
               >
                 <BarChart
-                  data={openOppsView === "status" ? openOppsData : openOppsByAge}
+                  data={convRateData}
                   layout="vertical"
                   margin={{ left: -10, right: 50, top: 5, bottom: 5 }}
                 >
@@ -1200,19 +1199,20 @@ export function LeadsPage({ period, timeRange = "all" }: { period: LeadsPeriod; 
                     width={100}
                     tick={{ fontSize: 13 }}
                   />
-                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                  <Bar dataKey="value" name="Opportunities" fill="var(--primary)" radius={6}>
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel formatter={(v) => `${v}%`} />} />
+                  <Bar dataKey="value" name="Win Rate" fill="var(--primary)" radius={6}>
                     <LabelList
                       dataKey="value"
                       offset={8}
                       position="right"
                       className="fill-foreground text-xs"
+                      formatter={(v) => `${v}%`}
                     />
                   </Bar>
                 </BarChart>
               </ChartContainer>
             ) : (
-              <p className="text-sm text-muted-foreground py-4">No open opportunities</p>
+              <p className="text-sm text-muted-foreground py-4">No conversion data</p>
             )}
           </CardContent>
         </Card>
