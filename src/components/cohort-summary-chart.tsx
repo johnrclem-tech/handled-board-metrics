@@ -3,17 +3,10 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { InfoTooltip } from "@/components/info-tooltip"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { Users, RefreshCw } from "lucide-react"
+import { Users } from "lucide-react"
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -46,22 +39,6 @@ interface CohortResponse {
   }
 }
 
-type ViewMode = "chart" | "table" | "decay"
-
-const CATEGORY_MAP: Record<string, string> = {
-  storage: "Storage Revenue",
-  shipping: "Shipping Revenue",
-  handling: "Handling Revenue",
-  total: "all",
-}
-
-const LABEL_MAP: Record<string, string> = {
-  storage: "Storage Revenue",
-  shipping: "Shipping Revenue",
-  handling: "Handling Revenue",
-  total: "Total Revenue",
-}
-
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -82,12 +59,8 @@ interface CohortSummaryChartProps {
 export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummaryChartProps) {
   const [data, setData] = useState<CohortResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>("chart")
-
-  const fetchData = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
-    else setLoading(true)
+  const fetchData = async () => {
+    setLoading(true)
 
     try {
       const res = await fetch("/api/metrics/cohort-revenue")
@@ -97,7 +70,6 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
       console.error("Failed to fetch cohort data:", err)
     } finally {
       setLoading(false)
-      setRefreshing(false)
     }
   }
 
@@ -192,53 +164,12 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
 
   const barChartData = period === "quarterly" ? quarterlyBarData : monthlyBarData
 
-  // Full table/decay data
-  const allMonths = Array.from({ length: metadata.maxBillingMonths }, (_, i) => i + 1)
-  const allQuarters = Array.from({ length: Math.ceil(metadata.maxBillingMonths / 3) }, (_, i) => i + 1)
-  const categories = [
-    { key: "storage" as const, label: "Storage Revenue", color: "var(--chart-3)" },
-    { key: "shipping" as const, label: "Shipping Revenue", color: "var(--chart-2)" },
-    { key: "handling" as const, label: "Handling Revenue", color: "var(--chart-1)" },
-    { key: "total" as const, label: "Total Revenue", color: "var(--chart-5)" },
-  ]
-
   const cohortChartConfig = {
     handling: { label: "Handling GM", color: "var(--chart-1)" },
     shipping: { label: "Shipping GM", color: "var(--chart-2)" },
     storage: { label: "Storage GM", color: "var(--chart-3)" },
     total: { label: "Total GM", color: "var(--chart-5)" },
   } satisfies ChartConfig
-
-  const lookups = Object.fromEntries(
-    categories.map(({ key }) => [
-      key,
-      new Map(cohortData[key].map((e) => [e.month, e])),
-    ])
-  ) as Record<string, Map<number, CohortEntry>>
-
-  // Quarterly lookups for table/decay
-  const quarterlyLookups: Record<string, Map<number, { average: number; customerCount: number }>> = {}
-  for (const { key } of categories) {
-    quarterlyLookups[key] = new Map(aggregateToQuarters(cohortData[key]).map((e) => [e.quarter, e]))
-  }
-
-  const decayChartData = period === "quarterly"
-    ? allQuarters.map((q) => {
-        const entry: Record<string, unknown> = { month: `Q${q}`, monthNum: q }
-        for (const { key } of categories) {
-          const d = quarterlyLookups[key].get(q)
-          entry[key] = d ? d.average : 0
-        }
-        return entry
-      })
-    : allMonths.map((month) => {
-        const entry: Record<string, unknown> = { month: `Month ${month}`, monthNum: month }
-        for (const { key } of categories) {
-          const d = lookups[key].get(month)
-          entry[key] = d ? d.average : 0
-        }
-        return entry
-      })
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleChartClick = (state: any) => {
@@ -252,197 +183,58 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
     }
   }
 
-  const handleCellClick = (key: string, month: number) => {
-    onDrill?.({
-      billingMonth: month,
-      category: CATEGORY_MAP[key],
-      label: `${LABEL_MAP[key]} - Month ${month}`,
-    })
-  }
-
-
-
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              New Customer LTV by {period === "quarterly" ? "Billing Quarter" : "Billing Month"}
-              <InfoTooltip text={
-                viewMode === "chart"
-                  ? `Stacked average revenue per new customer (${metadata.totalCustomers} customers). Excludes pre-existing customers and those with first month before Jan 2025. Click a bar to view records.`
-                  : viewMode === "table"
-                    ? `Avg revenue per billing month for ${metadata.totalCustomers} new customers (excl. ${metadata.excludedCustomers} pre-existing and those with first month before Jan 2025). Click any cell to drill down.`
-                    : `Revenue decay curves showing customer lifecycle trends for ${metadata.totalCustomers} new customers. Excludes pre-existing customers and those with first month before Jan 2025.`
-              } />
-            </CardTitle>
-            {viewMode === "chart" && (
-              <div className="mt-3 flex flex-wrap gap-4 text-sm">
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground">Gross Margin Total</span>
-                  <span className="text-lg font-bold">{formatCurrency(gmTotal)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground">Storage (10%)</span>
-                  <span className="font-semibold" style={{ color: "var(--chart-3)" }}>{formatCurrency(gmStorage)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground">Handling (30%)</span>
-                  <span className="font-semibold" style={{ color: "var(--chart-1)" }}>{formatCurrency(gmHandling)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-muted-foreground">Shipping (15%)</span>
-                  <span className="font-semibold" style={{ color: "var(--chart-2)" }}>{formatCurrency(gmShipping)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {viewMode !== "chart" && (
-              <Button variant="outline" size="sm" onClick={() => fetchData(true)} disabled={refreshing} className="gap-1">
-                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              </Button>
-            )}
-            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-              <TabsList className="bg-muted h-9">
-                <TabsTrigger value="chart" className="px-4">Chart</TabsTrigger>
-                <TabsTrigger value="table" className="px-4">Table</TabsTrigger>
-                <TabsTrigger value="decay" className="px-4">Decay</TabsTrigger>
-              </TabsList>
-            </Tabs>
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            New Customer LTV by {period === "quarterly" ? "Billing Quarter" : "Billing Month"}
+            <InfoTooltip text={`Stacked average revenue per new customer (${metadata.totalCustomers} customers). Excludes pre-existing customers and those with first month before Jan 2025. Click a bar to view records.`} />
+          </CardTitle>
+          <div className="mt-3 flex flex-wrap gap-4 text-sm">
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">Gross Margin Total</span>
+              <span className="text-lg font-bold">{formatCurrency(gmTotal)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">Storage (10%)</span>
+              <span className="font-semibold" style={{ color: "var(--chart-3)" }}>{formatCurrency(gmStorage)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">Handling (30%)</span>
+              <span className="font-semibold" style={{ color: "var(--chart-1)" }}>{formatCurrency(gmHandling)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-muted-foreground">Shipping (15%)</span>
+              <span className="font-semibold" style={{ color: "var(--chart-2)" }}>{formatCurrency(gmShipping)}</span>
+            </div>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        {viewMode === "chart" && (
-          <ChartContainer config={cohortChartConfig} className="aspect-auto h-[300px] w-full">
-            <BarChart data={barChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleChartClick} style={{ cursor: "pointer" }}>
-              <CartesianGrid strokeDasharray="5 4" vertical={false} />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} className="text-xs" />
-              <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => String(label)} formatter={(value) => [formatCurrency(Number(value))]} />}
+        <ChartContainer config={cohortChartConfig} className="aspect-auto h-[300px] w-full">
+          <BarChart data={barChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleChartClick} style={{ cursor: "pointer" }}>
+            <CartesianGrid strokeDasharray="5 4" vertical={false} />
+            <XAxis dataKey="month" tickLine={false} axisLine={false} className="text-xs" />
+            <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
+            <ChartTooltip
+              cursor={false}
+              content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => String(label)} formatter={(value) => [formatCurrency(Number(value))]} />}
+            />
+            <Legend />
+            <Bar dataKey="handling" name="Handling GM" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="shipping" name="Shipping GM" stackId="revenue" fill="var(--chart-2)" radius={[0, 0, 0, 0]} />
+            <Bar dataKey="storage" name="Storage GM" stackId="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+              <LabelList
+                dataKey="customerCount"
+                position="top"
+                className="fill-muted-foreground text-[10px]"
+                formatter={(v) => `n = ${v}`}
               />
-              <Legend />
-              <Bar dataKey="handling" name="Handling GM" stackId="revenue" fill="var(--chart-1)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="shipping" name="Shipping GM" stackId="revenue" fill="var(--chart-2)" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="storage" name="Storage GM" stackId="revenue" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
-                <LabelList
-                  dataKey="customerCount"
-                  position="top"
-                  className="fill-muted-foreground text-[10px]"
-                  formatter={(v) => `n = ${v}`}
-                />
-              </Bar>
-            </BarChart>
-          </ChartContainer>
-        )}
-
-        {viewMode === "table" && (
-          <ScrollArea className="w-full">
-            <div className="min-w-max">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="sticky left-0 bg-background z-10 min-w-[160px]">Category</TableHead>
-                    {period === "quarterly"
-                      ? allQuarters.map((q) => (
-                          <TableHead key={q} className="text-center min-w-[100px]">Q{q}</TableHead>
-                        ))
-                      : allMonths.map((month) => (
-                          <TableHead key={month} className="text-center min-w-[100px]">Month {month}</TableHead>
-                        ))
-                    }
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {categories.map(({ key, label }) => (
-                    <TableRow key={key} className={key === "total" ? "font-semibold border-t-2" : ""}>
-                      <TableCell className="sticky left-0 bg-background z-10">
-                        <Badge variant={key === "total" ? "default" : "outline"}>{label}</Badge>
-                      </TableCell>
-                      {period === "quarterly"
-                        ? allQuarters.map((q) => {
-                            const entry = quarterlyLookups[key].get(q)
-                            return (
-                              <TableCell key={q} className="text-center">
-                                {entry ? (
-                                  <div>
-                                    <div className={key === "total" ? "font-semibold" : ""}>
-                                      {formatCurrency(entry.average)}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      n={entry.customerCount}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                            )
-                          })
-                        : allMonths.map((month) => {
-                            const entry = lookups[key].get(month)
-                            return (
-                              <TableCell
-                                key={month}
-                                className={`text-center ${entry ? "cursor-pointer hover:bg-muted/50 rounded transition-colors" : ""}`}
-                                onClick={() => entry && handleCellClick(key, month)}
-                              >
-                                {entry ? (
-                                  <div>
-                                    <div className={`${key === "total" ? "font-semibold" : ""} text-primary underline-offset-2 hover:underline`}>
-                                      {formatCurrency(entry.average)}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      n={entry.customerCount}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </TableCell>
-                            )
-                          })
-                      }
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
-        )}
-
-        {viewMode === "decay" && (
-          <ChartContainer config={cohortChartConfig} className="aspect-auto h-[350px] w-full">
-            <LineChart data={decayChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleChartClick} style={{ cursor: "pointer" }}>
-              <CartesianGrid strokeDasharray="5 4" vertical={false} />
-              <XAxis dataKey="month" tickLine={false} axisLine={false} className="text-xs" />
-              <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
-              <ChartTooltip
-                cursor={false}
-                content={<ChartTooltipContent className="min-w-[200px]" labelFormatter={(label) => String(label)} formatter={(value) => [formatCurrency(Number(value))]} />}
-              />
-              <Legend />
-              {categories.map(({ key, label, color }) => (
-                <Line
-                  key={key}
-                  type="monotone"
-                  dataKey={key}
-                  name={label}
-                  stroke={color}
-                  strokeWidth={key === "total" ? 3 : 2}
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              ))}
-            </LineChart>
-          </ChartContainer>
-        )}
+            </Bar>
+          </BarChart>
+        </ChartContainer>
       </CardContent>
     </Card>
   )
