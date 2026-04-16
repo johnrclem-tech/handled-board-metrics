@@ -729,6 +729,7 @@ export function AdSpendPage({
     // Always use ad-group level rows from rangeFilteredRows
     const groupMap = new Map<string, { campaign: string; cost: number; clicks: number; impressions: number; conversions: number; imprShareSum: number; lostIsRankSum: number; rowCount: number }>()
     for (const r of rangeFilteredRows) {
+      if (!r.date || r.date < "2026-01-01") continue
       const name = r.adGroup || r.campaign || "Unknown"
       const campaign = r.campaign || "Unknown"
       const cost = r.cost ? parseFloat(r.cost) : 0
