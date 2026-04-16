@@ -11,13 +11,14 @@ export async function GET() {
   try {
     const db = getDb()
 
-    // For each service category, compute total revenue and count of distinct
-    // periods where that category had revenue > 0.
+    // For each service category, compute total revenue and count of
+    // customer-months (distinct customer × period pairs) where that category
+    // had revenue > 0. This gives the per-customer average monthly revenue.
     const rows = await db
       .select({
         category: financialData.category,
         totalRevenue: sql<string>`sum(${financialData.amount})`,
-        activeMonths: sql<number>`count(distinct ${financialData.period})`,
+        customerMonths: sql<number>`count(distinct ${financialData.accountName} || '|' || ${financialData.period})`,
       })
       .from(financialData)
       .where(
@@ -25,18 +26,18 @@ export async function GET() {
       )
       .groupBy(financialData.category)
 
-    const byCategory: Record<string, { totalRevenue: number; activeMonths: number }> = {}
+    const byCategory: Record<string, { totalRevenue: number; customerMonths: number }> = {}
     for (const r of rows) {
       byCategory[r.category] = {
         totalRevenue: parseFloat(r.totalRevenue) || 0,
-        activeMonths: Number(r.activeMonths) || 0,
+        customerMonths: Number(r.customerMonths) || 0,
       }
     }
 
     return NextResponse.json({
-      storage: byCategory["Storage Revenue"] || { totalRevenue: 0, activeMonths: 0 },
-      shipping: byCategory["Shipping Revenue"] || { totalRevenue: 0, activeMonths: 0 },
-      handling: byCategory["Handling Revenue"] || { totalRevenue: 0, activeMonths: 0 },
+      storage: byCategory["Storage Revenue"] || { totalRevenue: 0, customerMonths: 0 },
+      shipping: byCategory["Shipping Revenue"] || { totalRevenue: 0, customerMonths: 0 },
+      handling: byCategory["Handling Revenue"] || { totalRevenue: 0, customerMonths: 0 },
     })
   } catch (error) {
     console.error("LTV API error:", error)

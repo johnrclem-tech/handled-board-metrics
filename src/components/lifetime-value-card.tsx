@@ -6,7 +6,7 @@ import { DollarSign } from "lucide-react"
 
 interface ServiceData {
   totalRevenue: number
-  activeMonths: number
+  customerMonths: number
 }
 
 interface LtvResponse {
@@ -49,18 +49,18 @@ export function LifetimeValueCard() {
       fetch("/api/metrics/churn?segment=all").then((r) => r.json()),
     ])
       .then(([ltvData, churnData]: [LtvResponse, ChurnResponse]) => {
-        // Average monthly revenue per service
+        // Average monthly revenue per service per customer
         const storageAvg =
-          ltvData.storage.activeMonths > 0
-            ? ltvData.storage.totalRevenue / ltvData.storage.activeMonths
+          ltvData.storage.customerMonths > 0
+            ? ltvData.storage.totalRevenue / ltvData.storage.customerMonths
             : 0
         const shippingAvg =
-          ltvData.shipping.activeMonths > 0
-            ? ltvData.shipping.totalRevenue / ltvData.shipping.activeMonths
+          ltvData.shipping.customerMonths > 0
+            ? ltvData.shipping.totalRevenue / ltvData.shipping.customerMonths
             : 0
         const handlingAvg =
-          ltvData.handling.activeMonths > 0
-            ? ltvData.handling.totalRevenue / ltvData.handling.activeMonths
+          ltvData.handling.customerMonths > 0
+            ? ltvData.handling.totalRevenue / ltvData.handling.customerMonths
             : 0
 
         // Average monthly gross margin per service, then sum
