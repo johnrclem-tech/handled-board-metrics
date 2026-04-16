@@ -306,12 +306,12 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
                   </Bar>
                 </BarChart>
               ) : (
-                <BarChart data={rollingTtmLogoData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={rollingTtmLogoData} margin={{ top: 20, right: 45, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
                   <ReferenceLine y={kpiLogo} stroke="#999" strokeDasharray="3 3" label={{ value: `${kpiLogo.toFixed(1)}%`, position: "right", fontSize: 11 }} />
-                  <Bar dataKey="ttmLogoChurnRate" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="ttmLogoChurnRate" fill="var(--chart-3)" radius={[4, 4, 0, 0]} barSize={28}>
                     <LabelList dataKey="ttmLogoChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
                   </Bar>
                 </BarChart>
