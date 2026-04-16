@@ -282,8 +282,7 @@ export async function GET(request: NextRequest) {
     //   Cohort   = customers active (revenue > 0) in M-12 (same month last year)
     //   Retained = customers from the cohort also active in M
     //   Logo Churn % = (1 - retained / cohort size) × 100
-    // Revenue Churn keeps the existing cohort-lost-revenue / starting-revenue
-    // formula, now anchored on M-12 instead of the month before the window.
+    //   Revenue Churn % = (1 - retained revenue / starting revenue) × 100
     const ttm: PeriodChurn[] = []
     for (let i = 12; i < sortedPeriods.length; i++) {
       const priorPeriod = sortedPeriods[i - 12]
@@ -321,7 +320,7 @@ export async function GET(request: NextRequest) {
         ? roundPct(1 - retained / startingActive)
         : 0
       const revenueChurnRate = startingRevenue > 0
-        ? roundPct(cohortLostRevenue / startingRevenue)
+        ? roundPct(1 - retainedRev / startingRevenue)
         : 0
 
       const [ey, em] = currentPeriod.split("-").map(Number)
