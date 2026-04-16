@@ -90,7 +90,7 @@ const AD_SPEND_RANGES: { value: AdSpendRange; label: string }[] = [
 
 const AD_SPEND_CHANNELS: { value: AdSpendChannel; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "ppc-website", label: "PPC+Website" },
+  { value: "ppc-website", label: "Online Only" },
   { value: "ppc-only", label: "PPC only" },
 ]
 
@@ -111,7 +111,7 @@ export function Dashboard() {
   const [leadsTimeRange, setLeadsTimeRange] = useState<LeadsTimeRange>("all")
   const [servicePeriod, setServicePeriod] = useState<ServicePeriod>("monthly")
   const [adSpendRange, setAdSpendRange] = useState<AdSpendRange>("all")
-  const [adSpendChannel, setAdSpendChannel] = useState<AdSpendChannel>("all")
+  const [adSpendChannel, setAdSpendChannel] = useState<AdSpendChannel>("ppc-website")
   const [adSpendPeriod, setAdSpendPeriod] = useState<AdSpendPeriod>("monthly")
 
   useEffect(() => {
