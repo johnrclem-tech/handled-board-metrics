@@ -311,7 +311,7 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
                   <ReferenceLine y={kpiLogo} stroke="#999" strokeDasharray="3 3" label={{ value: `${kpiLogo.toFixed(1)}%`, position: "right", fontSize: 11 }} />
-                  <Bar dataKey="ttmLogoChurnRate" fill="var(--chart-3)" radius={[4, 4, 0, 0]} barSize={28}>
+                  <Bar dataKey="ttmLogoChurnRate" fill="var(--chart-3)" radius={[4, 4, 0, 0]}>
                     <LabelList dataKey="ttmLogoChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
                   </Bar>
                 </BarChart>
@@ -340,7 +340,7 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                  <ReferenceLine y={kpiRevChurn} stroke="#999" strokeDasharray="3 3" label={{ value: `${kpiRevChurn.toFixed(1)}%`, position: "right", fontSize: 11 }} />
                   <Bar dataKey="revenueChurnRate" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
                     <LabelList dataKey="revenueChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
                   </Bar>
@@ -350,16 +350,17 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
-                  <ReferenceLine y={10} stroke="#999" strokeDasharray="3 3" label={{ value: "10%", position: "right", fontSize: 11 }} />
+                  <ReferenceLine y={kpiRevChurn} stroke="#999" strokeDasharray="3 3" label={{ value: `${kpiRevChurn.toFixed(1)}%`, position: "right", fontSize: 11 }} />
                   <Bar dataKey="quarterlyRevenueChurnRate" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
                     <LabelList dataKey="quarterlyRevenueChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
                   </Bar>
                 </BarChart>
               ) : (
-                <BarChart data={rollingTtmRevData} margin={{ top: 20, right: 10, left: 0, bottom: 5 }}>
+                <BarChart data={rollingTtmRevData} margin={{ top: 20, right: 45, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
                   <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 11 }} width={45} />
+                  <ReferenceLine y={kpiRevChurn} stroke="#999" strokeDasharray="3 3" label={{ value: `${kpiRevChurn.toFixed(1)}%`, position: "right", fontSize: 11 }} />
                   <Bar dataKey="ttmRevenueChurnRate" fill="var(--chart-1)" radius={[4, 4, 0, 0]}>
                     <LabelList dataKey="ttmRevenueChurnRate" position="top" fontSize={10} formatter={(v: unknown) => `${Number(v).toFixed(1)}%`} />
                   </Bar>
