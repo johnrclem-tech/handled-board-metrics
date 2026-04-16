@@ -192,29 +192,15 @@ export function CohortSummaryChart({ onDrill, period = "monthly" }: CohortSummar
             New Customer LTV by {period === "quarterly" ? "Billing Quarter" : "Billing Month"}
             <InfoTooltip text={`Stacked average revenue per new customer (${metadata.totalCustomers} customers). Excludes pre-existing customers and those with first month before Jan 2025. Click a bar to view records.`} />
           </CardTitle>
-          <div className="mt-3 flex flex-wrap gap-4 text-sm">
-            <div className="flex flex-col">
-              <span className="text-muted-foreground">Gross Margin Total</span>
-              <span className="text-lg font-bold">{formatCurrency(gmTotal)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground">Storage (10%)</span>
-              <span className="font-semibold" style={{ color: "var(--chart-3)" }}>{formatCurrency(gmStorage)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground">Handling (30%)</span>
-              <span className="font-semibold" style={{ color: "var(--chart-1)" }}>{formatCurrency(gmHandling)}</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-muted-foreground">Shipping (15%)</span>
-              <span className="font-semibold" style={{ color: "var(--chart-2)" }}>{formatCurrency(gmShipping)}</span>
-            </div>
+          <div className="mt-3 text-sm">
+            <span className="text-muted-foreground">Gross Margin Total </span>
+            <span className="text-lg font-bold">{formatCurrency(gmTotal)}</span>
           </div>
         </div>
       </CardHeader>
       <CardContent>
         <ChartContainer config={cohortChartConfig} className="aspect-auto h-[300px] w-full">
-          <BarChart data={barChartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }} onClick={handleChartClick} style={{ cursor: "pointer" }}>
+          <BarChart data={barChartData} margin={{ top: 5, right: 40, left: 20, bottom: 5 }} onClick={handleChartClick} style={{ cursor: "pointer" }}>
             <CartesianGrid strokeDasharray="5 4" vertical={false} />
             <XAxis dataKey="month" tickLine={false} axisLine={false} className="text-xs" />
             <YAxis tickFormatter={(val) => `$${val}`} className="text-xs" />
