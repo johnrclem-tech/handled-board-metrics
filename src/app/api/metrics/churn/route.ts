@@ -277,27 +277,35 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // ── True Cohort Churn: Rolling TTM ──
+    // ── YoY Monthly Cohort Churn: TTM ──
+    // For each current period M where M-12 exists:
+    //   Cohort   = customers active (revenue > 0) in M-12 (same month last year)
+    //   Retained = customers from the cohort also active in M
+    //   Logo Churn % = (1 - retained / cohort size) × 100
+    // Revenue Churn keeps the existing cohort-lost-revenue / starting-revenue
+    // formula, now anchored on M-12 instead of the month before the window.
     const ttm: PeriodChurn[] = []
     for (let i = 12; i < sortedPeriods.length; i++) {
-      // TTM window: sortedPeriods[i-11] through sortedPeriods[i]
-      // Starting cohort: active in sortedPeriods[i-12] (the month before the window)
-      const startPeriod = sortedPeriods[i - 12]
-      const endPeriod = sortedPeriods[i]
+      const priorPeriod = sortedPeriods[i - 12]
+      const currentPeriod = sortedPeriods[i]
 
-      const startingCohort = getActiveCustomers(startPeriod)
+      const startingCohort = getActiveCustomers(priorPeriod)
       const startingActive = startingCohort.size
       const startingRevenue = [...startingCohort.values()].reduce((s, v) => s + v, 0)
 
-      const endCohort = getActiveCustomers(endPeriod)
+      const endCohort = getActiveCustomers(currentPeriod)
 
+      let retained = 0
       let totalChurned = 0
       let cohortLostRevenue = 0
+      let retainedRev = 0
       const ttmChurnedCustomers: { name: string; startRevenue: number; revenueSharePct: number }[] = []
 
       for (const [customer, startRev] of startingCohort) {
-        // Only count as churned if they are truly churned (no revenue in most recent period)
-        if (!endCohort.has(customer) && trueChurnedSet.has(customer)) {
+        if (endCohort.has(customer)) {
+          retained++
+          retainedRev += endCohort.get(customer)!
+        } else {
           totalChurned++
           cohortLostRevenue += startRev
           ttmChurnedCustomers.push({
@@ -309,21 +317,21 @@ export async function GET(request: NextRequest) {
       }
       ttmChurnedCustomers.sort((a, b) => b.startRevenue - a.startRevenue)
 
-      let retainedRev = 0
-      for (const [customer, endRev] of endCohort) {
-        if (startingCohort.has(customer)) {
-          retainedRev += endRev
-        }
-      }
+      const logoChurnRate = startingActive > 0
+        ? roundPct(1 - retained / startingActive)
+        : 0
+      const revenueChurnRate = startingRevenue > 0
+        ? roundPct(cohortLostRevenue / startingRevenue)
+        : 0
 
-      const [ey, em] = endPeriod.split("-").map(Number)
+      const [ey, em] = currentPeriod.split("-").map(Number)
       const monthName = new Date(ey, em - 1).toLocaleString("en-US", { month: "short" })
 
       ttm.push({
         label: `${monthName} ${String(ey).slice(2)}`,
-        period: endPeriod,
-        logoChurnRate: startingActive > 0 ? roundPct(totalChurned / startingActive) : 0,
-        revenueChurnRate: startingRevenue > 0 ? roundPct(cohortLostRevenue / startingRevenue) : 0,
+        period: currentPeriod,
+        logoChurnRate,
+        revenueChurnRate,
         nrr: startingRevenue > 0 ? round2((retainedRev / startingRevenue) * 100) : 0,
         startingActive,
         startingRevenue: round2(startingRevenue),
