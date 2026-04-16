@@ -775,7 +775,7 @@ function AllLtvTable() {
   useEffect(() => {
     fetch("/api/metrics?category=Storage Revenue,Shipping Revenue,Handling Revenue")
       .then((r) => r.json())
-      .then((data) => setRecords(data.records || []))
+      .then((data) => setRecords(data.details || []))
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
