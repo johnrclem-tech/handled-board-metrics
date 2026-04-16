@@ -578,7 +578,7 @@ export function AdSpendPage({
     // For TTM: roll monthly buckets into trailing-12-month windows
     if (period === "ttm") {
       const monthKeys = [...new Set([...spendByBucket.keys(), ...acqByBucket.keys()])].sort()
-      const ttmData: { label: string; spend: number; cpa: number | null }[] = []
+      const ttmData: { label: string; spend: number; cpa: number | null; acquisitions: number }[] = []
       for (let i = 11; i < monthKeys.length; i++) {
         const windowKeys = monthKeys.slice(i - 11, i + 1)
         let windowSpend = 0
@@ -594,6 +594,7 @@ export function AdSpendPage({
           label,
           spend: windowSpend,
           cpa: windowAcq > 0 ? windowSpend / windowAcq : null,
+          acquisitions: windowAcq,
         })
       }
       return ttmData.filter((d) => d.spend > 0)
@@ -616,6 +617,7 @@ export function AdSpendPage({
         label,
         spend,
         cpa: acq > 0 ? spend / acq : null,
+        acquisitions: acq,
       }
     }).filter((d) => d.spend > 0)
   }, [rangeFilteredRows, acquisitions, range, channel, period])
@@ -672,6 +674,7 @@ export function AdSpendPage({
                   tickFormatter={(v: number) =>
                     v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
                   }
+                  label={{ value: "Ad Spend", angle: -90, position: "insideLeft", offset: 0, style: { fontSize: 12, fill: "var(--chart-1)" } }}
                 />
                 <YAxis
                   yAxisId="cpa"
@@ -679,18 +682,35 @@ export function AdSpendPage({
                   tick={{ fontSize: 11 }}
                   width={70}
                   tickFormatter={(v: number) => `$${v.toLocaleString()}`}
+                  label={{ value: "CPA", angle: 90, position: "insideRight", offset: 0, style: { fontSize: 12, fill: "var(--chart-2)" } }}
                 />
                 <Tooltip
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  formatter={(value: any, name: any) => {
-                    const v = Number(value)
-                    if (name === "spend") return [`$${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, "Ad Spend"]
-                    if (name === "cpa") return [`$${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`, "CPA"]
-                    return [value, name]
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || payload.length === 0) return null
+                    const spendVal = payload.find((p) => p.dataKey === "spend")?.value
+                    const cpaVal = payload.find((p) => p.dataKey === "cpa")?.value
+                    const acqVal = payload[0]?.payload?.acquisitions as number | undefined
+                    return (
+                      <div className="rounded-lg border bg-background px-3 py-2 text-sm shadow-md">
+                        <p className="font-medium mb-1">{label}</p>
+                        {spendVal != null && (
+                          <p style={{ color: "var(--chart-1)" }}>
+                            Ad Spend: ${Number(spendVal).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </p>
+                        )}
+                        {acqVal != null && (
+                          <p className="text-muted-foreground">
+                            Acquisitions: {acqVal.toLocaleString()}
+                          </p>
+                        )}
+                        {cpaVal != null && (
+                          <p style={{ color: "var(--chart-2)" }}>
+                            CPA: ${Number(cpaVal).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </p>
+                        )}
+                      </div>
+                    )
                   }}
-                />
-                <Legend
-                  formatter={(value: string) => (value === "spend" ? "Ad Spend" : "CPA")}
                 />
                 <Bar yAxisId="spend" dataKey="spend" fill="var(--chart-1)" radius={[4, 4, 0, 0]} />
                 <Line
