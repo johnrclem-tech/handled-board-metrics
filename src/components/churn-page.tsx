@@ -754,9 +754,9 @@ function AllLtvTable() {
       <td className="py-1.5 px-3 whitespace-nowrap sticky left-0 bg-background z-10">
         {row.customer}
       </td>
-      <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalRevenue)}</td>
-      <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalGm)}</td>
       <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.avgMonthlyGm)}</td>
+      <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalGm)}</td>
+      <td className="py-1.5 px-3 text-right font-mono whitespace-nowrap">{fmtCur(row.totalRevenue)}</td>
       {periods.map((p) => {
         const val = row.months.get(p)
         return (
@@ -782,9 +782,9 @@ function AllLtvTable() {
               </th>
               <th
                 className="text-right py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap"
-                onClick={() => handleSort("totalRevenue")}
+                onClick={() => handleSort("avgMonthlyGm")}
               >
-                Total Revenue <SortIcon field="totalRevenue" />
+                Avg. Monthly GM <SortIcon field="avgMonthlyGm" />
               </th>
               <th
                 className="text-right py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap"
@@ -794,9 +794,9 @@ function AllLtvTable() {
               </th>
               <th
                 className="text-right py-2 px-3 font-medium text-muted-foreground cursor-pointer whitespace-nowrap"
-                onClick={() => handleSort("avgMonthlyGm")}
+                onClick={() => handleSort("totalRevenue")}
               >
-                Avg. Monthly GM <SortIcon field="avgMonthlyGm" />
+                Total Revenue <SortIcon field="totalRevenue" />
               </th>
               {periods.map((p) => (
                 <th
