@@ -243,7 +243,7 @@ export function ChurnPage({ segment, period, ltvCard, ltvChart, ltvTable }: Chur
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {ltvCard}
         {kpiCards.map((kpi) => (
           <Card key={kpi.title}>
