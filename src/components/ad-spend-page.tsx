@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
@@ -349,6 +349,8 @@ export function AdSpendPage({
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(new Set())
   const [selectedAdGroups, setSelectedAdGroups] = useState<Set<string>>(new Set())
   const [acquisitions, setAcquisitions] = useState<AcquisitionRow[]>([])
+  const [ltv, setLtv] = useState<number | null>(null)
+  const [billingMonthGm, setBillingMonthGm] = useState<number[]>([])
 
   useEffect(() => {
     setLoading(true)
@@ -384,6 +386,79 @@ export function AdSpendPage({
           }),
         )
         setAcquisitions(oppRows)
+      })
+      .catch(console.error)
+  }, [])
+
+  // Fetch LTV (same logic as LifetimeGrossMarginCard) and per-billing-month GM
+  useEffect(() => {
+    const GM_MARGINS: Record<string, number> = { "Storage Revenue": 0.10, "Shipping Revenue": 0.15, "Handling Revenue": 0.30 }
+    Promise.all([
+      fetch("/api/metrics?category=Storage Revenue,Shipping Revenue,Handling Revenue").then((r) => r.json()),
+      fetch("/api/metrics/churn?segment=all").then((r) => r.json()),
+      fetch("/api/metrics/cohort-revenue").then((r) => r.json()),
+    ])
+      .then(([metricsData, churnData, cohortData]) => {
+        // LTV calculation
+        const records: { category: string; accountName: string; period: string; amount: string }[] = metricsData.details || []
+        const raw = new Map<string, Map<string, Map<string, number>>>()
+        for (const r of records) {
+          const amt = parseFloat(r.amount) || 0
+          if (amt === 0) continue
+          if (!raw.has(r.accountName)) raw.set(r.accountName, new Map())
+          const custMap = raw.get(r.accountName)!
+          if (!custMap.has(r.period)) custMap.set(r.period, new Map())
+          const catMap = custMap.get(r.period)!
+          catMap.set(r.category, (catMap.get(r.category) || 0) + amt)
+        }
+        let sumAvgMonthlyGm = 0
+        let custCount = 0
+        for (const [, periodMap] of raw) {
+          let totalGm = 0
+          let activeMonths = 0
+          for (const [, catMap] of periodMap) {
+            let periodTotal = 0
+            let periodGm = 0
+            for (const [cat, amt] of catMap) {
+              periodTotal += amt
+              periodGm += amt * (GM_MARGINS[cat] || 0)
+            }
+            totalGm += periodGm
+            if (periodTotal > 0) activeMonths++
+          }
+          if (activeMonths > 0) { sumAvgMonthlyGm += totalGm / activeMonths; custCount++ }
+        }
+        const avgGm = custCount > 0 ? sumAvgMonthlyGm / custCount : 0
+
+        const ttmWindows: { period: string; revenueChurnRate: number }[] = (churnData.ttm || [])
+          .slice(0, -1)
+          .filter((t: { period: string }) => parseInt(t.period.slice(0, 4), 10) >= 2025)
+        const avgAnnualChurn = ttmWindows.length > 0
+          ? ttmWindows.reduce((s: number, t: { revenueChurnRate: number }) => s + t.revenueChurnRate, 0) / ttmWindows.length
+          : 0
+        const monthlyEquiv = avgAnnualChurn > 0 ? (1 - Math.pow(1 - avgAnnualChurn / 100, 1 / 12)) * 100 : 0
+
+        if (monthlyEquiv > 0 && avgGm > 0) {
+          setLtv(avgGm / (monthlyEquiv / 100))
+        }
+
+        // Per-billing-month GM from cohort data
+        const cohort = cohortData?.cohortData
+        if (cohort) {
+          const storageLookup = new Map<number, number>((cohort.storage || []).map((e: { month: number; average: number }) => [e.month, e.average]))
+          const shippingLookup = new Map<number, number>((cohort.shipping || []).map((e: { month: number; average: number }) => [e.month, e.average]))
+          const handlingLookup = new Map<number, number>((cohort.handling || []).map((e: { month: number; average: number }) => [e.month, e.average]))
+          const maxMonths = cohortData.metadata?.maxBillingMonths || 0
+          const gms: number[] = []
+          for (let m = 1; m <= maxMonths; m++) {
+            gms.push(
+              (storageLookup.get(m) || 0) * 0.10 +
+              (shippingLookup.get(m) || 0) * 0.15 +
+              (handlingLookup.get(m) || 0) * 0.30
+            )
+          }
+          setBillingMonthGm(gms)
+        }
       })
       .catch(console.error)
   }, [])
@@ -512,20 +587,39 @@ export function AdSpendPage({
 
   const cpa = acquisitionsInRange > 0 ? totals.cost / acquisitionsInRange : 0
 
+  const ltvCacRatio = ltv != null && cpa > 0 ? ltv / cpa : null
+
+  const paybackMonths = useMemo(() => {
+    if (cpa <= 0 || billingMonthGm.length === 0) return null
+    let cumulative = 0
+    for (let i = 0; i < billingMonthGm.length; i++) {
+      cumulative += billingMonthGm[i]
+      if (cumulative >= cpa) return i + 1
+    }
+    return null
+  }, [cpa, billingMonthGm])
+
   const hasData = !loading && rows.length > 0
 
   const kpis = hasData
     ? [
         { title: "Total Spend", value: formatCurrency(totals.cost), icon: Megaphone, color: "text-chart-1", bg: "bg-chart-1/15" },
         {
-          title: "CPA",
+          title: "CAC",
           value: acquisitionsInRange > 0 ? formatCurrency(cpa) : "—",
           sub: `${formatNumber(acquisitionsInRange)} acquisition${acquisitionsInRange === 1 ? "" : "s"}`,
           icon: UserPlus,
           color: "text-chart-2",
           bg: "bg-chart-2/15",
         },
-        { title: "Conversions", value: formatNumber(totals.conversions, 1), sub: `${formatCurrency(totals.costPerConv)} / conv`, icon: Target, color: "text-chart-3", bg: "bg-chart-3/15" },
+        {
+          title: "LTV/CAC Ratio",
+          value: ltvCacRatio != null ? `${ltvCacRatio.toFixed(1)}x` : "—",
+          sub: paybackMonths != null ? `${paybackMonths} mo payback` : "—",
+          icon: Target,
+          color: "text-chart-3",
+          bg: "bg-chart-3/15",
+        },
         { title: "Avg Impr. Share", value: formatPct(totals.avgImprShare), sub: "Search impression share", icon: PieChart, color: "text-chart-4", bg: "bg-chart-4/15" },
       ]
     : []
