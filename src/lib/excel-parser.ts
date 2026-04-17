@@ -657,7 +657,7 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     const row = packed ? unpackCsvRow(rawRow, headers.length, iCampaign) : rawRow
 
     const campaignRaw = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
-    const campaign = campaignRaw ? campaignRaw.split("|")[0].trim() || null : null
+    const campaign = campaignRaw ? campaignRaw.split(/[|,]/)[0].trim() || null : null
     if (campaign && campaign.toLowerCase().startsWith("total")) { skippedTotal++; continue }
     const cost = iCost >= 0 ? parseNumericCell(row[iCost]) : null
     const searchLostIsBudget = iSearchLostIsBudget >= 0 ? parseNumericCell(row[iSearchLostIsBudget]) : null
