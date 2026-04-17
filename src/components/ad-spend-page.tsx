@@ -1294,24 +1294,24 @@ export function AdSpendPage({
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Actual Spend</TableHead>
-                      <TableHead className="text-right">Total Potential</TableHead>
-                      <TableHead className="text-right">Total Missed</TableHead>
+                      <TableHead className="w-[80px]">Date</TableHead>
+                      <TableHead className="text-right w-[90px]">Actual Spend</TableHead>
+                      <TableHead className="text-right w-[90px]">Total Potential</TableHead>
+                      <TableHead className="text-right w-[80px]">Total Missed</TableHead>
                       {budgetCampaigns.map((c) => (
-                        <TableHead key={c} className="text-right whitespace-nowrap">{c} Missed</TableHead>
+                        <TableHead key={c} className="text-right w-[90px]">{c} Missed</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {budgetDailyRaw.map((d) => (
                       <TableRow key={d.date}>
-                        <TableCell className="whitespace-nowrap">{d.date}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(d.actual)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(d.potential)}</TableCell>
-                        <TableCell className="text-right font-mono">{formatCurrency(d.potential - d.actual)}</TableCell>
+                        <TableCell className="whitespace-nowrap text-xs">{d.date}</TableCell>
+                        <TableCell className="text-right font-mono text-xs">{formatCurrency(d.actual)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs">{formatCurrency(d.potential)}</TableCell>
+                        <TableCell className="text-right font-mono text-xs">{formatCurrency(d.potential - d.actual)}</TableCell>
                         {budgetCampaigns.map((c) => (
-                          <TableCell key={c} className="text-right font-mono">
+                          <TableCell key={c} className="text-right font-mono text-xs">
                             {d.missed[c] ? formatCurrency(d.missed[c]) : "—"}
                           </TableCell>
                         ))}
