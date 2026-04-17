@@ -438,10 +438,12 @@ function parseDateCell(val: unknown): string | null {
  * cell along with at least one other non-empty text label. We normalize
  * whitespace (including non-breaking spaces) so quirky exports still match.
  */
-function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: string[] } | null {
+function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: string[]; packed: boolean } | null {
   const normalize = (s: string) =>
     s.replace(/[\u00a0\ufeff]/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
   const limit = Math.min(rawData.length, 100)
+
+  // First pass: standard multi-cell header
   for (let i = 0; i < limit; i++) {
     const row = rawData[i] as unknown[]
     if (!row) continue
@@ -455,14 +457,51 @@ function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: 
       const headers = row.map((c) =>
         c != null ? String(c).replace(/[\u00a0\ufeff]/g, " ").trim() : "",
       )
-      return { headerIndex: i, headers }
+      return { headerIndex: i, headers, packed: false }
     }
   }
+
+  // Second pass: "packed" header — all column names crammed into one cell
+  // (e.g., CSV saved with quotes around the whole header line).
+  for (let i = 0; i < limit; i++) {
+    const row = rawData[i] as unknown[]
+    if (!row) continue
+    for (const cell of row) {
+      if (cell == null) continue
+      const str = String(cell).replace(/[\u00a0\ufeff]/g, " ").trim()
+      if (!str.includes(",")) continue
+      const parts = str.split(",").map((p) => p.trim())
+      const normalizedParts = parts.map((p) => normalize(p))
+      const hasCampaign = normalizedParts.some((p) => p === "campaign" || p === "campaign name")
+      if (hasCampaign && parts.length >= 2) {
+        return { headerIndex: i, headers: parts, packed: true }
+      }
+    }
+  }
+
   console.warn(
     `[parser] findAdHeaderRow: no header found in ${limit} rows. First 5 rows:`,
     rawData.slice(0, 5).map((r) => (r as unknown[])?.map((c) => `${typeof c}:${String(c).slice(0, 40)}`)),
   )
   return null
+}
+
+// For "packed" CSV rows where xlsx over-split commas but the true CSV has a
+// field (typically the campaign name) that contains commas, reconstruct the
+// raw line and re-split, letting the campaign column absorb the extras.
+function unpackCsvRow(cells: unknown[], expectedCols: number, campaignIdx: number): string[] {
+  const line = cells.map((c) => (c == null ? "" : String(c))).join(",")
+  const tokens = line.split(",")
+  const extra = tokens.length - expectedCols
+  if (extra <= 0 || campaignIdx < 0) {
+    const out = [...tokens]
+    while (out.length < expectedCols) out.push("")
+    return out
+  }
+  const before = tokens.slice(0, campaignIdx)
+  const campaign = tokens.slice(campaignIdx, campaignIdx + 1 + extra).join(",").trim()
+  const after = tokens.slice(campaignIdx + 1 + extra)
+  return [...before, campaign, ...after]
 }
 
 function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
@@ -477,9 +516,9 @@ function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
     )
     return { reportType: "ad_group_performance", rows: [] }
   }
-  const { headerIndex, headers } = hdr
+  const { headerIndex, headers, packed } = hdr
   console.log(
-    `[parser] ad_group_performance: header at row ${headerIndex}, columns:`,
+    `[parser] ad_group_performance: header at row ${headerIndex}${packed ? " (packed)" : ""}, columns:`,
     headers,
   )
 
@@ -516,10 +555,12 @@ function parseAdGroupPerformance(rawData: unknown[][]): ParsedAdGroupReport {
   )
 
   const rows: ParsedAdGroupRow[] = []
+  const absorbIdx = iAdGroup >= 0 ? iAdGroup : iCampaign
   for (let i = headerIndex + 1; i < rawData.length; i++) {
-    const row = rawData[i] as unknown[]
-    if (!row || row.length === 0) continue
-    if (row.every((c) => c == null || String(c).trim() === "")) continue
+    const rawRow = rawData[i] as unknown[]
+    if (!rawRow || rawRow.length === 0) continue
+    if (rawRow.every((c) => c == null || String(c).trim() === "")) continue
+    const row = packed ? unpackCsvRow(rawRow, headers.length, absorbIdx) : rawRow
 
     const campaignRaw = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
     // Collapse Google Ads "Name | Account | Network | Market"-style campaigns
@@ -563,9 +604,9 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
     )
     return { reportType: "ad_campaign_performance", rows: [] }
   }
-  const { headerIndex, headers } = hdr
+  const { headerIndex, headers, packed } = hdr
   console.log(
-    `[parser] ad_campaign_performance: header at row ${headerIndex}, columns:`,
+    `[parser] ad_campaign_performance: header at row ${headerIndex}${packed ? " (packed)" : ""}, columns:`,
     headers,
   )
 
@@ -610,9 +651,10 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
   let skippedTotal = 0
   let skippedFilter = 0
   for (let i = headerIndex + 1; i < rawData.length; i++) {
-    const row = rawData[i] as unknown[]
-    if (!row || row.length === 0) { skippedEmpty++; continue }
-    if (row.every((c) => c == null || String(c).trim() === "")) { skippedEmpty++; continue }
+    const rawRow = rawData[i] as unknown[]
+    if (!rawRow || rawRow.length === 0) { skippedEmpty++; continue }
+    if (rawRow.every((c) => c == null || String(c).trim() === "")) { skippedEmpty++; continue }
+    const row = packed ? unpackCsvRow(rawRow, headers.length, iCampaign) : rawRow
 
     const campaignRaw = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
     const campaign = campaignRaw ? campaignRaw.split("|")[0].trim() || null : null
