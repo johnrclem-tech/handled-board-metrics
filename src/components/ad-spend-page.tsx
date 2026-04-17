@@ -919,6 +919,29 @@ export function AdSpendPage({
     return "#ef4444" // red — cut/restructure
   }, [medianCpc, medianClicks])
 
+  const visibleCols = useMemo(() => {
+    if (isAdGroupView || isBudgetView) return null
+    const cols = {
+      currency: false,
+      cost: false,
+      clicks: false,
+      conversions: false,
+      searchLostIsBudget: false,
+      searchLostIsRank: false,
+      searchImprShare: false,
+    }
+    for (const r of rangeFilteredRows) {
+      if (r.currency != null) cols.currency = true
+      if (r.cost != null) cols.cost = true
+      if (r.clicks != null) cols.clicks = true
+      if (r.conversions != null) cols.conversions = true
+      if (r.searchLostIsBudget != null) cols.searchLostIsBudget = true
+      if (r.searchLostIsRank != null) cols.searchLostIsRank = true
+      if (r.searchImprShare != null) cols.searchImprShare = true
+    }
+    return cols
+  }, [isAdGroupView, isBudgetView, rangeFilteredRows])
+
   const viewToggle = (
     <div className="flex items-center gap-2">
       <span className="text-sm font-medium text-muted-foreground">View:</span>
@@ -1329,29 +1352,41 @@ export function AdSpendPage({
                       Ad Group
                     </SortableHead>
                   )}
-                  <SortableHead field="currency" active={sortField === "currency"} dir={sortDir} onSort={handleSort}>
-                    Currency
-                  </SortableHead>
-                  <SortableHead field="cost" active={sortField === "cost"} dir={sortDir} onSort={handleSort} align="right">
-                    Cost
-                  </SortableHead>
-                  <SortableHead field="clicks" active={sortField === "clicks"} dir={sortDir} onSort={handleSort} align="right">
-                    Clicks
-                  </SortableHead>
-                  <SortableHead field="conversions" active={sortField === "conversions"} dir={sortDir} onSort={handleSort} align="right">
-                    Conversions
-                  </SortableHead>
-                  {!isAdGroupView && (
+                  {(isAdGroupView || visibleCols?.currency) && (
+                    <SortableHead field="currency" active={sortField === "currency"} dir={sortDir} onSort={handleSort}>
+                      Currency
+                    </SortableHead>
+                  )}
+                  {(isAdGroupView || visibleCols?.cost) && (
+                    <SortableHead field="cost" active={sortField === "cost"} dir={sortDir} onSort={handleSort} align="right">
+                      Cost
+                    </SortableHead>
+                  )}
+                  {(isAdGroupView || visibleCols?.clicks) && (
+                    <SortableHead field="clicks" active={sortField === "clicks"} dir={sortDir} onSort={handleSort} align="right">
+                      Clicks
+                    </SortableHead>
+                  )}
+                  {(isAdGroupView || visibleCols?.conversions) && (
+                    <SortableHead field="conversions" active={sortField === "conversions"} dir={sortDir} onSort={handleSort} align="right">
+                      Conversions
+                    </SortableHead>
+                  )}
+                  {!isAdGroupView && visibleCols?.searchLostIsBudget && (
                     <SortableHead field="searchLostIsBudget" active={sortField === "searchLostIsBudget"} dir={sortDir} onSort={handleSort} align="right">
                       Search Lost IS (Budget)
                     </SortableHead>
                   )}
-                  <SortableHead field="searchLostIsRank" active={sortField === "searchLostIsRank"} dir={sortDir} onSort={handleSort} align="right">
-                    Search Lost IS (Rank)
-                  </SortableHead>
-                  <SortableHead field="searchImprShare" active={sortField === "searchImprShare"} dir={sortDir} onSort={handleSort} align="right">
-                    Search Impr. Share
-                  </SortableHead>
+                  {(isAdGroupView || visibleCols?.searchLostIsRank) && (
+                    <SortableHead field="searchLostIsRank" active={sortField === "searchLostIsRank"} dir={sortDir} onSort={handleSort} align="right">
+                      Search Lost IS (Rank)
+                    </SortableHead>
+                  )}
+                  {(isAdGroupView || visibleCols?.searchImprShare) && (
+                    <SortableHead field="searchImprShare" active={sortField === "searchImprShare"} dir={sortDir} onSort={handleSort} align="right">
+                      Search Impr. Share
+                    </SortableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1362,27 +1397,39 @@ export function AdSpendPage({
                     {isAdGroupView && (
                       <TableCell className="max-w-[240px] truncate">{r.adGroup || "—"}</TableCell>
                     )}
-                    <TableCell>{r.currency || "—"}</TableCell>
-                    <TableCell className="text-right font-mono">
-                      {r.cost != null ? formatCurrency(parseFloat(r.cost)) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {r.clicks != null ? formatNumber(r.clicks) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {r.conversions != null ? formatNumber(parseFloat(r.conversions), 2) : "—"}
-                    </TableCell>
-                    {!isAdGroupView && (
+                    {(isAdGroupView || visibleCols?.currency) && (
+                      <TableCell>{r.currency || "—"}</TableCell>
+                    )}
+                    {(isAdGroupView || visibleCols?.cost) && (
+                      <TableCell className="text-right font-mono">
+                        {r.cost != null ? formatCurrency(parseFloat(r.cost)) : "—"}
+                      </TableCell>
+                    )}
+                    {(isAdGroupView || visibleCols?.clicks) && (
+                      <TableCell className="text-right font-mono">
+                        {r.clicks != null ? formatNumber(r.clicks) : "—"}
+                      </TableCell>
+                    )}
+                    {(isAdGroupView || visibleCols?.conversions) && (
+                      <TableCell className="text-right font-mono">
+                        {r.conversions != null ? formatNumber(parseFloat(r.conversions), 2) : "—"}
+                      </TableCell>
+                    )}
+                    {!isAdGroupView && visibleCols?.searchLostIsBudget && (
                       <TableCell className="text-right font-mono">
                         {r.searchLostIsBudget != null ? formatPct(parseFloat(r.searchLostIsBudget)) : "—"}
                       </TableCell>
                     )}
-                    <TableCell className="text-right font-mono">
-                      {r.searchLostIsRank != null ? formatPct(parseFloat(r.searchLostIsRank)) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {r.searchImprShare != null ? formatPct(parseFloat(r.searchImprShare)) : "—"}
-                    </TableCell>
+                    {(isAdGroupView || visibleCols?.searchLostIsRank) && (
+                      <TableCell className="text-right font-mono">
+                        {r.searchLostIsRank != null ? formatPct(parseFloat(r.searchLostIsRank)) : "—"}
+                      </TableCell>
+                    )}
+                    {(isAdGroupView || visibleCols?.searchImprShare) && (
+                      <TableCell className="text-right font-mono">
+                        {r.searchImprShare != null ? formatPct(parseFloat(r.searchImprShare)) : "—"}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
