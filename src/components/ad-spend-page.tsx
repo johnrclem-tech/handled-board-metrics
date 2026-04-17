@@ -963,15 +963,12 @@ export function AdSpendPage({
     return cols
   }, [tableTab, tableRows])
 
-  const tableTabs = (
-    <Tabs value={tableTab} onValueChange={(v) => { setTableTab(v as typeof tableTab); setSearch(""); setSelectedCampaigns(new Set()); setSelectedAdGroups(new Set()) }}>
-      <TabsList className="bg-muted h-9">
-        <TabsTrigger value="ad-groups" className="px-4">Ad Groups</TabsTrigger>
-        <TabsTrigger value="campaigns" className="px-4">Campaigns</TabsTrigger>
-        <TabsTrigger value="budget" className="px-4">Campaign Budget</TabsTrigger>
-      </TabsList>
-    </Tabs>
-  )
+  const tableTabChange = useCallback((v: string) => {
+    setTableTab(v as typeof tableTab)
+    setSearch("")
+    setSelectedCampaigns(new Set())
+    setSelectedAdGroups(new Set())
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -1253,23 +1250,42 @@ export function AdSpendPage({
         </Card>
       )}
 
-      <Card>
+      <div>
+        <div className="flex border-b">
+          {(["ad-groups", "campaigns", "budget"] as const).map((tab) => {
+            const labels = { "ad-groups": "Ad Groups", campaigns: "Campaigns", budget: "Campaign Budget" }
+            const isActive = tableTab === tab
+            return (
+              <button
+                key={tab}
+                onClick={() => tableTabChange(tab)}
+                className={`px-6 py-3 text-sm font-medium transition-colors relative ${
+                  isActive
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {labels[tab]}
+                {isActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+        <Card className="rounded-t-none border-t-0">
         <CardHeader>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {tableTabs}
-              <Separator orientation="vertical" className="hidden sm:block h-6" />
-              <div>
-                <CardTitle>{isTableBudget ? "Campaign Budget Data" : isTableAdGroup ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
-                {!isTableBudget && (
-                  <CardDescription>
-                    {sorted.length.toLocaleString()} of {tableRows.length.toLocaleString()} rows
-                  </CardDescription>
-                )}
-                {isTableBudget && budgetDailyRaw.length > 0 && (
-                  <CardDescription>{budgetDailyRaw.length} days</CardDescription>
-                )}
-              </div>
+            <div>
+              <CardTitle>{isTableBudget ? "Campaign Budget Data" : isTableAdGroup ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
+              {!isTableBudget && (
+                <CardDescription>
+                  {sorted.length.toLocaleString()} of {tableRows.length.toLocaleString()} rows
+                </CardDescription>
+              )}
+              {isTableBudget && budgetDailyRaw.length > 0 && (
+                <CardDescription>{budgetDailyRaw.length} days</CardDescription>
+              )}
             </div>
             {!isTableBudget && tableRows.length > 0 && (
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -1472,6 +1488,7 @@ export function AdSpendPage({
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   )
 }
