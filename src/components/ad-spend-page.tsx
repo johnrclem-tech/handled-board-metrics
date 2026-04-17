@@ -571,7 +571,8 @@ export function AdSpendPage({
       return last14.map((d) => {
         const dt = new Date(d.date + "T00:00:00")
         const dayName = dt.toLocaleString("en-US", { weekday: "short" })
-        return { label: dayName, actual: d.actual, potential: d.potential, missed: d.missed }
+        const dateLabel = `${dt.getMonth() + 1}/${dt.getDate()} ${dayName}`
+        return { label: dateLabel, actual: d.actual, potential: d.potential, missed: d.missed }
       })
     }
 
