@@ -260,7 +260,7 @@ function MultiSelectFilter({
   )
 }
 
-type AdSpendView = "campaigns" | "ad-groups"
+type AdSpendView = "campaigns" | "ad-groups" | "budget"
 export type AdSpendRange = "all" | "ytd" | "ttm" | "last-mo" | "last-qtr"
 export type AdSpendChannel = "all" | "ppc-website" | "ppc-only"
 export type AdSpendPeriod = "monthly" | "quarterly" | "ttm"
@@ -349,6 +349,7 @@ export function AdSpendPage({
 }) {
   const [view, setView] = useState<AdSpendView>("ad-groups")
   const isAdGroupView = view === "ad-groups"
+  const isBudgetView = view === "budget"
   const [rows, setRows] = useState<AdRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
@@ -359,13 +360,13 @@ export function AdSpendPage({
   const [acquisitions, setAcquisitions] = useState<AcquisitionRow[]>([])
   const [ltv, setLtv] = useState<number | null>(null)
   const [billingMonthGm, setBillingMonthGm] = useState<number[]>([])
-  const [budgetChartData, setBudgetChartData] = useState<{ week: string; actual: number; [key: string]: string | number }[]>([])
+  const [budgetDailyRaw, setBudgetDailyRaw] = useState<{ date: string; actual: number; potential: number; missed: Record<string, number> }[]>([])
   const [budgetCampaigns, setBudgetCampaigns] = useState<string[]>([])
-
+  const [budgetPeriod, setBudgetPeriod] = useState<"daily" | "weekly">("daily")
   useEffect(() => {
+    if (view === "budget") { setLoading(false); return }
     setLoading(true)
     setRows([])
-    // Reset filters/search when switching views — option lists change
     setSelectedCampaigns(new Set())
     setSelectedAdGroups(new Set())
     setSearch("")
@@ -507,12 +508,9 @@ export function AdSpendPage({
         }
 
         // Step 1: compute per campaign-day potential
-        interface DayEntry { actual: number; missed: Map<string, number> }
-        const dailyTotals = new Map<string, DayEntry>()
-        const allCampaigns = new Set<string>()
+        const dailyTotals = new Map<string, { actual: number; missed: Map<string, number> }>()
 
         for (const [campaign, dayMap] of campaignDaySpend) {
-          allCampaigns.add(campaign)
           for (const [date, actual] of dayMap) {
             const lostIs = campLostIs.get(`${date}|${campaign}`) || 0
             const potential = lostIs < 100 ? actual / (1 - lostIs / 100) : actual
@@ -520,35 +518,15 @@ export function AdSpendPage({
 
             const entry = dailyTotals.get(date) || { actual: 0, missed: new Map<string, number>() }
             entry.actual += actual
-            entry.missed.set(campaign, (entry.missed.get(campaign) || 0) + missed)
+            if (missed > 0) entry.missed.set(campaign, (entry.missed.get(campaign) || 0) + missed)
             dailyTotals.set(date, entry)
           }
         }
 
-        // Step 2: aggregate into weeks (ISO week starting Monday)
-        const getWeekStart = (dateStr: string) => {
-          const d = new Date(dateStr + "T00:00:00")
-          const day = d.getDay()
-          const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-          const monday = new Date(d.setDate(diff))
-          return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`
-        }
-
-        const weeklyMap = new Map<string, { actual: number; missed: Map<string, number> }>()
-        for (const [date, entry] of dailyTotals) {
-          const week = getWeekStart(date)
-          const wEntry = weeklyMap.get(week) || { actual: 0, missed: new Map<string, number>() }
-          wEntry.actual += entry.actual
-          for (const [camp, m] of entry.missed) {
-            wEntry.missed.set(camp, (wEntry.missed.get(camp) || 0) + m)
-          }
-          weeklyMap.set(week, wEntry)
-        }
-
-        // Sort campaigns by total missed spend (descending) for consistent stacking
+        // Sort campaigns by total missed spend (descending)
         const campTotals = new Map<string, number>()
-        for (const [, wEntry] of weeklyMap) {
-          for (const [camp, m] of wEntry.missed) {
+        for (const [, entry] of dailyTotals) {
+          for (const [camp, m] of entry.missed) {
             campTotals.set(camp, (campTotals.get(camp) || 0) + m)
           }
         }
@@ -557,24 +535,69 @@ export function AdSpendPage({
           .sort((a, b) => b[1] - a[1])
           .map(([name]) => name)
 
-        // Build chart data
-        const weeks = Array.from(weeklyMap.keys()).sort()
-        const chartRows = weeks.map((week) => {
-          const wEntry = weeklyMap.get(week)!
-          const d = new Date(week + "T00:00:00")
-          const label = `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`
-          const row: Record<string, string | number> = { week: label, actual: Math.round(wEntry.actual) }
+        // Build daily data
+        const sortedDates = Array.from(dailyTotals.keys()).sort()
+        const dailyRows = sortedDates.map((date) => {
+          const entry = dailyTotals.get(date)!
+          const missedTotal = Array.from(entry.missed.values()).reduce((s, v) => s + v, 0)
+          const missedObj: Record<string, number> = {}
           for (const camp of sortedCampaigns) {
-            row[camp] = Math.round(wEntry.missed.get(camp) || 0)
+            missedObj[camp] = Math.round(entry.missed.get(camp) || 0)
           }
-          return row
+          return {
+            date,
+            actual: Math.round(entry.actual),
+            potential: Math.round(entry.actual + missedTotal),
+            missed: missedObj,
+          }
         })
 
-        setBudgetChartData(chartRows as typeof budgetChartData)
+        setBudgetDailyRaw(dailyRows)
         setBudgetCampaigns(sortedCampaigns)
       })
       .catch(console.error)
   }, [])
+
+  const budgetChartData = useMemo(() => {
+    if (budgetDailyRaw.length === 0) return []
+
+    if (budgetPeriod === "daily") {
+      const last14 = budgetDailyRaw.slice(-14)
+      return last14.map((d) => {
+        const dt = new Date(d.date + "T00:00:00")
+        const dayName = dt.toLocaleString("en-US", { weekday: "short" })
+        return { label: dayName, actual: d.actual, potential: d.potential, missed: d.missed }
+      })
+    }
+
+    // Weekly aggregation
+    const getWeekStart = (dateStr: string) => {
+      const d = new Date(dateStr + "T00:00:00")
+      const day = d.getDay()
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+      const monday = new Date(d.setDate(diff))
+      return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`
+    }
+
+    const weeklyMap = new Map<string, { actual: number; potential: number; missed: Record<string, number> }>()
+    for (const d of budgetDailyRaw) {
+      const week = getWeekStart(d.date)
+      const wEntry = weeklyMap.get(week) || { actual: 0, potential: 0, missed: {} as Record<string, number> }
+      wEntry.actual += d.actual
+      wEntry.potential += d.potential
+      for (const camp of budgetCampaigns) {
+        wEntry.missed[camp] = (wEntry.missed[camp] || 0) + (d.missed[camp] || 0)
+      }
+      weeklyMap.set(week, wEntry)
+    }
+
+    return Array.from(weeklyMap.keys()).sort().map((week) => {
+      const wEntry = weeklyMap.get(week)!
+      const dt = new Date(week + "T00:00:00")
+      const label = `${dt.toLocaleString("en-US", { month: "short" })} ${dt.getDate()}`
+      return { label, actual: wEntry.actual, potential: wEntry.potential, missed: wEntry.missed }
+    })
+  }, [budgetDailyRaw, budgetCampaigns, budgetPeriod])
 
   // Apply the page-level Range filter first so every other derived value
   // (KPIs, filter options, table) reflects the same window
@@ -903,6 +926,7 @@ export function AdSpendPage({
         <TabsList className="bg-muted h-9">
           <TabsTrigger value="campaigns" className="px-4">Campaigns</TabsTrigger>
           <TabsTrigger value="ad-groups" className="px-4">Ad Groups</TabsTrigger>
+          <TabsTrigger value="budget" className="px-4">Campaign Budget</TabsTrigger>
         </TabsList>
       </Tabs>
     </div>
@@ -1005,35 +1029,47 @@ export function AdSpendPage({
       {budgetChartData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Campaign Budget Analysis</CardTitle>
-            <CardDescription>Actual weekly spend vs estimated potential if budget caps were removed</CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle>Campaign Budget Analysis</CardTitle>
+                <CardDescription>Actual {budgetPeriod === "daily" ? "daily" : "weekly"} spend vs estimated potential if budget caps were removed</CardDescription>
+              </div>
+              <Tabs value={budgetPeriod} onValueChange={(v) => setBudgetPeriod(v as "daily" | "weekly")}>
+                <TabsList className="bg-muted h-9">
+                  <TabsTrigger value="daily" className="px-4">Daily</TabsTrigger>
+                  <TabsTrigger value="weekly" className="px-4">Weekly</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={400}>
               <AreaChart data={budgetChartData} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-                <XAxis dataKey="week" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
-                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={55} />
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} />
+                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} tick={{ fontSize: 11 }} width={55} />
                 <Tooltip
                   content={({ payload, label }) => {
                     if (!payload || payload.length === 0) return null
-                    const actual = payload.find((p) => p.dataKey === "actual")
-                    const missed = payload.filter((p) => p.dataKey !== "actual" && (p.value as number) > 0)
-                    const totalPotential = (actual?.value as number || 0) + missed.reduce((s, p) => s + (p.value as number || 0), 0)
+                    const row = payload[0]?.payload as typeof budgetChartData[0] | undefined
+                    if (!row) return null
+                    const missedEntries = budgetCampaigns
+                      .map((camp) => ({ name: camp, value: row.missed[camp] || 0 }))
+                      .filter((e) => e.value > 0)
                     return (
                       <div className="rounded-lg border bg-background p-3 shadow-sm text-sm space-y-1 max-w-xs">
-                        <div className="font-semibold">Week of {label}</div>
+                        <div className="font-semibold">{budgetPeriod === "weekly" ? `Week of ${label}` : label}</div>
                         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
                           <span className="text-muted-foreground">Actual Spend:</span>
-                          <span className="font-mono font-semibold">{formatCurrency(actual?.value as number || 0)}</span>
-                          {missed.map((p) => (
-                            <React.Fragment key={p.dataKey as string}>
-                              <span className="text-muted-foreground truncate">{p.dataKey as string}:</span>
-                              <span className="font-mono" style={{ color: p.color }}>+{formatCurrency(p.value as number)}</span>
+                          <span className="font-mono font-semibold">{formatCurrency(row.actual)}</span>
+                          {missedEntries.map((e) => (
+                            <React.Fragment key={e.name}>
+                              <span className="text-muted-foreground truncate">{e.name}:</span>
+                              <span className="font-mono text-amber-500">+{formatCurrency(e.value)}</span>
                             </React.Fragment>
                           ))}
                           <span className="text-muted-foreground font-semibold border-t pt-1">Total Potential:</span>
-                          <span className="font-mono font-semibold border-t pt-1">{formatCurrency(totalPotential)}</span>
+                          <span className="font-mono font-semibold border-t pt-1">{formatCurrency(row.potential)}</span>
                         </div>
                       </div>
                     )
@@ -1043,26 +1079,19 @@ export function AdSpendPage({
                   type="monotone"
                   dataKey="actual"
                   name="Actual Spend"
-                  stackId="budget"
                   fill="var(--chart-1)"
                   stroke="var(--chart-1)"
-                  fillOpacity={0.8}
+                  fillOpacity={0.6}
                 />
-                {budgetCampaigns.map((camp, idx) => {
-                  const colors = ["var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "#a855f7", "#ec4899", "#14b8a6"]
-                  return (
-                    <Area
-                      key={camp}
-                      type="monotone"
-                      dataKey={camp}
-                      name={camp}
-                      stackId="budget"
-                      fill={colors[idx % colors.length]}
-                      stroke={colors[idx % colors.length]}
-                      fillOpacity={0.5}
-                    />
-                  )
-                })}
+                <Area
+                  type="monotone"
+                  dataKey="potential"
+                  name="Total Potential"
+                  fill="var(--chart-2)"
+                  stroke="var(--chart-2)"
+                  fillOpacity={0.3}
+                  strokeDasharray="5 3"
+                />
                 <Legend />
               </AreaChart>
             </ResponsiveContainer>
@@ -1190,8 +1219,8 @@ export function AdSpendPage({
               {viewToggle}
               <Separator orientation="vertical" className="hidden sm:block h-6" />
               <div>
-                <CardTitle>{isAdGroupView ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
-                {hasData && (
+                <CardTitle>{isBudgetView ? "Campaign Budget Data" : isAdGroupView ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
+                {!isBudgetView && hasData && (
                   <CardDescription>
                     {sorted.length.toLocaleString()} of {rangeFilteredRows.length.toLocaleString()} rows
                     {range !== "all" && rangeFilteredRows.length !== rows.length && (
@@ -1199,9 +1228,12 @@ export function AdSpendPage({
                     )}
                   </CardDescription>
                 )}
+                {isBudgetView && budgetDailyRaw.length > 0 && (
+                  <CardDescription>{budgetDailyRaw.length} days</CardDescription>
+                )}
               </div>
             </div>
-            {hasData && (
+            {!isBudgetView && hasData && (
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <MultiSelectFilter
                   label="Campaign"
@@ -1231,7 +1263,42 @@ export function AdSpendPage({
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isBudgetView ? (
+            budgetDailyRaw.length === 0 ? (
+              <div className="py-16 text-center text-muted-foreground">No budget data available</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Actual Spend</TableHead>
+                      <TableHead className="text-right">Total Potential</TableHead>
+                      <TableHead className="text-right">Total Missed</TableHead>
+                      {budgetCampaigns.map((c) => (
+                        <TableHead key={c} className="text-right whitespace-nowrap">{c} Missed</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {budgetDailyRaw.map((d) => (
+                      <TableRow key={d.date}>
+                        <TableCell className="whitespace-nowrap">{d.date}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(d.actual)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(d.potential)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(d.potential - d.actual)}</TableCell>
+                        {budgetCampaigns.map((c) => (
+                          <TableCell key={c} className="text-right font-mono">
+                            {d.missed[c] ? formatCurrency(d.missed[c]) : "—"}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          ) : loading ? (
             <div className="py-16 text-center text-muted-foreground">
               Loading ad spend data...
             </div>
