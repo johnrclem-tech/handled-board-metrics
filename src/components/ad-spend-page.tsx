@@ -497,7 +497,7 @@ export function AdSpendPage({
         // Sum ad group spend per campaign-day, then compute potential
         const campaignDaySpend = new Map<string, Map<string, number>>()
         for (const r of agRows) {
-          if (!r.date || !r.campaign) continue
+          if (!r.date || !r.campaign || r.date < "2026-01-01") continue
           const cost = r.cost ? parseFloat(r.cost) : 0
           if (cost <= 0) continue
           const campaign = r.campaign.split(/[|,]/)[0].trim()
