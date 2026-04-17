@@ -440,23 +440,28 @@ function parseDateCell(val: unknown): string | null {
  */
 function findAdHeaderRow(rawData: unknown[][]): { headerIndex: number; headers: string[] } | null {
   const normalize = (s: string) =>
-    s.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
-  // Some exports have a lot of leading metadata; scan deep
+    s.replace(/[\u00a0\ufeff]/g, " ").replace(/\s+/g, " ").trim().toLowerCase()
   const limit = Math.min(rawData.length, 100)
   for (let i = 0; i < limit; i++) {
     const row = rawData[i] as unknown[]
     if (!row) continue
-    const textCells = row.map((c) => (typeof c === "string" ? normalize(c) : ""))
+    const textCells = row.map((c) =>
+      c != null ? normalize(String(c)) : "",
+    )
     const hasCampaign = textCells.some((c) => c === "campaign" || c === "campaign name")
     if (!hasCampaign) continue
-    // Need at least one other non-empty text cell to be confident this is the
-    // header row and not just a value cell that happens to say "Campaign"
     const nonEmpty = textCells.filter((c) => c.length > 0)
     if (nonEmpty.length >= 2) {
-      const headers = row.map((c) => (typeof c === "string" ? c.replace(/\u00a0/g, " ").trim() : ""))
+      const headers = row.map((c) =>
+        c != null ? String(c).replace(/[\u00a0\ufeff]/g, " ").trim() : "",
+      )
       return { headerIndex: i, headers }
     }
   }
+  console.warn(
+    `[parser] findAdHeaderRow: no header found in ${limit} rows. First 5 rows:`,
+    rawData.slice(0, 5).map((r) => (r as unknown[])?.map((c) => `${typeof c}:${String(c).slice(0, 40)}`)),
+  )
   return null
 }
 
@@ -601,16 +606,18 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
   )
 
   const rows: ParsedAdCampaignRow[] = []
+  let skippedEmpty = 0
+  let skippedTotal = 0
+  let skippedFilter = 0
   for (let i = headerIndex + 1; i < rawData.length; i++) {
     const row = rawData[i] as unknown[]
-    if (!row || row.length === 0) continue
-    if (row.every((c) => c == null || String(c).trim() === "")) continue
+    if (!row || row.length === 0) { skippedEmpty++; continue }
+    if (row.every((c) => c == null || String(c).trim() === "")) { skippedEmpty++; continue }
 
     const campaignRaw = iCampaign >= 0 ? cellStr(row[iCampaign]) : null
     const campaign = campaignRaw ? campaignRaw.split("|")[0].trim() || null : null
-    if (campaign && campaign.toLowerCase().startsWith("total")) continue
+    if (campaign && campaign.toLowerCase().startsWith("total")) { skippedTotal++; continue }
     const cost = iCost >= 0 ? parseNumericCell(row[iCost]) : null
-    // Allow rows that have a campaign + any campaign-level metric, not just cost
     const searchLostIsBudget = iSearchLostIsBudget >= 0 ? parseNumericCell(row[iSearchLostIsBudget]) : null
     const searchLostIsRank = iSearchLostIsRank >= 0 ? parseNumericCell(row[iSearchLostIsRank]) : null
     const searchImprShare = iSearchImprShare >= 0 ? parseNumericCell(row[iSearchImprShare]) : null
@@ -621,6 +628,7 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
       searchLostIsRank == null &&
       searchImprShare == null
     ) {
+      skippedFilter++
       continue
     }
 
@@ -644,7 +652,7 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
   }
 
   console.log(
-    `[parser] ad_campaign_performance: parsed ${rows.length} rows from ${rawData.length - headerIndex - 1} data rows. Detected column indexes:`,
+    `[parser] ad_campaign_performance: parsed ${rows.length} rows from ${rawData.length - headerIndex - 1} data rows (skipped: ${skippedEmpty} empty, ${skippedTotal} totals, ${skippedFilter} filtered). Column indexes:`,
     {
       iDate, iCampaign, iCampaignType, iCurrency, iCost, iClicks, iImpressions,
       iConversions, iCtr, iAvgCpc, iConvRate, iCostPerConv,
@@ -653,6 +661,10 @@ function parseAdCampaignPerformance(rawData: unknown[][]): ParsedAdCampaignRepor
   )
   if (rows.length > 0) {
     console.log(`[parser] ad_campaign_performance: sample row:`, rows[0])
+  }
+  if (rows.length === 0 && rawData.length > headerIndex + 1) {
+    const sampleRow = rawData[headerIndex + 1] as unknown[]
+    console.warn(`[parser] ad_campaign_performance: 0 rows parsed! Sample data row:`, sampleRow)
   }
   return { reportType: "ad_campaign_performance", rows }
 }
