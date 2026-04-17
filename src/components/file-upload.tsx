@@ -1,41 +1,33 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, Trash2, Eye } from "lucide-react"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import { useEffect } from "react"
+import { Upload, CheckCircle, AlertCircle, Loader2, Trash2 } from "lucide-react"
 
-interface UploadRecord {
-  id: number
-  fileName: string
-  fileType: string
-  uploadedAt: string
+interface ReportStatus {
+  reportType: string
   recordCount: number
-  status: string
+  lastUpload: string | null
+  latestDate: string | null
 }
 
-interface PreviewCell {
-  col: number
-  value: unknown
-  type: string
-}
+const REPORT_CONFIG: { type: string; name: string; source: string }[] = [
+  { type: "storage_revenue_by_customer", name: "Monthly Storage Revenue by Customer", source: "QuickBooks" },
+  { type: "shipping_revenue_by_customer", name: "Monthly Shipping Revenue by Customer", source: "QuickBooks" },
+  { type: "handling_revenue_by_customer", name: "Monthly Handling Revenue by Customer", source: "QuickBooks" },
+  { type: "ad_group_performance", name: "Ad Group Performance", source: "Google AdSense" },
+  { type: "ad_campaign_performance", name: "Ad Campaign Performance", source: "Google AdSense" },
+  { type: "leads", name: "Leads", source: "Zoho" },
+  { type: "opportunities", name: "Opportunities", source: "Zoho" },
+]
 
-interface PreviewRow {
-  rowIndex: number
-  cells: PreviewCell[]
-}
-
-interface PreviewData {
-  fileName: string
-  sheetName: string
-  totalRows: number
-  preview: PreviewRow[]
+const SOURCE_COLORS: Record<string, string> = {
+  QuickBooks: "bg-green-100 text-green-800",
+  "Google AdSense": "bg-blue-100 text-blue-800",
+  Zoho: "bg-purple-100 text-purple-800",
 }
 
 interface FileUploadProps {
@@ -43,369 +35,182 @@ interface FileUploadProps {
 }
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
-  const [file, setFile] = useState<File | null>(null)
-  const [reportType, setReportType] = useState("")
-  const [uploading, setUploading] = useState(false)
+  const [reports, setReports] = useState<ReportStatus[]>([])
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
-  const [uploads, setUploads] = useState<UploadRecord[]>([])
-  const [dragActive, setDragActive] = useState(false)
-  const [preview, setPreview] = useState<PreviewData | null>(null)
-  const [previewing, setPreviewing] = useState(false)
+  const [uploadingType, setUploadingType] = useState<string | null>(null)
+  const [deletingType, setDeletingType] = useState<string | null>(null)
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  const fetchReportStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/report-status")
+      const data = await res.json()
+      setReports(data.reports || [])
+    } catch (err) {
+      console.error("Failed to fetch report status:", err)
+    }
+  }, [])
 
   useEffect(() => {
-    fetchUploads()
-  }, [])
+    fetchReportStatus()
+  }, [fetchReportStatus])
 
-  const fetchUploads = async () => {
-    try {
-      const response = await fetch("/api/uploads")
-      const data = await response.json()
-      setUploads(data.uploads || [])
-    } catch (error) {
-      console.error("Failed to fetch uploads:", error)
-    }
-  }
+  const getStatus = (type: string): ReportStatus | undefined =>
+    reports.find((r) => r.reportType === type)
 
-  const fetchPreview = useCallback(async (f: File) => {
-    setPreviewing(true)
-    setPreview(null)
-    try {
-      const formData = new FormData()
-      formData.append("file", f)
-      const response = await fetch("/api/preview", { method: "POST", body: formData })
-      const data = await response.json()
-      if (response.ok) {
-        setPreview(data)
-      }
-    } catch {
-      // Preview is best-effort
-    } finally {
-      setPreviewing(false)
-    }
-  }, [])
-
-  const selectFile = useCallback((f: File) => {
-    setFile(f)
+  const handleImport = async (reportType: string, file: File) => {
+    setUploadingType(reportType)
     setResult(null)
-    setPreview(null)
-    fetchPreview(f)
-  }, [fetchPreview])
-
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true)
-    } else if (e.type === "dragleave") {
-      setDragActive(false)
-    }
-  }, [])
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const droppedFile = e.dataTransfer.files[0]
-      if (
-        droppedFile.name.endsWith(".xlsx") ||
-        droppedFile.name.endsWith(".xls") ||
-        droppedFile.name.endsWith(".csv")
-      ) {
-        selectFile(droppedFile)
-      } else {
-        setResult({ success: false, message: "Please upload an Excel file (.xlsx, .xls) or CSV file." })
-      }
-    }
-  }, [selectFile])
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      selectFile(e.target.files[0])
-    }
-  }
-
-  const handleUpload = async () => {
-    if (!file || !reportType) return
-
-    setUploading(true)
-    setResult(null)
-
     try {
       const formData = new FormData()
       formData.append("file", file)
       formData.append("reportType", reportType)
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      const data = await response.json()
-
-      if (response.ok) {
+      const res = await fetch("/api/upload", { method: "POST", body: formData })
+      const data = await res.json()
+      if (res.ok) {
         setResult({
           success: true,
-          message:
-            data.period
-              ? `Successfully imported ${data.rowCount} records for period ${data.period}`
-              : `Successfully imported ${data.rowCount} records`,
+          message: data.period
+            ? `Successfully imported ${data.rowCount} records for period ${data.period}`
+            : `Successfully imported ${data.rowCount} records`,
         })
-        setFile(null)
-        setReportType("")
-        setPreview(null)
-        fetchUploads()
+        fetchReportStatus()
         onUploadComplete()
       } else {
         setResult({ success: false, message: data.error || "Upload failed" })
       }
-    } catch (error) {
-      setResult({
-        success: false,
-        message: error instanceof Error ? error.message : "Upload failed",
-      })
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : "Upload failed" })
     } finally {
-      setUploading(false)
+      setUploadingType(null)
     }
   }
 
-  const handleClearData = async () => {
-    if (!confirm("Are you sure you want to delete all imported data? This cannot be undone.")) {
-      return
-    }
-
+  const handleDelete = async (reportType: string, reportName: string) => {
+    if (!confirm(`Delete all ${reportName} data? This cannot be undone.`)) return
+    setDeletingType(reportType)
+    setResult(null)
     try {
-      const response = await fetch("/api/clear-data", { method: "POST" })
-      const data = await response.json()
-
-      if (response.ok) {
-        setResult({ success: true, message: "All data cleared successfully" })
-        setUploads([])
+      const res = await fetch("/api/clear-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportType }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setResult({ success: true, message: data.message })
+        fetchReportStatus()
         onUploadComplete()
       } else {
-        setResult({ success: false, message: data.error || "Failed to clear data" })
+        setResult({ success: false, message: data.error || "Delete failed" })
       }
-    } catch (error) {
-      setResult({
-        success: false,
-        message: error instanceof Error ? error.message : "Failed to clear data",
-      })
+    } catch (err) {
+      setResult({ success: false, message: err instanceof Error ? err.message : "Delete failed" })
+    } finally {
+      setDeletingType(null)
     }
+  }
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "—"
+    const d = new Date(dateStr)
+    return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
   }
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Import QuickBooks Data</CardTitle>
-          <CardDescription>
-            Upload Excel spreadsheets exported from QuickBooks to populate your KPI dashboard.
-            Supported formats: .xlsx, .xls, .csv
-          </CardDescription>
+          <CardTitle>Data Sources</CardTitle>
+          <CardDescription>Manage imported data across all report types</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div
-            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-              dragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25"
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <FileSpreadsheet className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-            <p className="text-sm text-muted-foreground mb-2">
-              Drag and drop your QuickBooks export file here, or click to browse
-            </p>
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleFileChange}
-              className="hidden"
-              id="file-upload"
-            />
-            <Button variant="outline" asChild>
-              <label htmlFor="file-upload" className="cursor-pointer">
-                Choose File
-              </label>
-            </Button>
-            {file && (
-              <p className="mt-3 text-sm font-medium">
-                Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="report-type">Report Type</Label>
-              <Select value={reportType} onValueChange={setReportType}>
-                <SelectTrigger id="report-type">
-                  <SelectValue placeholder="Select report type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="profit_loss">Profit & Loss</SelectItem>
-                  <SelectItem value="balance_sheet">Balance Sheet</SelectItem>
-                  <SelectItem value="cash_flow">Cash Flow Statement</SelectItem>
-                  <SelectItem value="storage_revenue_by_customer">Monthly Storage Revenue by Customer</SelectItem>
-                  <SelectItem value="shipping_revenue_by_customer">Monthly Shipping Revenue by Customer</SelectItem>
-                  <SelectItem value="handling_revenue_by_customer">Monthly Handling Revenue by Customer</SelectItem>
-                  <SelectItem value="expenses_by_vendor">Expenses by Vendor</SelectItem>
-                  <SelectItem value="ar_aging">Accounts Receivable Aging</SelectItem>
-                  <SelectItem value="ap_aging">Accounts Payable Aging</SelectItem>
-                  <SelectItem value="leads">Leads</SelectItem>
-                  <SelectItem value="opportunities">Opportunities</SelectItem>
-                  <SelectItem value="ad_campaign_performance">Ad Campaign Performance</SelectItem>
-                  <SelectItem value="ad_group_performance">Ad Group Performance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                onClick={handleUpload}
-                disabled={!file || !reportType || uploading}
-                className="w-full"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Importing...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4" />
-                    Import Data
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
+        <CardContent>
           {result && (
             <div
-              className={`flex items-center gap-2 rounded-lg p-4 ${
+              className={`flex items-center gap-2 rounded-lg p-4 mb-4 ${
                 result.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
               }`}
             >
               {result.success ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
+                <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
               ) : (
-                <AlertCircle className="h-5 w-5 text-red-600" />
+                <AlertCircle className="h-5 w-5 text-red-600 shrink-0" />
               )}
               <p className="text-sm">{result.message}</p>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {(preview || previewing) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Eye className="h-5 w-5" />
-              File Preview
-            </CardTitle>
-            {preview && (
-              <CardDescription>
-                {preview.fileName} &mdash; Sheet: {preview.sheetName} &mdash; {preview.totalRows.toLocaleString()} rows
-              </CardDescription>
-            )}
-          </CardHeader>
-          <CardContent>
-            {previewing ? (
-              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Loading preview...
-              </div>
-            ) : preview ? (
-              <ScrollArea className="w-full">
-                <div className="min-w-max">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 px-3 text-left font-medium text-muted-foreground text-xs">Row</th>
-                        {preview.preview[0]?.cells.map((_, i) => (
-                          <th key={i} className="py-2 px-3 text-left font-medium text-muted-foreground text-xs">
-                            Col {i}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {preview.preview.map((row) => (
-                        <tr key={row.rowIndex} className={`border-b ${row.rowIndex === 0 ? "bg-muted/50 font-semibold" : ""}`}>
-                          <td className="py-1.5 px-3 text-xs text-muted-foreground">{row.rowIndex}</td>
-                          {row.cells.map((cell) => (
-                            <td key={cell.col} className="py-1.5 px-3 max-w-[200px] truncate">
-                              {cell.value == null ? (
-                                <span className="text-muted-foreground/40">—</span>
-                              ) : (
-                                String(cell.value)
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <ScrollBar orientation="horizontal" />
-              </ScrollArea>
-            ) : null}
-          </CardContent>
-        </Card>
-      )}
-
-      {uploads.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Upload History</CardTitle>
-                <CardDescription>Previously imported files</CardDescription>
-              </div>
-              <Button variant="destructive" size="sm" onClick={handleClearData}>
-                <Trash2 className="h-4 w-4" />
-                Clear All Data
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>File Name</TableHead>
-                  <TableHead>Report Type</TableHead>
-                  <TableHead>Records</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Uploaded</TableHead>
+                  <TableHead>Report Name</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead className="text-right">Records</TableHead>
+                  <TableHead>Latest Record</TableHead>
+                  <TableHead>Last Upload</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {uploads.map((upload) => (
-                  <TableRow key={upload.id}>
-                    <TableCell className="font-medium">{upload.fileName}</TableCell>
-                    <TableCell>{upload.fileType.replace(/_/g, " ")}</TableCell>
-                    <TableCell>{upload.recordCount}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={upload.status === "processed" ? "secondary" : "destructive"}
-                      >
-                        {upload.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(upload.uploadedAt).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {REPORT_CONFIG.map((cfg) => {
+                  const status = getStatus(cfg.type)
+                  const count = status?.recordCount || 0
+                  const isUploading = uploadingType === cfg.type
+                  const isDeleting = deletingType === cfg.type
+                  return (
+                    <TableRow key={cfg.type}>
+                      <TableCell className="font-medium whitespace-nowrap">{cfg.name}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={SOURCE_COLORS[cfg.source] || ""}>
+                          {cfg.source}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{count.toLocaleString()}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(status?.latestDate ?? null)}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatDate(status?.lastUpload ?? null)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-end gap-2">
+                          <input
+                            type="file"
+                            accept=".xlsx,.xls,.csv"
+                            className="hidden"
+                            ref={(el) => { fileInputRefs.current[cfg.type] = el }}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0]
+                              if (f) handleImport(cfg.type, f)
+                              e.target.value = ""
+                            }}
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isUploading || isDeleting}
+                            onClick={() => fileInputRefs.current[cfg.type]?.click()}
+                            className="gap-1"
+                          >
+                            {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                            Import
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={count === 0 || isUploading || isDeleting}
+                            onClick={() => handleDelete(cfg.type, cfg.name)}
+                            className="gap-1"
+                          >
+                            {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                            Delete
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
