@@ -260,7 +260,6 @@ function MultiSelectFilter({
   )
 }
 
-type AdSpendView = "campaigns" | "ad-groups" | "budget"
 export type AdSpendRange = "all" | "ytd" | "ttm" | "last-mo" | "last-qtr"
 export type AdSpendChannel = "all" | "ppc-website" | "ppc-only"
 export type AdSpendPeriod = "monthly" | "quarterly" | "ttm"
@@ -347,10 +346,9 @@ export function AdSpendPage({
   channel?: AdSpendChannel
   period?: AdSpendPeriod
 }) {
-  const [view, setView] = useState<AdSpendView>("ad-groups")
-  const isAdGroupView = view === "ad-groups"
-  const isBudgetView = view === "budget"
-  const [rows, setRows] = useState<AdRow[]>([])
+  const [tableTab, setTableTab] = useState<"ad-groups" | "campaigns" | "budget">("ad-groups")
+  const [agRows, setAgRows] = useState<AdRow[]>([])
+  const [campRows, setCampRows] = useState<AdRow[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [sortField, setSortField] = useState<SortField>("date")
@@ -365,18 +363,18 @@ export function AdSpendPage({
   const [budgetPeriod, setBudgetPeriod] = useState<"daily" | "weekly">("daily")
   const [campaignDayBudget, setCampaignDayBudget] = useState<Map<string, { actual: number; potential: number; missed: number }>>(new Map())
   useEffect(() => {
-    if (view === "budget") { setLoading(false); return }
     setLoading(true)
-    setRows([])
-    setSelectedCampaigns(new Set())
-    setSelectedAdGroups(new Set())
-    setSearch("")
-    fetch(`/api/ad-spend?view=${view}`)
-      .then((r) => r.json())
-      .then((data) => setRows(data.rows || []))
+    Promise.all([
+      fetch("/api/ad-spend?view=ad-groups").then((r) => r.json()),
+      fetch("/api/ad-spend?view=campaigns").then((r) => r.json()),
+    ])
+      .then(([agData, campData]) => {
+        setAgRows(agData.rows || [])
+        setCampRows(campData.rows || [])
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [view])
+  }, [])
 
   // Acquisitions = opportunities in stage "Closed Won". Fetch them once and
   // filter client-side by range + channel.
@@ -605,12 +603,11 @@ export function AdSpendPage({
     })
   }, [budgetDailyRaw, budgetCampaigns, budgetPeriod])
 
-  // Apply the page-level Range filter first so every other derived value
-  // (KPIs, filter options, table) reflects the same window
+  // Apply the page-level Range filter — KPIs and charts always use ad-group data
   const rangeFilteredRows = useMemo(() => {
     const { start, end } = rangeBounds(range)
-    if (!start && !end) return rows
-    return rows.filter((r) => {
+    if (!start && !end) return agRows
+    return agRows.filter((r) => {
       if (!r.date) return false
       const d = new Date(r.date)
       if (isNaN(d.getTime())) return false
@@ -618,19 +615,37 @@ export function AdSpendPage({
       if (end && d > end) return false
       return true
     })
-  }, [rows, range])
+  }, [agRows, range])
+
+  // Table rows — filtered by range, driven by the selected table tab
+  const tableRows = useMemo(() => {
+    const source = tableTab === "campaigns" ? campRows : agRows
+    const { start, end } = rangeBounds(range)
+    if (!start && !end) return source
+    return source.filter((r) => {
+      if (!r.date) return false
+      const d = new Date(r.date)
+      if (isNaN(d.getTime())) return false
+      if (start && d < start) return false
+      if (end && d > end) return false
+      return true
+    })
+  }, [tableTab, agRows, campRows, range])
+
+  const isTableAdGroup = tableTab === "ad-groups"
+  const isTableBudget = tableTab === "budget"
 
   const campaignOptions = useMemo(() => {
     const set = new Set<string>()
-    for (const r of rangeFilteredRows) if (r.campaign) set.add(r.campaign)
+    for (const r of tableRows) if (r.campaign) set.add(r.campaign)
     return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [rangeFilteredRows])
+  }, [tableRows])
 
   const adGroupOptions = useMemo(() => {
     const set = new Set<string>()
-    for (const r of rangeFilteredRows) if (r.adGroup) set.add(r.adGroup)
+    for (const r of tableRows) if (r.adGroup) set.add(r.adGroup)
     return Array.from(set).sort((a, b) => a.localeCompare(b))
-  }, [rangeFilteredRows])
+  }, [tableRows])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -645,7 +660,7 @@ export function AdSpendPage({
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return rangeFilteredRows.filter((r) => {
+    return tableRows.filter((r) => {
       if (selectedCampaigns.size > 0 && !selectedCampaigns.has(r.campaign || "")) {
         return false
       }
@@ -658,7 +673,7 @@ export function AdSpendPage({
       }
       return true
     })
-  }, [rangeFilteredRows, search, selectedCampaigns, selectedAdGroups])
+  }, [tableRows, search, selectedCampaigns, selectedAdGroups])
 
   const sorted = useMemo(() => {
     const copy = [...filtered]
@@ -741,7 +756,7 @@ export function AdSpendPage({
     return null
   }, [cpa, billingMonthGm])
 
-  const hasData = !loading && rows.length > 0
+  const hasData = !loading && agRows.length > 0
 
   const kpis = hasData
     ? [
@@ -926,7 +941,7 @@ export function AdSpendPage({
   }, [medianCpc, medianClicks])
 
   const visibleCols = useMemo(() => {
-    if (isAdGroupView || isBudgetView) return null
+    if (tableTab !== "campaigns") return null
     const cols = {
       currency: false,
       cost: false,
@@ -936,7 +951,7 @@ export function AdSpendPage({
       searchLostIsRank: false,
       searchImprShare: false,
     }
-    for (const r of rangeFilteredRows) {
+    for (const r of tableRows) {
       if (r.currency != null) cols.currency = true
       if (r.cost != null) cols.cost = true
       if (r.clicks != null) cols.clicks = true
@@ -946,19 +961,16 @@ export function AdSpendPage({
       if (r.searchImprShare != null) cols.searchImprShare = true
     }
     return cols
-  }, [isAdGroupView, isBudgetView, rangeFilteredRows])
+  }, [tableTab, tableRows])
 
-  const viewToggle = (
-    <div className="flex items-center gap-2">
-      <span className="text-sm font-medium text-muted-foreground">View:</span>
-      <Tabs value={view} onValueChange={(v) => setView(v as AdSpendView)}>
-        <TabsList className="bg-muted h-9">
-          <TabsTrigger value="campaigns" className="px-4">Campaigns</TabsTrigger>
-          <TabsTrigger value="ad-groups" className="px-4">Ad Groups</TabsTrigger>
-          <TabsTrigger value="budget" className="px-4">Campaign Budget</TabsTrigger>
-        </TabsList>
-      </Tabs>
-    </div>
+  const tableTabs = (
+    <Tabs value={tableTab} onValueChange={(v) => { setTableTab(v as typeof tableTab); setSearch(""); setSelectedCampaigns(new Set()); setSelectedAdGroups(new Set()) }}>
+      <TabsList className="bg-muted h-9">
+        <TabsTrigger value="ad-groups" className="px-4">Ad Groups</TabsTrigger>
+        <TabsTrigger value="campaigns" className="px-4">Campaigns</TabsTrigger>
+        <TabsTrigger value="budget" className="px-4">Campaign Budget</TabsTrigger>
+      </TabsList>
+    </Tabs>
   )
 
   return (
@@ -1245,24 +1257,21 @@ export function AdSpendPage({
         <CardHeader>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              {viewToggle}
+              {tableTabs}
               <Separator orientation="vertical" className="hidden sm:block h-6" />
               <div>
-                <CardTitle>{isBudgetView ? "Campaign Budget Data" : isAdGroupView ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
-                {!isBudgetView && hasData && (
+                <CardTitle>{isTableBudget ? "Campaign Budget Data" : isTableAdGroup ? "Ad Group Performance" : "Ad Campaign Performance"}</CardTitle>
+                {!isTableBudget && (
                   <CardDescription>
-                    {sorted.length.toLocaleString()} of {rangeFilteredRows.length.toLocaleString()} rows
-                    {range !== "all" && rangeFilteredRows.length !== rows.length && (
-                      <> (filtered from {rows.length.toLocaleString()} total)</>
-                    )}
+                    {sorted.length.toLocaleString()} of {tableRows.length.toLocaleString()} rows
                   </CardDescription>
                 )}
-                {isBudgetView && budgetDailyRaw.length > 0 && (
+                {isTableBudget && budgetDailyRaw.length > 0 && (
                   <CardDescription>{budgetDailyRaw.length} days</CardDescription>
                 )}
               </div>
             </div>
-            {!isBudgetView && hasData && (
+            {!isTableBudget && tableRows.length > 0 && (
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 <MultiSelectFilter
                   label="Campaign"
@@ -1270,7 +1279,7 @@ export function AdSpendPage({
                   selected={selectedCampaigns}
                   onChange={setSelectedCampaigns}
                 />
-                {isAdGroupView && (
+                {isTableAdGroup && (
                   <MultiSelectFilter
                     label="Ad Group"
                     options={adGroupOptions}
@@ -1292,7 +1301,7 @@ export function AdSpendPage({
           </div>
         </CardHeader>
         <CardContent>
-          {isBudgetView ? (
+          {isTableBudget ? (
             budgetDailyRaw.length === 0 ? (
               <div className="py-16 text-center text-muted-foreground">No budget data available</div>
             ) : (
@@ -1331,14 +1340,14 @@ export function AdSpendPage({
             <div className="py-16 text-center text-muted-foreground">
               Loading ad spend data...
             </div>
-          ) : rows.length === 0 ? (
+          ) : tableRows.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Package className="h-12 w-12 text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-semibold">
-                No {isAdGroupView ? "ad group" : "ad campaign"} data
+                No {isTableAdGroup ? "ad group" : "ad campaign"} data
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Import an {isAdGroupView ? "Ad Group Performance" : "Ad Campaign Performance"} file from
+                Import an {isTableAdGroup ? "Ad Group Performance" : "Ad Campaign Performance"} file from
                 the Import page to get started
               </p>
             </div>
@@ -1353,47 +1362,47 @@ export function AdSpendPage({
                   <SortableHead field="campaign" active={sortField === "campaign"} dir={sortDir} onSort={handleSort}>
                     Campaign
                   </SortableHead>
-                  {isAdGroupView && (
+                  {isTableAdGroup && (
                     <SortableHead field="adGroup" active={sortField === "adGroup"} dir={sortDir} onSort={handleSort}>
                       Ad Group
                     </SortableHead>
                   )}
-                  {(isAdGroupView || visibleCols?.currency) && (
+                  {(isTableAdGroup || visibleCols?.currency) && (
                     <SortableHead field="currency" active={sortField === "currency"} dir={sortDir} onSort={handleSort}>
                       Currency
                     </SortableHead>
                   )}
-                  {(isAdGroupView || visibleCols?.cost) && (
+                  {(isTableAdGroup || visibleCols?.cost) && (
                     <SortableHead field="cost" active={sortField === "cost"} dir={sortDir} onSort={handleSort} align="right">
                       Cost
                     </SortableHead>
                   )}
-                  {(isAdGroupView || visibleCols?.clicks) && (
+                  {(isTableAdGroup || visibleCols?.clicks) && (
                     <SortableHead field="clicks" active={sortField === "clicks"} dir={sortDir} onSort={handleSort} align="right">
                       Clicks
                     </SortableHead>
                   )}
-                  {(isAdGroupView || visibleCols?.conversions) && (
+                  {(isTableAdGroup || visibleCols?.conversions) && (
                     <SortableHead field="conversions" active={sortField === "conversions"} dir={sortDir} onSort={handleSort} align="right">
                       Conversions
                     </SortableHead>
                   )}
-                  {!isAdGroupView && visibleCols?.searchLostIsBudget && (
+                  {!isTableAdGroup && visibleCols?.searchLostIsBudget && (
                     <SortableHead field="searchLostIsBudget" active={sortField === "searchLostIsBudget"} dir={sortDir} onSort={handleSort} align="right">
                       Search Lost IS (Budget)
                     </SortableHead>
                   )}
-                  {(isAdGroupView || visibleCols?.searchLostIsRank) && (
+                  {(isTableAdGroup || visibleCols?.searchLostIsRank) && (
                     <SortableHead field="searchLostIsRank" active={sortField === "searchLostIsRank"} dir={sortDir} onSort={handleSort} align="right">
                       Search Lost IS (Rank)
                     </SortableHead>
                   )}
-                  {(isAdGroupView || visibleCols?.searchImprShare) && (
+                  {(isTableAdGroup || visibleCols?.searchImprShare) && (
                     <SortableHead field="searchImprShare" active={sortField === "searchImprShare"} dir={sortDir} onSort={handleSort} align="right">
                       Search Impr. Share
                     </SortableHead>
                   )}
-                  {!isAdGroupView && (
+                  {!isTableAdGroup && (
                     <>
                       <TableHead className="text-right">Actual Spend</TableHead>
                       <TableHead className="text-right">Total Potential</TableHead>
@@ -1407,43 +1416,43 @@ export function AdSpendPage({
                   <TableRow key={r.id}>
                     <TableCell className="whitespace-nowrap">{formatDate(r.date)}</TableCell>
                     <TableCell className="font-medium max-w-[300px] truncate">{r.campaign || "—"}</TableCell>
-                    {isAdGroupView && (
+                    {isTableAdGroup && (
                       <TableCell className="max-w-[240px] truncate">{r.adGroup || "—"}</TableCell>
                     )}
-                    {(isAdGroupView || visibleCols?.currency) && (
+                    {(isTableAdGroup || visibleCols?.currency) && (
                       <TableCell>{r.currency || "—"}</TableCell>
                     )}
-                    {(isAdGroupView || visibleCols?.cost) && (
+                    {(isTableAdGroup || visibleCols?.cost) && (
                       <TableCell className="text-right font-mono">
                         {r.cost != null ? formatCurrency(parseFloat(r.cost)) : "—"}
                       </TableCell>
                     )}
-                    {(isAdGroupView || visibleCols?.clicks) && (
+                    {(isTableAdGroup || visibleCols?.clicks) && (
                       <TableCell className="text-right font-mono">
                         {r.clicks != null ? formatNumber(r.clicks) : "—"}
                       </TableCell>
                     )}
-                    {(isAdGroupView || visibleCols?.conversions) && (
+                    {(isTableAdGroup || visibleCols?.conversions) && (
                       <TableCell className="text-right font-mono">
                         {r.conversions != null ? formatNumber(parseFloat(r.conversions), 2) : "—"}
                       </TableCell>
                     )}
-                    {!isAdGroupView && visibleCols?.searchLostIsBudget && (
+                    {!isTableAdGroup && visibleCols?.searchLostIsBudget && (
                       <TableCell className="text-right font-mono">
                         {r.searchLostIsBudget != null ? formatPct(parseFloat(r.searchLostIsBudget)) : "—"}
                       </TableCell>
                     )}
-                    {(isAdGroupView || visibleCols?.searchLostIsRank) && (
+                    {(isTableAdGroup || visibleCols?.searchLostIsRank) && (
                       <TableCell className="text-right font-mono">
                         {r.searchLostIsRank != null ? formatPct(parseFloat(r.searchLostIsRank)) : "—"}
                       </TableCell>
                     )}
-                    {(isAdGroupView || visibleCols?.searchImprShare) && (
+                    {(isTableAdGroup || visibleCols?.searchImprShare) && (
                       <TableCell className="text-right font-mono">
                         {r.searchImprShare != null ? formatPct(parseFloat(r.searchImprShare)) : "—"}
                       </TableCell>
                     )}
-                    {!isAdGroupView && (() => {
+                    {!isTableAdGroup && (() => {
                       const campName = r.campaign ? r.campaign.split(/[|,]/)[0].trim() : ""
                       const key = `${r.date}|${campName}`
                       const bd = campaignDayBudget.get(key)
