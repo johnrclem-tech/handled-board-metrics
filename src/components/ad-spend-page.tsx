@@ -363,6 +363,7 @@ export function AdSpendPage({
   const [budgetDailyRaw, setBudgetDailyRaw] = useState<{ date: string; actual: number; potential: number; missed: Record<string, number> }[]>([])
   const [budgetCampaigns, setBudgetCampaigns] = useState<string[]>([])
   const [budgetPeriod, setBudgetPeriod] = useState<"daily" | "weekly">("daily")
+  const [campaignDayBudget, setCampaignDayBudget] = useState<Map<string, { actual: number; potential: number; missed: number }>>(new Map())
   useEffect(() => {
     if (view === "budget") { setLoading(false); return }
     setLoading(true)
@@ -509,12 +510,15 @@ export function AdSpendPage({
 
         // Step 1: compute per campaign-day potential
         const dailyTotals = new Map<string, { actual: number; missed: Map<string, number> }>()
+        const perCampDay = new Map<string, { actual: number; potential: number; missed: number }>()
 
         for (const [campaign, dayMap] of campaignDaySpend) {
           for (const [date, actual] of dayMap) {
             const lostIs = campLostIs.get(`${date}|${campaign}`) || 0
             const potential = lostIs < 100 ? actual / (1 - lostIs / 100) : actual
             const missed = potential - actual
+
+            perCampDay.set(`${date}|${campaign}`, { actual, potential, missed })
 
             const entry = dailyTotals.get(date) || { actual: 0, missed: new Map<string, number>() }
             entry.actual += actual
@@ -554,6 +558,7 @@ export function AdSpendPage({
 
         setBudgetDailyRaw(dailyRows)
         setBudgetCampaigns(sortedCampaigns)
+        setCampaignDayBudget(perCampDay)
       })
       .catch(console.error)
   }, [])
@@ -1387,6 +1392,13 @@ export function AdSpendPage({
                       Search Impr. Share
                     </SortableHead>
                   )}
+                  {!isAdGroupView && (
+                    <>
+                      <TableHead className="text-right">Actual Spend</TableHead>
+                      <TableHead className="text-right">Total Potential</TableHead>
+                      <TableHead className="text-right">Total Missed</TableHead>
+                    </>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1430,6 +1442,18 @@ export function AdSpendPage({
                         {r.searchImprShare != null ? formatPct(parseFloat(r.searchImprShare)) : "—"}
                       </TableCell>
                     )}
+                    {!isAdGroupView && (() => {
+                      const campName = r.campaign ? r.campaign.split(/[|,]/)[0].trim() : ""
+                      const key = `${r.date}|${campName}`
+                      const bd = campaignDayBudget.get(key)
+                      return (
+                        <>
+                          <TableCell className="text-right font-mono">{bd ? formatCurrency(bd.actual) : "—"}</TableCell>
+                          <TableCell className="text-right font-mono">{bd ? formatCurrency(bd.potential) : "—"}</TableCell>
+                          <TableCell className="text-right font-mono">{bd && bd.missed > 0 ? formatCurrency(bd.missed) : "—"}</TableCell>
+                        </>
+                      )
+                    })()}
                   </TableRow>
                 ))}
               </TableBody>
