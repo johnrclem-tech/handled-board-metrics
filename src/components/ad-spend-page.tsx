@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useMemo, useCallback, type ReactElement } from "react"
+import React, { useEffect, useState, useMemo, useCallback, type ReactElement } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
@@ -47,6 +47,8 @@ import {
   ReferenceLine,
   Cell,
   Label,
+  AreaChart,
+  Area,
 } from "recharts"
 import { cn } from "@/lib/utils"
 
@@ -357,6 +359,8 @@ export function AdSpendPage({
   const [acquisitions, setAcquisitions] = useState<AcquisitionRow[]>([])
   const [ltv, setLtv] = useState<number | null>(null)
   const [billingMonthGm, setBillingMonthGm] = useState<number[]>([])
+  const [budgetChartData, setBudgetChartData] = useState<{ week: string; actual: number; [key: string]: string | number }[]>([])
+  const [budgetCampaigns, setBudgetCampaigns] = useState<string[]>([])
 
   useEffect(() => {
     setLoading(true)
@@ -465,6 +469,109 @@ export function AdSpendPage({
           }
           setBillingMonthGm(gms)
         }
+      })
+      .catch(console.error)
+  }, [])
+
+  // ── Budget chart: actual vs potential spend ──
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/ad-spend?view=ad-groups").then((r) => r.json()),
+      fetch("/api/ad-spend?view=campaigns").then((r) => r.json()),
+    ])
+      .then(([agData, campData]) => {
+        const agRows: AdRow[] = agData.rows || []
+        const campRows: AdRow[] = campData.rows || []
+
+        // Campaign-day lost IS (budget) lookup from campaign data
+        const campLostIs = new Map<string, number>()
+        for (const r of campRows) {
+          if (!r.date || !r.campaign) continue
+          const lostBudget = r.searchLostIsBudget ? parseFloat(r.searchLostIsBudget) : 0
+          if (lostBudget > 0) {
+            const key = `${r.date}|${r.campaign.split(/[|,]/)[0].trim()}`
+            campLostIs.set(key, lostBudget)
+          }
+        }
+
+        // Sum ad group spend per campaign-day, then compute potential
+        const campaignDaySpend = new Map<string, Map<string, number>>()
+        for (const r of agRows) {
+          if (!r.date || !r.campaign) continue
+          const cost = r.cost ? parseFloat(r.cost) : 0
+          if (cost <= 0) continue
+          const campaign = r.campaign.split(/[|,]/)[0].trim()
+          const dayMap = campaignDaySpend.get(campaign) || new Map<string, number>()
+          dayMap.set(r.date, (dayMap.get(r.date) || 0) + cost)
+          campaignDaySpend.set(campaign, dayMap)
+        }
+
+        // Step 1: compute per campaign-day potential
+        interface DayEntry { actual: number; missed: Map<string, number> }
+        const dailyTotals = new Map<string, DayEntry>()
+        const allCampaigns = new Set<string>()
+
+        for (const [campaign, dayMap] of campaignDaySpend) {
+          allCampaigns.add(campaign)
+          for (const [date, actual] of dayMap) {
+            const lostIs = campLostIs.get(`${date}|${campaign}`) || 0
+            const potential = lostIs < 100 ? actual / (1 - lostIs / 100) : actual
+            const missed = potential - actual
+
+            const entry = dailyTotals.get(date) || { actual: 0, missed: new Map<string, number>() }
+            entry.actual += actual
+            entry.missed.set(campaign, (entry.missed.get(campaign) || 0) + missed)
+            dailyTotals.set(date, entry)
+          }
+        }
+
+        // Step 2: aggregate into weeks (ISO week starting Monday)
+        const getWeekStart = (dateStr: string) => {
+          const d = new Date(dateStr + "T00:00:00")
+          const day = d.getDay()
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1)
+          const monday = new Date(d.setDate(diff))
+          return `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`
+        }
+
+        const weeklyMap = new Map<string, { actual: number; missed: Map<string, number> }>()
+        for (const [date, entry] of dailyTotals) {
+          const week = getWeekStart(date)
+          const wEntry = weeklyMap.get(week) || { actual: 0, missed: new Map<string, number>() }
+          wEntry.actual += entry.actual
+          for (const [camp, m] of entry.missed) {
+            wEntry.missed.set(camp, (wEntry.missed.get(camp) || 0) + m)
+          }
+          weeklyMap.set(week, wEntry)
+        }
+
+        // Sort campaigns by total missed spend (descending) for consistent stacking
+        const campTotals = new Map<string, number>()
+        for (const [, wEntry] of weeklyMap) {
+          for (const [camp, m] of wEntry.missed) {
+            campTotals.set(camp, (campTotals.get(camp) || 0) + m)
+          }
+        }
+        const sortedCampaigns = Array.from(campTotals.entries())
+          .filter(([, total]) => total > 0)
+          .sort((a, b) => b[1] - a[1])
+          .map(([name]) => name)
+
+        // Build chart data
+        const weeks = Array.from(weeklyMap.keys()).sort()
+        const chartRows = weeks.map((week) => {
+          const wEntry = weeklyMap.get(week)!
+          const d = new Date(week + "T00:00:00")
+          const label = `${d.toLocaleString("en-US", { month: "short" })} ${d.getDate()}`
+          const row: Record<string, string | number> = { week: label, actual: Math.round(wEntry.actual) }
+          for (const camp of sortedCampaigns) {
+            row[camp] = Math.round(wEntry.missed.get(camp) || 0)
+          }
+          return row
+        })
+
+        setBudgetChartData(chartRows as typeof budgetChartData)
+        setBudgetCampaigns(sortedCampaigns)
       })
       .catch(console.error)
   }, [])
@@ -890,6 +997,74 @@ export function AdSpendPage({
                   connectNulls
                 />
               </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {budgetChartData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Campaign Budget Analysis</CardTitle>
+            <CardDescription>Actual weekly spend vs estimated potential if budget caps were removed</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={budgetChartData} margin={{ top: 10, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+                <XAxis dataKey="week" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={50} interval={0} />
+                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} width={55} />
+                <Tooltip
+                  content={({ payload, label }) => {
+                    if (!payload || payload.length === 0) return null
+                    const actual = payload.find((p) => p.dataKey === "actual")
+                    const missed = payload.filter((p) => p.dataKey !== "actual" && (p.value as number) > 0)
+                    const totalPotential = (actual?.value as number || 0) + missed.reduce((s, p) => s + (p.value as number || 0), 0)
+                    return (
+                      <div className="rounded-lg border bg-background p-3 shadow-sm text-sm space-y-1 max-w-xs">
+                        <div className="font-semibold">Week of {label}</div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                          <span className="text-muted-foreground">Actual Spend:</span>
+                          <span className="font-mono font-semibold">{formatCurrency(actual?.value as number || 0)}</span>
+                          {missed.map((p) => (
+                            <React.Fragment key={p.dataKey as string}>
+                              <span className="text-muted-foreground truncate">{p.dataKey as string}:</span>
+                              <span className="font-mono" style={{ color: p.color }}>+{formatCurrency(p.value as number)}</span>
+                            </React.Fragment>
+                          ))}
+                          <span className="text-muted-foreground font-semibold border-t pt-1">Total Potential:</span>
+                          <span className="font-mono font-semibold border-t pt-1">{formatCurrency(totalPotential)}</span>
+                        </div>
+                      </div>
+                    )
+                  }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="actual"
+                  name="Actual Spend"
+                  stackId="budget"
+                  fill="var(--chart-1)"
+                  stroke="var(--chart-1)"
+                  fillOpacity={0.8}
+                />
+                {budgetCampaigns.map((camp, idx) => {
+                  const colors = ["var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "#a855f7", "#ec4899", "#14b8a6"]
+                  return (
+                    <Area
+                      key={camp}
+                      type="monotone"
+                      dataKey={camp}
+                      name={camp}
+                      stackId="budget"
+                      fill={colors[idx % colors.length]}
+                      stroke={colors[idx % colors.length]}
+                      fillOpacity={0.5}
+                    />
+                  )
+                })}
+                <Legend />
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
