@@ -200,17 +200,6 @@ export function Dashboard() {
 
           {activePage === "ad-spend" && (
             <div className="ml-auto flex items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">View:</span>
-              <Tabs value={adSpendPeriod} onValueChange={(v) => setAdSpendPeriod(v as AdSpendPeriod)}>
-                <TabsList className="bg-muted h-9">
-                  {AD_SPEND_PERIODS.map((p) => (
-                    <TabsTrigger key={p.value} value={p.value} className="px-4">
-                      {p.label}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-              <Separator orientation="vertical" className="h-4" />
               <span className="text-sm font-medium text-muted-foreground">Channel:</span>
               <Tabs value={adSpendChannel} onValueChange={(v) => setAdSpendChannel(v as AdSpendChannel)}>
                 <TabsList className="bg-muted h-9">
@@ -312,7 +301,7 @@ export function Dashboard() {
               key={`ad-spend-${refreshKey}`}
               range={adSpendRange}
               channel={adSpendChannel}
-              period={adSpendPeriod}
+              period="monthly"
             />
           )}
 

@@ -998,7 +998,7 @@ export function AdSpendPage({
         <Card>
           <CardHeader>
             <CardTitle>
-              Ad Spend {period === "monthly" ? "& CPA by Month" : period === "quarterly" ? "& CPA by Quarter" : "& CPA — TTM"}
+              Ad Spend & CPA by Month
             </CardTitle>
           </CardHeader>
           <CardContent>
