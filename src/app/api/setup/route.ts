@@ -187,6 +187,17 @@ export async function GET() {
       )
     `
 
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        name TEXT,
+        clerk_user_id TEXT NOT NULL UNIQUE,
+        role TEXT NOT NULL DEFAULT 'viewer',
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `
+
     return NextResponse.json({ success: true, message: "Database tables created successfully" })
   } catch (error) {
     console.error("Setup error:", error)

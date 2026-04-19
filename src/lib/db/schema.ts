@@ -92,6 +92,15 @@ export const adCampaignPerformance = pgTable("ad_campaign_performance", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name"),
+  clerkUserId: text("clerk_user_id").notNull().unique(),
+  role: text("role").notNull().default("viewer"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
 export const kpiTargets = pgTable("kpi_targets", {
   id: serial("id").primaryKey(),
   kpiName: text("kpi_name").notNull(),
