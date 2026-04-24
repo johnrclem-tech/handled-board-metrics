@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { Package, Settings, TrendingDown, Upload, Users, Funnel, Megaphone } from "lucide-react"
+import { Package, Settings, TrendingDown, Upload, Users, Funnel, Megaphone, FileText } from "lucide-react"
 
 interface AppSidebarProps {
   activePage: string
@@ -100,6 +100,15 @@ export function AppSidebar({ activePage, onNavigate }: AppSidebarProps) {
             >
               <Upload className="size-4" />
               <span>Import</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={activePage === "policies"}
+              onClick={() => onNavigate("policies")}
+            >
+              <FileText className="size-4" />
+              <span>Policies</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

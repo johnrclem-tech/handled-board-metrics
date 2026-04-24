@@ -24,6 +24,7 @@ import { LeadsPage } from "@/components/leads-page"
 import type { LeadsPeriod, LeadsTimeRange } from "@/components/leads-page"
 import { AdSpendPage } from "@/components/ad-spend-page"
 import type { AdSpendRange, AdSpendChannel, AdSpendPeriod } from "@/components/ad-spend-page"
+import { PoliciesPage } from "@/components/policies-page"
 import type { ConcentrationPeriod } from "@/components/concentration-chart"
 
 export interface CohortDrillFilter {
@@ -42,6 +43,7 @@ const PAGE_TITLES: Record<string, string> = {
   leads: "Leads",
   "ad-spend": "Ad Spend",
   import: "Import",
+  policies: "Policies",
 }
 
 const SEGMENTS: { value: ChurnSegment; label: string }[] = [
@@ -315,6 +317,10 @@ export function Dashboard() {
               </div>
               <FileUpload onUploadComplete={handleUploadComplete} />
             </div>
+          )}
+
+          {activePage === "policies" && (
+            <PoliciesPage />
           )}
         </main>
       </SidebarInset>
